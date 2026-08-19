@@ -1,0 +1,17 @@
+{
+  "name": "MedJ",
+  "short_name": "MedJ",
+  "description": "App d'apprentissage par répétition espacée (Méthode des J) avec synchronisation Google Calendar et IA Gemini pour étudiants en médecine PASS / LAS.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#0284c7",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

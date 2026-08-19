@@ -1,0 +1,56 @@
+micronaut:
+  application:
+    name: medj
+  router:
+    static-resources:
+      default:
+        paths:
+          - classpath:public
+        mapping: /**
+  security:
+    enabled: true
+    intercept-url-map:
+      - pattern: /**
+        access:
+          - isAnonymous()
+  server:
+    port: 8080
+    multipart:
+      enabled: true
+      max-file-size: 50MB
+    cors:
+      enabled: true
+      configurations:
+        web:
+          allowed-origins:
+            - "http://localhost:5173"
+            - "http://localhost:8080"
+          allowed-methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          allowed-headers:
+            - "*"
+
+medj:
+  gemini:
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-3.7-flash}
+    image-model: ${GEMINI_IMAGE_MODEL:gemini-3-pro-image}
+  google:
+    calendar:
+      calendar-name: "MedJ - Révisions PASS"
+      time-zone: "Europe/Paris"
+    cloud:
+      project-id: ${GCP_PROJECT_ID:medj-pass}
+      firestore-collection-prefix: ${FIRESTORE_PREFIX:medj_}
+      storage-bucket: ${GCS_BUCKET:medj-documents}
+  scheduling:
+    default-intervals: [0, 1, 3, 7, 14, 30, 60]
+    daily-overload-threshold: 6
+
+jackson:
+  serialization:
+    write-dates-as-timestamps: false

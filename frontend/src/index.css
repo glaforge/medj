@@ -1,0 +1,408 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  color-scheme: light dark;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #030712;
+  color: #f8fafc;
+  overflow-x: hidden;
+}
+
+html.light body {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+/* Medical study highlighters (Fluo Stabilo) */
+mark {
+  padding: 0.1em 0.35em !important;
+  border-radius: 0.375rem !important;
+  font-weight: 600 !important;
+  display: inline !important;
+}
+
+mark[data-color="yellow"], mark.hl-yellow {
+  background-color: #fef08a !important;
+  color: #422006 !important;
+}
+html.dark mark[data-color="yellow"], html.dark mark.hl-yellow {
+  background-color: rgba(234, 179, 8, 0.45) !important;
+  color: #fef9c3 !important;
+}
+
+mark[data-color="green"], mark.hl-green {
+  background-color: #bbf7d0 !important;
+  color: #052e16 !important;
+}
+html.dark mark[data-color="green"], html.dark mark.hl-green {
+  background-color: rgba(34, 197, 94, 0.45) !important;
+  color: #dcfce7 !important;
+}
+
+mark[data-color="pink"], mark.hl-pink {
+  background-color: #fbcfe8 !important;
+  color: #500724 !important;
+}
+html.dark mark[data-color="pink"], html.dark mark.hl-pink {
+  background-color: rgba(236, 72, 153, 0.45) !important;
+  color: #fce7f3 !important;
+}
+
+mark[data-color="cyan"], mark.hl-cyan {
+  background-color: #bae6fd !important;
+  color: #082f49 !important;
+}
+html.dark mark[data-color="cyan"], html.dark mark.hl-cyan {
+  background-color: rgba(14, 165, 233, 0.45) !important;
+  color: #e0f2fe !important;
+}
+
+mark[data-color="orange"], mark.hl-orange {
+  background-color: #fed7aa !important;
+  color: #431407 !important;
+}
+html.dark mark[data-color="orange"], html.dark mark.hl-orange {
+  background-color: rgba(249, 115, 22, 0.45) !important;
+  color: #ffedd5 !important;
+}
+
+mark[data-color="purple"], mark.hl-purple {
+  background-color: #e9d5ff !important;
+  color: #3b0764 !important;
+}
+html.dark mark[data-color="purple"], html.dark mark.hl-purple {
+  background-color: rgba(168, 85, 247, 0.45) !important;
+  color: #f3e8ff !important;
+}
+
+mark[data-color="rose"], mark.hl-rose {
+  background-color: #fecaca !important;
+  color: #4c0519 !important;
+}
+html.dark mark[data-color="rose"], html.dark mark.hl-rose {
+  background-color: rgba(244, 63, 94, 0.45) !important;
+  color: #ffe4e6 !important;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0b0f19;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+html.light ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+html.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Glassmorphism utility */
+.glass-panel {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-card {
+  background: rgba(17, 24, 39, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+html.light .glass-panel {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.06);
+}
+
+html.light .glass-card {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow: 0 4px 15px -3px rgba(0, 0, 0, 0.04);
+}
+
+.glow-med {
+  box-shadow: 0 0 25px -5px rgba(2, 132, 199, 0.25);
+}
+
+.glow-emerald {
+  box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.25);
+}
+
+/* Light mode automated surface & typography mappings */
+html.light .bg-slate-950 {
+  background-color: #f8fafc !important;
+}
+html.light .bg-slate-950\/95,
+html.light .bg-slate-950\/90,
+html.light .bg-slate-950\/80,
+html.light .bg-slate-950\/70,
+html.light .bg-slate-950\/60,
+html.light .bg-slate-950\/50,
+html.light .bg-slate-950\/40,
+html.light .bg-slate-950\/30,
+html.light .bg-slate-950\/20,
+html.light .bg-slate-950\/10 {
+  background-color: #f1f5f9 !important;
+}
+
+html.light .bg-slate-900 {
+  background-color: #ffffff !important;
+}
+html.light .bg-slate-900\/95,
+html.light .bg-slate-900\/90,
+html.light .bg-slate-900\/80,
+html.light .bg-slate-900\/70,
+html.light .bg-slate-900\/60,
+html.light .bg-slate-900\/40 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+html.light .bg-slate-800 {
+  background-color: #f1f5f9 !important;
+}
+html.light .bg-slate-800\/80,
+html.light .bg-slate-800\/60,
+html.light .bg-slate-800\/50,
+html.light .bg-slate-800\/40 {
+  background-color: #f1f5f9 !important;
+}
+
+html.light .border-slate-800,
+html.light .border-slate-800\/90,
+html.light .border-slate-800\/80,
+html.light .border-slate-800\/60,
+html.light .border-slate-800\/50,
+html.light .border-slate-800\/40,
+html.light .border-slate-800\/30,
+html.light .border-slate-800\/20,
+html.light .border-slate-900,
+html.light .divide-slate-800 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #e2e8f0 !important;
+}
+
+html.light .border-slate-700,
+html.light .border-slate-700\/80,
+html.light .border-slate-700\/60,
+html.light .border-slate-700\/50 {
+  border-color: #cbd5e1 !important;
+}
+
+/* Light mode text mappings */
+html.light .text-slate-100 {
+  color: #0f172a !important;
+}
+html.light .text-slate-200 {
+  color: #1e293b !important;
+}
+html.light .text-slate-300 {
+  color: #334155 !important;
+}
+html.light .text-slate-400,
+html.light .text-slate-400\/80 {
+  color: #64748b !important;
+}
+html.light .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+/* High Contrast Semantic Colors in Light Mode */
+
+/* Rose / Red / Overdue Alerts */
+html.light .bg-rose-950,
+html.light .bg-rose-950\/60,
+html.light .bg-rose-950\/40,
+html.light .bg-rose-950\/30,
+html.light .bg-rose-950\/20 {
+  background-color: #fff1f2 !important; /* Rose 50 */
+}
+html.light .border-rose-900,
+html.light .border-rose-900\/50,
+html.light .border-rose-900\/30,
+html.light .border-rose-800\/40,
+html.light .border-rose-500\/20 {
+  border-color: #fecdd3 !important; /* Rose 200 */
+}
+html.light .text-rose-300,
+html.light .text-rose-400,
+html.light .text-rose-200\/70 {
+  color: #9f1239 !important; /* Rose 800 */
+}
+html.light .text-rose-400\/80 {
+  color: #be123c !important; /* Rose 700 */
+}
+html.light .bg-rose-500\/10,
+html.light .bg-rose-500\/20 {
+  background-color: #ffe4e6 !important;
+}
+
+/* Sky / Info / Primary Badges & Accents */
+html.light .bg-sky-950,
+html.light .bg-sky-950\/80,
+html.light .bg-sky-950\/60,
+html.light .bg-sky-950\/40,
+html.light .bg-sky-950\/30 {
+  background-color: #f0f9ff !important; /* Sky 50 */
+}
+html.light .border-sky-800\/50,
+html.light .border-sky-800\/40,
+html.light .border-sky-800\/30,
+html.light .border-sky-500\/20 {
+  border-color: #bae6fd !important; /* Sky 200 */
+}
+html.light .text-sky-300,
+html.light .text-sky-400 {
+  color: #0369a1 !important; /* Sky 700 */
+}
+html.light .bg-sky-600\/30 {
+  background-color: #e0f2fe !important;
+}
+
+/* Amber / Warning / Mnemonics */
+html.light .bg-amber-950,
+html.light .bg-amber-950\/60,
+html.light .bg-amber-950\/40,
+html.light .bg-amber-950\/30 {
+  background-color: #fffbeb !important; /* Amber 50 */
+}
+html.light .border-amber-800\/40,
+html.light .border-amber-800\/30,
+html.light .border-amber-500\/20 {
+  border-color: #fde68a !important; /* Amber 200 */
+}
+html.light .text-amber-300,
+html.light .text-amber-400 {
+  color: #b45309 !important; /* Amber 700 */
+}
+
+/* Emerald / Success */
+html.light .bg-emerald-950,
+html.light .bg-emerald-950\/60,
+html.light .bg-emerald-950\/40,
+html.light .bg-emerald-950\/30,
+html.light .bg-emerald-950\/20 {
+  background-color: #f0fdf4 !important; /* Emerald 50 */
+}
+html.light .border-emerald-800\/40,
+html.light .border-emerald-800\/30,
+html.light .border-emerald-500\/20 {
+  border-color: #a7f3d0 !important; /* Emerald 200 */
+}
+html.light .text-emerald-300,
+html.light .text-emerald-400 {
+  color: #047857 !important; /* Emerald 700 */
+}
+html.light .bg-emerald-500\/10 {
+  background-color: #d1fae5 !important;
+}
+
+/* Text white override only when not inside colored badges / buttons */
+html.light h1.text-white,
+html.light h2.text-white,
+html.light h3.text-white,
+html.light h4.text-white,
+html.light p.text-white,
+html.light span.text-white:not([class*="bg-sky"]):not([class*="bg-emerald"]):not([class*="bg-rose"]):not([class*="bg-indigo"]):not([class*="bg-amber"]):not([class*="bg-purple"]):not([class*="bg-teal"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-gradient"]),
+html.light div.text-white:not([class*="bg-sky"]):not([class*="bg-emerald"]):not([class*="bg-rose"]):not([class*="bg-indigo"]):not([class*="bg-amber"]):not([class*="bg-purple"]):not([class*="bg-teal"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-gradient"]) {
+  color: #0f172a !important;
+}
+
+/* Inputs & Form Controls in Light Mode */
+html.light input:not([type="checkbox"]):not([type="radio"]),
+html.light select,
+html.light textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Hover states in light mode */
+html.light .hover\:bg-slate-800:hover,
+html.light .hover\:bg-slate-800\/50:hover {
+  background-color: #e2e8f0 !important;
+}
+html.light .hover\:bg-slate-900:hover,
+html.light .hover\:bg-slate-900\/40:hover {
+  background-color: #f1f5f9 !important;
+}
+html.light .hover\:text-white:hover:not([class*="bg-sky"]):not([class*="bg-emerald"]):not([class*="bg-rose"]):not([class*="bg-indigo"]):not([class*="bg-gradient"]) {
+  color: #0f172a !important;
+}
+
+/* Modal Backdrops in Light Mode */
+html.light .fixed.inset-0.bg-slate-950\/80 {
+  background-color: rgba(15, 23, 42, 0.45) !important;
+}
+
+/* Brand Gradient in Light Mode */
+html.light .bg-gradient-to-r.from-white {
+  background-image: linear-gradient(to right, #0f172a, #0369a1, #0284c7) !important;
+}
+
+/* Shadows and subtle elevation in Light Mode */
+html.light .shadow-2xl {
+  box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.1), 0 8px 16px -6px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Smooth transitions */
+* {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* ==========================================================================
+   Dedicated A4 Printable Worksheets (@media print)
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm 10mm 12mm;
+  }
+
+  /* Reset body and html */
+  html, body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Hide entire application shell and screen-only controls */
+  header, nav, .navbar, [role="navigation"], .no-print, .print\\:hidden {
+    display: none !important;
+  }
+}
+
+

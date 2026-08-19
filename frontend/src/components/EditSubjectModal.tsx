@@ -1,0 +1,372 @@
+import React, { useState, useEffect } from 'react';
+import { SubjectUE } from '../types';
+import { api } from '../services/api';
+import { useEscapeKey } from '../hooks/useEscapeKey';
+import {
+  X,
+  BookOpen,
+  Palette,
+  Check,
+  Clock,
+  Layers,
+  Save,
+  AlertTriangle,
+  Atom,
+  Dna,
+  Activity,
+  BarChart3,
+  HeartPulse,
+  Pill,
+  Users,
+  GraduationCap,
+  Book,
+  Stethoscope,
+  Microscope,
+  Brain,
+  Zap,
+  Shield,
+  Sparkles
+} from 'lucide-react';
+
+interface EditSubjectModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  subject?: SubjectUE | null;
+  onSubjectSaved: (savedSubject: SubjectUE) => void;
+}
+
+const AVAILABLE_ICONS = [
+  { name: 'Atom', label: 'Chimie', icon: Atom },
+  { name: 'Dna', label: 'Génétique / Bio', icon: Dna },
+  { name: 'Activity', label: 'Physiologie', icon: Activity },
+  { name: 'HeartPulse', label: 'Anatomie / Cardio', icon: HeartPulse },
+  { name: 'Pill', label: 'Pharmacologie', icon: Pill },
+  { name: 'BarChart3', label: 'Biostatistiques', icon: BarChart3 },
+  { name: 'Users', label: 'SSH / Société', icon: Users },
+  { name: 'GraduationCap', label: 'Mineure', icon: GraduationCap },
+  { name: 'Book', label: 'Général', icon: Book },
+  { name: 'Stethoscope', label: 'Clinique', icon: Stethoscope },
+  { name: 'Microscope', label: 'Histologie', icon: Microscope },
+  { name: 'Brain', label: 'Neuro / Psycho', icon: Brain },
+  { name: 'Zap', label: 'Biophysique', icon: Zap },
+  { name: 'Shield', label: 'Santé Publique', icon: Shield },
+  { name: 'Sparkles', label: 'Optionnel', icon: Sparkles },
+];
+
+const COLOR_PALETTE = [
+  '#0284c7', // Bleu Médical
+  '#10b981', // Vert Émeraude
+  '#ec4899', // Rose Fuchsia
+  '#8b5cf6', // Violet
+  '#f59e0b', // Ambre
+  '#14b8a6', // Turquoise
+  '#6366f1', // Indigo
+  '#f43f5e', // Rouge Rubis
+  '#06b6d4', // Cyan
+  '#84cc16', // Vert Lime
+  '#d97706', // Ocre
+  '#64748b'  // Ardoise
+];
+
+export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
+  isOpen,
+  onClose,
+  subject,
+  onSubjectSaved
+}) => {
+  useEscapeKey(isOpen, onClose);
+
+  const isEditing = !!subject?.id;
+
+  const [code, setCode] = useState('');
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [color, setColor] = useState('#0284c7');
+  const [ects, setEcts] = useState(10);
+  const [intervalsStr, setIntervalsStr] = useState('0, 1, 3, 7, 14, 30, 60');
+  const [selectedIcon, setSelectedIcon] = useState('Book');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setErrorMessage(null);
+      if (subject) {
+        setCode(subject.code || '');
+        setName(subject.name || '');
+        setDescription(subject.description || '');
+        setColor(subject.color || '#0284c7');
+        setEcts(subject.coefficient ?? subject.ects ?? 10);
+        setIntervalsStr((subject.customIntervals ?? subject.defaultIntervals ?? [0, 1, 3, 7, 14, 30, 60]).join(', '));
+        setSelectedIcon(subject.icon || 'Book');
+      } else {
+        // Create mode
+        setCode('');
+        setName('');
+        setDescription('');
+        setColor('#0284c7');
+        setEcts(10);
+        setIntervalsStr('0, 1, 3, 7, 14, 30, 60');
+        setSelectedIcon('Book');
+      }
+    }
+  }, [isOpen, subject]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+
+    if (!code.trim()) {
+      setErrorMessage("Le code de l'UE est obligatoire (ex: UE1, UE8, MINEURE).");
+      return;
+    }
+    if (!name.trim()) {
+      setErrorMessage("Le nom de la matière est obligatoire.");
+      return;
+    }
+
+    const parsedIntervals = intervalsStr
+      .split(',')
+      .map(s => parseInt(s.trim(), 10))
+      .filter(n => !isNaN(n) && n >= 0);
+
+    if (parsedIntervals.length === 0) {
+      setErrorMessage("Veuillez renseigner au moins un intervalle de révision valide (ex: 0, 1, 3, 7, 14).");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const intervals = Array.from(new Set(parsedIntervals)).sort((a, b) => a - b);
+      const coeff = ects > 0 ? ects : 10;
+      const payload: Partial<SubjectUE> = {
+        code: code.trim().toUpperCase(),
+        name: name.trim(),
+        description: description.trim(),
+        color,
+        coefficient: coeff,
+        ects: coeff,
+        customIntervals: intervals,
+        defaultIntervals: intervals,
+        icon: selectedIcon
+      };
+
+      let saved: SubjectUE;
+      if (isEditing && subject?.id) {
+        saved = await api.updateSubject(subject.id, payload);
+      } else {
+        saved = await api.createSubject(payload);
+      }
+
+      onSubjectSaved(saved);
+      onClose();
+    } catch (err: any) {
+      console.error('Failed to save subject', err);
+      setErrorMessage(err.message || "Une erreur est survenue lors de l'enregistrement de l'UE.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+      <div className="glass-panel border border-slate-800 rounded-3xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scaleUp">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-900/60">
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-2xl p-0.5 shadow-lg shadow-sky-950/40 flex items-center justify-center text-white"
+              style={{ backgroundColor: color }}
+            >
+              <Layers className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-extrabold text-white">
+                {isEditing ? `Modifier l'UE : ${subject?.code}` : 'Créer une Nouvelle UE / Matière'}
+              </h2>
+              <p className="text-xs text-slate-400">
+                Personnalisez le code, les ECTS, le code couleur et le rythme des J
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white transition-all"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+          
+          {errorMessage && (
+            <div className="p-3.5 rounded-2xl bg-rose-950/40 border border-rose-500/30 text-rose-300 text-xs font-semibold flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {/* Row 1: Code & ECTS */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-300">Code UE</label>
+              <input
+                type="text"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="Ex: UE1, UE8, MINEURE"
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white uppercase font-bold focus:outline-none focus:border-sky-500"
+                required
+              />
+            </div>
+
+            <div className="sm:col-span-2 space-y-1.5">
+              <label className="text-xs font-bold text-slate-300">Nom de la matière</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ex: Chimie & Biochimie structurale"
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-sky-500 font-medium"
+                required
+              />
+            </div>
+          </div>
+
+          {/* Row 2: Description */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-300">Description du programme / thématiques</label>
+            <textarea
+              rows={2}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Ex: Thermodynamique, chimie organique, métabolisme glucidique et lipidique..."
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-sky-500 shadow-inner"
+            />
+          </div>
+
+          {/* Row 3: Color Palette & ECTS */}
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Palette className="w-3.5 h-3.5 text-sky-400" />
+                <span>Code couleur personnalisé</span>
+              </span>
+              <span className="text-[11px] font-mono text-slate-400">{color}</span>
+            </label>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {COLOR_PALETTE.map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setColor(c)}
+                  className="w-7 h-7 rounded-full flex items-center justify-center transition-transform hover:scale-110 shadow-xs"
+                  style={{ backgroundColor: c }}
+                >
+                  {color.toLowerCase() === c.toLowerCase() && (
+                    <Check className="w-4 h-4 text-white drop-shadow stroke-[3]" />
+                  )}
+                </button>
+              ))}
+
+              <div className="flex items-center gap-1.5 pl-2 border-l border-slate-800">
+                <input
+                  type="color"
+                  value={color}
+                  onChange={(e) => setColor(e.target.value)}
+                  className="w-7 h-7 rounded-full bg-transparent border-0 cursor-pointer p-0"
+                  title="Couleur personnalisée"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Row 4: ECTS & Default Intervals */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-300">Crédits ECTS</label>
+              <input
+                type="number"
+                min={1}
+                max={30}
+                value={ects}
+                onChange={(e) => setEcts(parseInt(e.target.value, 10) || 10)}
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
+              />
+            </div>
+
+            <div className="sm:col-span-2 space-y-1.5">
+              <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span>Intervalles des J par défaut</span>
+              </label>
+              <input
+                type="text"
+                value={intervalsStr}
+                onChange={(e) => setIntervalsStr(e.target.value)}
+                placeholder="0, 1, 3, 7, 14, 30, 60"
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500 font-mono"
+              />
+            </div>
+          </div>
+
+          {/* Row 5: Icon Selector */}
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-300">Icône thématique</label>
+            <div className="grid grid-cols-5 gap-2">
+              {AVAILABLE_ICONS.map(item => {
+                const IconComp = item.icon;
+                const isSelected = selectedIcon === item.name;
+                return (
+                  <button
+                    key={item.name}
+                    type="button"
+                    onClick={() => setSelectedIcon(item.name)}
+                    className={`p-2 rounded-xl border flex flex-col items-center gap-1 transition-all ${
+                      isSelected
+                        ? 'bg-sky-950 border-sky-500 text-sky-400 shadow-md shadow-sky-950/30'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                    }`}
+                  >
+                    <IconComp className="w-4 h-4" />
+                    <span className="text-[9px] truncate max-w-full font-medium">{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Footer Actions */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold transition-all"
+            >
+              Annuler
+            </button>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg shadow-sky-950/40 active:scale-95 transition-all disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              <span>{isSubmitting ? 'Enregistrement...' : isEditing ? 'Mettre à jour l\'UE' : 'Créer l\'UE'}</span>
+            </button>
+          </div>
+
+        </form>
+
+      </div>
+    </div>
+  );
+};
+export default EditSubjectModal;
