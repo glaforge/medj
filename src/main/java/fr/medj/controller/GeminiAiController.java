@@ -328,6 +328,8 @@ public class GeminiAiController {
         GeminiMedicalService.TutorResponse tutorResponse = geminiMedicalService.askTutor(
             request.question(),
             request.courseContext(),
+            request.courseId(),
+            request.courseTitle(),
             history
         );
 
@@ -340,6 +342,7 @@ public class GeminiAiController {
             LocalDateTime.now(),
             tutorResponse.createdQcm(),
             tutorResponse.createdIllustration(),
+            tutorResponse.createdFlashcard(),
             tutorResponse.groundingSources()
         );
 
@@ -388,6 +391,7 @@ public class GeminiAiController {
         response.put("answer", tutorResponse.answer());
         response.put("createdQcm", tutorResponse.createdQcm());
         response.put("createdIllustration", tutorResponse.createdIllustration());
+        response.put("createdFlashcard", tutorResponse.createdFlashcard());
         response.put("groundingSources", tutorResponse.groundingSources());
         response.put("messageId", modelMsg.id());
         response.put("threadId", thread.id());
@@ -616,5 +620,152 @@ public class GeminiAiController {
             return HttpResponse.noContent();
         }
         return HttpResponse.notFound();
+    }
+
+    // ==========================================
+    // FLASHCARDS (Active Recall) ENDPOINTS
+    // ==========================================
+
+    @Serdeable
+    public record GenerateFlashcardsRequest(
+        String courseId,
+        String courseTitle,
+        String ueCode,
+        String ueId,
+        String content,
+        Integer count
+    ) {}
+
+    @Post("/generate-flashcards")
+    public HttpResponse<List<Flashcard>> generateFlashcards(@Body GenerateFlashcardsRequest request) {
+        if (request == null) return HttpResponse.badRequest();
+        int count = (request.count() != null && request.count() > 0) ? request.count() : 5;
+        List<Flashcard> generated = geminiMedicalService.generateFlashcards(
+            request.courseId(),
+            request.courseTitle(),
+            request.ueCode(),
+            request.ueId(),
+            request.content(),
+            count
+        );
+        return HttpResponse.ok(generated);
+    }
+
+    @Get("/flashcards")
+    public List<Flashcard> getFlashcards(
+        @QueryValue Optional<String> courseId,
+        @QueryValue Optional<String> ueId,
+        @QueryValue Optional<Boolean> favorite
+    ) {
+        List<Flashcard> list = firestoreService.getAllFlashcards();
+        if (courseId != null && courseId.isPresent() && !courseId.get().isBlank() && !"ALL".equalsIgnoreCase(courseId.get())) {
+            list = list.stream().filter(f -> f.courseId().equalsIgnoreCase(courseId.get())).toList();
+        }
+        if (ueId != null && ueId.isPresent() && !ueId.get().isBlank() && !"ALL".equalsIgnoreCase(ueId.get())) {
+            list = list.stream().filter(f -> f.ueId().equalsIgnoreCase(ueId.get()) || f.ueCode().equalsIgnoreCase(ueId.get())).toList();
+        }
+        if (favorite != null && favorite.isPresent() && favorite.get()) {
+            list = list.stream().filter(Flashcard::isFavorite).toList();
+        }
+        return list;
+    }
+
+    @Get("/flashcards/{id}")
+    public HttpResponse<Flashcard> getFlashcard(@PathVariable String id) {
+        return firestoreService.getFlashcard(id)
+            .map(HttpResponse::ok)
+            .orElseGet(HttpResponse::notFound);
+    }
+
+    @Post("/flashcards")
+    public HttpResponse<Flashcard> createFlashcard(@Body Flashcard flashcard) {
+        if (flashcard == null) return HttpResponse.badRequest();
+        String id = (flashcard.id() != null && !flashcard.id().isBlank()) ? flashcard.id() : "fc-" + UUID.randomUUID();
+        Flashcard toSave = new Flashcard(
+            id,
+            flashcard.courseId() != null ? flashcard.courseId() : "course-general",
+            flashcard.courseTitle() != null ? flashcard.courseTitle() : "Cours PASS",
+            flashcard.ueCode() != null ? flashcard.ueCode() : "UE",
+            flashcard.ueId() != null ? flashcard.ueId() : "ue1",
+            flashcard.front() != null ? flashcard.front() : "Question",
+            flashcard.back() != null ? flashcard.back() : "Réponse",
+            flashcard.hint(),
+            flashcard.difficulty() > 0 ? flashcard.difficulty() : 3,
+            flashcard.isFavorite(),
+            flashcard.tags() != null ? flashcard.tags() : List.of(),
+            flashcard.reviewCount(),
+            flashcard.lastReviewedAt(),
+            flashcard.createdAt() != null ? flashcard.createdAt() : LocalDateTime.now()
+        );
+        Flashcard saved = firestoreService.saveFlashcard(toSave);
+        return HttpResponse.created(saved);
+    }
+
+    @Put("/flashcards/{id}")
+    public HttpResponse<Flashcard> updateFlashcard(@PathVariable String id, @Body Flashcard flashcard) {
+        if (flashcard == null) return HttpResponse.badRequest();
+        Flashcard toSave = new Flashcard(
+            id,
+            flashcard.courseId(),
+            flashcard.courseTitle(),
+            flashcard.ueCode(),
+            flashcard.ueId(),
+            flashcard.front(),
+            flashcard.back(),
+            flashcard.hint(),
+            flashcard.difficulty(),
+            flashcard.isFavorite(),
+            flashcard.tags(),
+            flashcard.reviewCount(),
+            flashcard.lastReviewedAt(),
+            flashcard.createdAt() != null ? flashcard.createdAt() : LocalDateTime.now()
+        );
+        Flashcard updated = firestoreService.saveFlashcard(toSave);
+        return HttpResponse.ok(updated);
+    }
+
+    @Delete("/flashcards/{id}")
+    public HttpResponse<Void> deleteFlashcard(@PathVariable String id) {
+        if (firestoreService.deleteFlashcard(id)) {
+            return HttpResponse.noContent();
+        }
+        return HttpResponse.notFound();
+    }
+
+    @Post("/flashcards/{id}/favorite")
+    public HttpResponse<Flashcard> toggleFlashcardFavorite(@PathVariable String id) {
+        return firestoreService.toggleFlashcardFavorite(id)
+            .map(HttpResponse::ok)
+            .orElseGet(HttpResponse::notFound);
+    }
+
+    @Serdeable
+    public record ReviewFlashcardRequest(String rating) {}
+
+    @Post("/flashcards/{id}/review")
+    public HttpResponse<Flashcard> recordFlashcardReview(@PathVariable String id, @Body ReviewFlashcardRequest request) {
+        String rating = request != null ? request.rating() : "GOOD";
+        return firestoreService.recordFlashcardReview(id, rating)
+            .map(HttpResponse::ok)
+            .orElseGet(HttpResponse::notFound);
+    }
+
+    @Post("/flashcards/{id}/verify")
+    public HttpResponse<FlashcardVerification> verifyFlashcardById(@PathVariable String id) {
+        Optional<Flashcard> fcOpt = firestoreService.getFlashcard(id);
+        if (fcOpt.isEmpty()) {
+            return HttpResponse.notFound();
+        }
+        FlashcardVerification result = geminiMedicalService.verifyAndFactCheckFlashcard(fcOpt.get());
+        return HttpResponse.ok(result);
+    }
+
+    @Post("/verify-flashcard")
+    public HttpResponse<FlashcardVerification> verifyFlashcard(@Body Flashcard flashcard) {
+        if (flashcard == null) {
+            return HttpResponse.badRequest();
+        }
+        FlashcardVerification result = geminiMedicalService.verifyAndFactCheckFlashcard(flashcard);
+        return HttpResponse.ok(result);
     }
 }

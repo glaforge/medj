@@ -8,6 +8,7 @@ import fr.medj.service.FirestoreService;
 import fr.medj.service.GeminiMedicalService;
 import fr.medj.service.MedicalIllustrationTools;
 import fr.medj.service.MedicalQcmTools;
+import fr.medj.service.MedicalFlashcardTools;
 import fr.medj.service.StorageService;
 import io.micronaut.serde.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,8 +31,9 @@ public class QcmVerificationTest {
         MedicalQcmTools medicalQcmTools = new MedicalQcmTools(firestoreService);
         StorageService storageService = new StorageService("./build/test-uploads");
         MedicalIllustrationTools medicalIllustrationTools = new MedicalIllustrationTools(firestoreService, storageService);
+        MedicalFlashcardTools medicalFlashcardTools = new MedicalFlashcardTools(firestoreService);
         ObjectMapper objectMapper = ObjectMapper.getDefault();
-        geminiMedicalService = new GeminiMedicalService(objectMapper, firestoreService, medicalQcmTools, medicalIllustrationTools, storageService);
+        geminiMedicalService = new GeminiMedicalService(objectMapper, firestoreService, medicalQcmTools, medicalIllustrationTools, medicalFlashcardTools, storageService);
         geminiMedicalService.init();
     }
 

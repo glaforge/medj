@@ -15,17 +15,18 @@ public record AiTutorMessage(
     LocalDateTime timestamp,
     @Nullable QcmQuestion createdQcm,
     @Nullable MedicalIllustration createdIllustration,
+    @Nullable Flashcard createdFlashcard,
     List<GroundingSource> groundingSources
 ) {
     public AiTutorMessage(String id, String role, String content, String courseId, String courseTitle, LocalDateTime timestamp) {
-        this(id, role, content, courseId, courseTitle, timestamp, null, null, List.of());
+        this(id, role, content, courseId, courseTitle, timestamp, null, null, null, List.of());
     }
 
     public AiTutorMessage(String id, String role, String content, String courseId, String courseTitle, LocalDateTime timestamp, QcmQuestion createdQcm) {
-        this(id, role, content, courseId, courseTitle, timestamp, createdQcm, null, List.of());
+        this(id, role, content, courseId, courseTitle, timestamp, createdQcm, null, null, List.of());
     }
 
     public AiTutorMessage(String id, String role, String content, String courseId, String courseTitle, LocalDateTime timestamp, QcmQuestion createdQcm, List<GroundingSource> groundingSources) {
-        this(id, role, content, courseId, courseTitle, timestamp, createdQcm, null, groundingSources);
+        this(id, role, content, courseId, courseTitle, timestamp, createdQcm, null, null, groundingSources);
     }
 }

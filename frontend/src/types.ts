@@ -152,6 +152,25 @@ export interface MedicalIllustration {
   verification?: IllustrationVerification;
 }
 
+export interface Flashcard {
+  id: string;
+  courseId: string;
+  courseTitle: string;
+  ueCode: string;
+  ueId: string;
+  front: string;
+  back: string;
+  hint?: string;
+  difficulty: number;
+  isFavorite: boolean;
+  tags: string[];
+  reviewCount?: number;
+  lastReviewedAt?: string;
+  createdAt: string;
+}
+
+export type FlashcardReviewRating = 'AGAIN' | 'HARD' | 'GOOD' | 'EASY';
+
 export interface AiTutorMessage {
   id: string;
   role: 'user' | 'model';
@@ -161,6 +180,7 @@ export interface AiTutorMessage {
   timestamp: string;
   createdQcm?: QcmQuestion;
   createdIllustration?: MedicalIllustration;
+  createdFlashcard?: Flashcard;
   groundingSources?: GroundingSource[];
 }
 
@@ -211,5 +231,21 @@ export interface QcmVerificationResult {
   itemVerifications: ItemVerification[];
   correctedQcm?: QcmQuestion | null;
   groundingSources: GroundingSource[];
+}
+
+export interface FlashcardVerification {
+  flashcardId: string;
+  isAccurate: boolean;
+  status: 'VALIDE' | 'CORRECTIONS_RECOMMANDEES' | 'INEXACTITUDES_DETECTEES' | string;
+  score: number;
+  summary: string;
+  frontReview: string;
+  backReview: string;
+  hintReview?: string | null;
+  keyMedicalPoints: string[];
+  detectedIssues: string[];
+  correctedFlashcard?: Flashcard | null;
+  groundingSources?: GroundingSource[];
+  verifiedAt: string;
 }
 

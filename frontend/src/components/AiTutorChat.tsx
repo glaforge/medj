@@ -30,7 +30,9 @@ import {
   EyeOff,
   Globe,
   ExternalLink,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Layers,
+  Star
 } from 'lucide-react';
 
 interface AiTutorChatProps {
@@ -38,13 +40,15 @@ interface AiTutorChatProps {
   initialCourse?: Course;
   onStartQcmQuiz?: (course: Course) => void;
   onQcmCreated?: () => void;
+  onFlashcardCreated?: () => void;
 }
 
 export const AiTutorChat: React.FC<AiTutorChatProps> = ({
   courses,
   initialCourse,
   onStartQcmQuiz,
-  onQcmCreated
+  onQcmCreated,
+  onFlashcardCreated
 }) => {
   const [threads, setThreads] = useState<TutorConversationThread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
@@ -186,6 +190,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
         timestamp: res.timestamp || new Date().toISOString(),
         createdQcm: res.createdQcm,
         createdIllustration: res.createdIllustration,
+        createdFlashcard: res.createdFlashcard,
         groundingSources: res.groundingSources
       };
 
@@ -193,6 +198,9 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
 
       if (res.createdQcm && onQcmCreated) {
         onQcmCreated();
+      }
+      if (res.createdFlashcard && onFlashcardCreated) {
+        onFlashcardCreated();
       }
 
       // Refresh threads list & ensure activeThreadId is set
@@ -506,7 +514,13 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
                 }`}
               >
                 {msg.role === 'model' ? (
-                  <MarkdownRenderer content={msg.content} />
+                  <MarkdownRenderer
+                    content={
+                      msg.content
+                        ? msg.content.replace(/\n*---\s*\n+###?\s*🌐?\s*Sources\s*&?\s*Liens\s*Web[\s\S]*$/i, '').trim()
+                        : ''
+                    }
+                  />
                 ) : (
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                 )}
@@ -718,9 +732,57 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
                   </div>
                 )}
 
+                {/* Embedded Created Flashcard Card */}
+                {msg.createdFlashcard && (
+                  <div className="mt-3 p-4 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-500/40 shadow-md space-y-3">
+                    <div className="flex items-center justify-between gap-2 border-b border-amber-200 dark:border-amber-800/60 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-700/60 uppercase tracking-wider">
+                          <Layers className="w-3 h-3" />
+                          <span>Flashcard Créée</span>
+                        </span>
+                        {msg.createdFlashcard.ueCode && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            {msg.createdFlashcard.ueCode}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold">
+                        ✓ Enregistrée dans le cours
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 text-xs">
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                          Question (Recto)
+                        </div>
+                        <div className="font-semibold text-slate-900 dark:text-white mt-0.5">
+                          <MarkdownRenderer content={msg.createdFlashcard.front} />
+                        </div>
+                      </div>
+
+                      {msg.createdFlashcard.hint && (
+                        <div className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-100/60 dark:bg-amber-900/30 px-2.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700/40">
+                          💡 <strong>Indice :</strong> {msg.createdFlashcard.hint}
+                        </div>
+                      )}
+
+                      <div className="pt-2 border-t border-amber-200/80 dark:border-amber-800/40">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                          Réponse (Verso)
+                        </div>
+                        <div className="text-slate-800 dark:text-slate-200 mt-0.5 leading-relaxed">
+                          <MarkdownRenderer content={msg.createdFlashcard.back} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Google Search Grounding Sources Badges */}
                 {(() => {
-                  const displaySources: { title: string; uri: string; domain?: string }[] =
+                  const rawSources =
                     msg.groundingSources && msg.groundingSources.length > 0
                       ? msg.groundingSources
                       : msg.role === 'model'
@@ -745,6 +807,16 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
                         })()
                       : [];
 
+                  if (rawSources.length === 0) return null;
+
+                  // Deduplicate by unique URI
+                  const seenUris = new Set<string>();
+                  const displaySources = rawSources.filter(src => {
+                    if (!src.uri || seenUris.has(src.uri)) return false;
+                    seenUris.add(src.uri);
+                    return true;
+                  });
+
                   if (displaySources.length === 0) return null;
 
                   return (
@@ -766,7 +838,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
                               title={src.uri}
                             >
                               <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-sky-600 dark:group-hover:text-sky-400 shrink-0" />
-                              <span className="font-semibold truncate max-w-[220px]">{src.title || src.uri}</span>
+                              <span className="font-semibold truncate max-w-[220px]">{src.title || src.domain || src.uri}</span>
                               {showDomain && (
                                 <span className="text-[9px] text-slate-500 font-mono">({src.domain})</span>
                               )}

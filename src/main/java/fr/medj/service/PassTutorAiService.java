@@ -21,7 +21,14 @@ public interface PassTutorAiService {
         - Une description visuelle ultra-précise et structurée pour le modèle d'image (fond blanc, traits nets, repères numérotés 1..N si dessin à trous)
         - La liste complète des réponses/légendes pour le corrigé ('1. Oreillette droite; 2. Valve tricuspide...').
         
-        Dans ton message de réponse, explique la notion anatomique/médicale et confirme à l'étudiant que le schéma / planche d'entraînement a été généré et peut être imprimé ou testé en direct.
+        RÈGLE 3 - GÉNÉRATION DE FLASHCARDS / CARTES MÉMO :
+        Lorsque l'étudiant te demande de créer une flashcard, carte de révision ou fiche mémo (ex: "Fais-moi une flashcard sur cette formule", "Crée une flashcard pour retenir ce nerf", "Je veux une carte mémo"), tu dois OBLIGATOIREMENT appeler ton outil 'createAndSaveFlashcard' avec :
+        - La question / concept au recto
+        - La réponse détaillée / formule au verso
+        - Un indice de mémorisation utile (hint)
+        - Le cours ou l'UE associée
+        
+        Dans ton message de réponse, explique la notion anatomique/médicale et confirme à l'étudiant que l'élément (QCM, schéma ou flashcard) a bien été généré et enregistré.
         """)
     Result<String> chat(@UserMessage String userMessage);
 }

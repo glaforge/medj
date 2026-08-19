@@ -385,6 +385,14 @@ classDiagram
 | `POST` | `/api/gemini/illustrations/{id}/verify` | — | Multimodal visual inspection & fact-checking of generated illustrations. |
 | `GET` | `/api/gemini/illustrations` | Query: `courseId` (opt) | Lists generated illustrations. |
 | `DELETE` | `/api/gemini/illustrations/{id}` | — | Deletes an illustration. |
+| `GET` | `/api/gemini/flashcards` | Query: `courseId` (opt) | Lists active recall flashcards. |
+| `POST` | `/api/gemini/flashcards` | `Flashcard` | Creates a new flashcard. |
+| `PUT` | `/api/gemini/flashcards/{id}` | `Flashcard` | Updates a flashcard. |
+| `DELETE` | `/api/gemini/flashcards/{id}` | — | Deletes a flashcard. |
+| `POST` | `/api/gemini/flashcards/{id}/favorite` | — | Toggles star favorite status. |
+| `POST` | `/api/gemini/flashcards/{id}/review` | `ReviewFlashcardRequest` | Records spaced repetition review rating (AGAIN/HARD/GOOD/EASY). |
+| `POST` | `/api/gemini/flashcards/{id}/verify` | — | Fact-checks a flashcard with LLM-as-Judge & Google Search Grounding. |
+| `POST` | `/api/gemini/verify-flashcard` | `Flashcard` | Fact-checks an arbitrary flashcard payload. |
 
 ### 7.4 Calendar & Storage (`/api`)
 | Method | Path | Request Body | Description |

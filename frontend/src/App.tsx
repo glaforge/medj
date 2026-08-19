@@ -5,7 +5,9 @@ import {
   RevisionSession,
   TodaySummary,
   JScheduleConfig,
-  QcmQuestion
+  QcmQuestion,
+  Flashcard,
+  FlashcardReviewRating
 } from './types';
 import { api } from './services/api';
 import { Navbar } from './components/Navbar';
@@ -14,7 +16,10 @@ import { JCalendarView } from './components/JCalendarView';
 import { CourseListView } from './components/CourseListView';
 import { CourseDetailView } from './components/CourseDetailView';
 import { QcmBankView } from './components/QcmBankView';
+import { FlashcardBankView } from './components/FlashcardBankView';
 import { EditQcmModal } from './components/EditQcmModal';
+import { EditFlashcardModal } from './components/EditFlashcardModal';
+import { FlashcardPlayerModal } from './components/FlashcardPlayerModal';
 import { EditSubjectModal } from './components/EditSubjectModal';
 import { AiTutorChat } from './components/AiTutorChat';
 import { QcmTrainerModal } from './components/QcmTrainerModal';
@@ -26,7 +31,7 @@ import { AddRevisionModal } from './components/AddRevisionModal';
 import { SettingsModal } from './components/SettingsModal';
 
 export const App: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState<'dashboard' | 'calendar' | 'courses' | 'qcms' | 'tutor' | 'scans'>('dashboard');
+  const [currentTab, setCurrentTab] = useState<'dashboard' | 'calendar' | 'courses' | 'qcms' | 'flashcards' | 'tutor' | 'scans'>('dashboard');
   const [subjects, setSubjects] = useState<SubjectUE[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [revisions, setRevisions] = useState<RevisionSession[]>([]);
@@ -43,6 +48,7 @@ export const App: React.FC = () => {
   const [selectedCourseForDetail, setSelectedCourseForDetail] = useState<Course | null>(null);
   const [tutorInitialCourse, setTutorInitialCourse] = useState<Course | null>(null);
   const [targetQcmId, setTargetQcmId] = useState<string | null>(null);
+  const [targetFlashcardId, setTargetFlashcardId] = useState<string | null>(null);
   const [activeQcmCourse, setActiveQcmCourse] = useState<Course | null>(null);
   const [activeCustomQcms, setActiveCustomQcms] = useState<QcmQuestion[] | undefined>(undefined);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -61,11 +67,21 @@ export const App: React.FC = () => {
   const [selectedCourseForScan, setSelectedCourseForScan] = useState<Course | undefined>(undefined);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Flashcards state
+  const [isEditFlashcardOpen, setIsEditFlashcardOpen] = useState(false);
+  const [editingFlashcard, setEditingFlashcard] = useState<Flashcard | null>(null);
+  const [editFlashcardCourseId, setEditFlashcardCourseId] = useState<string | undefined>(undefined);
+  const [isFlashcardPlayerOpen, setIsFlashcardPlayerOpen] = useState(false);
+  const [playerFlashcards, setPlayerFlashcards] = useState<Flashcard[]>([]);
+  const [playerInitialIndex, setPlayerInitialIndex] = useState(0);
+  const [playerDeckTitle, setPlayerDeckTitle] = useState<string | undefined>(undefined);
+
   // Deep linking: Route parser
   const parseRoute = (pathname: string): {
-    tab: 'dashboard' | 'calendar' | 'courses' | 'qcms' | 'tutor' | 'scans';
+    tab: 'dashboard' | 'calendar' | 'courses' | 'qcms' | 'flashcards' | 'tutor' | 'scans';
     courseId?: string;
     qcmId?: string;
+    flashcardId?: string;
   } => {
     const clean = pathname.replace(/\/+$/, '') || '/';
 
@@ -88,6 +104,13 @@ export const App: React.FC = () => {
     if (clean.startsWith('/qcms/')) {
       const parts = clean.split('/');
       return { tab: 'qcms', qcmId: parts[2] };
+    }
+    if (clean === '/flashcards') {
+      return { tab: 'flashcards' };
+    }
+    if (clean.startsWith('/flashcards/')) {
+      const parts = clean.split('/');
+      return { tab: 'flashcards', flashcardId: parts[2] };
     }
     if (clean === '/ia' || clean === '/tutor') {
       return { tab: 'tutor' };
@@ -123,6 +146,12 @@ export const App: React.FC = () => {
       setTargetQcmId(route.qcmId);
     } else {
       setTargetQcmId(null);
+    }
+
+    if (route.flashcardId) {
+      setTargetFlashcardId(route.flashcardId);
+    } else {
+      setTargetFlashcardId(null);
     }
   };
 
@@ -323,6 +352,50 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleOpenEditFlashcardModal = (flashcard?: Flashcard, defaultCourseId?: string) => {
+    setEditingFlashcard(flashcard || null);
+    setEditFlashcardCourseId(defaultCourseId);
+    setIsEditFlashcardOpen(true);
+  };
+
+  const handleSaveFlashcard = async (payload: Partial<Flashcard>) => {
+    if (payload.id) {
+      await api.updateFlashcard(payload.id, payload);
+      showToast('✓ Flashcard modifiée avec succès !');
+    } else {
+      await api.createFlashcard(payload);
+      showToast('✓ Nouvelle flashcard créée avec succès !');
+    }
+    setRevisionUpdateTrigger(prev => prev + 1);
+  };
+
+  const handleStartStudyFlashcards = (cards: Flashcard[], initialIndex: number = 0, title?: string) => {
+    if (!cards || cards.length === 0) {
+      showToast('Aucune flashcard à étudier.');
+      return;
+    }
+    setPlayerFlashcards(cards);
+    setPlayerInitialIndex(initialIndex);
+    setPlayerDeckTitle(title);
+    setIsFlashcardPlayerOpen(true);
+  };
+
+  const handleToggleFlashcardFavorite = async (id: string) => {
+    try {
+      await api.toggleFlashcardFavorite(id);
+    } catch (e) {
+      console.error('Failed to toggle favorite', e);
+    }
+  };
+
+  const handleRecordFlashcardReview = async (id: string, rating: FlashcardReviewRating) => {
+    try {
+      await api.recordFlashcardReview(id, rating);
+    } catch (e) {
+      console.error('Failed to record review', e);
+    }
+  };
+
   const handleSyncCalendar = async () => {
     setIsSyncingCalendar(true);
     try {
@@ -354,6 +427,7 @@ export const App: React.FC = () => {
           else if (tab === 'calendar') navigate('/planning');
           else if (tab === 'courses') navigate('/subjects');
           else if (tab === 'qcms') navigate('/qcms');
+          else if (tab === 'flashcards') navigate('/flashcards');
           else if (tab === 'tutor') navigate('/ia');
           else navigate(`/${tab}`);
         }}
@@ -402,6 +476,9 @@ export const App: React.FC = () => {
               setEditQcmInitialCourseId(cId);
               setIsEditQcmOpen(true);
             }}
+            onOpenEditFlashcardModal={(fc, cId) => handleOpenEditFlashcardModal(fc, cId)}
+            onStartFlashcardsStudy={(cards, idx, title) => handleStartStudyFlashcards(cards, idx, title)}
+            onShowToast={showToast}
           />
         ) : (
           <>
@@ -483,6 +560,18 @@ export const App: React.FC = () => {
                   setIsEditQcmOpen(true);
                 }}
                 onStartQuiz={handleStartQuiz}
+                onShowToast={showToast}
+              />
+            )}
+
+            {currentTab === 'flashcards' && (
+              <FlashcardBankView
+                courses={courses}
+                subjects={subjects}
+                targetFlashcardId={targetFlashcardId}
+                onNavigate={navigate}
+                onOpenEditModal={(card, cId) => handleOpenEditFlashcardModal(card, cId)}
+                onStartStudy={(cards, idx, title) => handleStartStudyFlashcards(cards, idx, title)}
                 onShowToast={showToast}
               />
             )}
@@ -620,6 +709,30 @@ export const App: React.FC = () => {
           showToast('Paramètres mis à jour !');
           loadAllData();
         }}
+      />
+
+      <EditFlashcardModal
+        isOpen={isEditFlashcardOpen}
+        onClose={() => {
+          setIsEditFlashcardOpen(false);
+          setEditingFlashcard(null);
+          setEditFlashcardCourseId(undefined);
+        }}
+        onSave={handleSaveFlashcard}
+        courses={courses}
+        subjects={subjects}
+        editingFlashcard={editingFlashcard}
+        defaultCourseId={editFlashcardCourseId}
+      />
+
+      <FlashcardPlayerModal
+        isOpen={isFlashcardPlayerOpen}
+        onClose={() => setIsFlashcardPlayerOpen(false)}
+        flashcards={playerFlashcards}
+        initialIndex={playerInitialIndex}
+        courseTitle={playerDeckTitle}
+        onToggleFavorite={handleToggleFlashcardFavorite}
+        onRecordReview={handleRecordFlashcardReview}
       />
 
     </div>

@@ -41,6 +41,7 @@ public class CourseDocumentScanAttachmentTest {
         JMethodEngineService jMethodEngineService = new JMethodEngineService(firestoreService);
         MedicalQcmTools medicalQcmTools = new MedicalQcmTools(firestoreService);
         MedicalIllustrationTools medicalIllustrationTools = new MedicalIllustrationTools(firestoreService, storageService);
+        MedicalFlashcardTools medicalFlashcardTools = new MedicalFlashcardTools(firestoreService);
         ObjectMapper objectMapper = ObjectMapper.getDefault();
 
         geminiMedicalService = new GeminiMedicalService(
@@ -48,6 +49,7 @@ public class CourseDocumentScanAttachmentTest {
             firestoreService,
             medicalQcmTools,
             medicalIllustrationTools,
+            medicalFlashcardTools,
             storageService
         );
         geminiMedicalService.init();

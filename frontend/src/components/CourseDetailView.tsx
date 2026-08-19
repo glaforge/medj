@@ -7,15 +7,19 @@ import {
   QcmAttempt,
   QcmVerificationResult,
   MedicalIllustration,
-  HandwrittenScanResult
+  HandwrittenScanResult,
+  Flashcard,
+  FlashcardVerification
 } from '../types';
 import { api } from '../services/api';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ProgressionChart } from './ProgressionChart';
 import { QcmVerificationModal } from './QcmVerificationModal';
+import { FlashcardVerificationModal } from './FlashcardVerificationModal';
 import { MedicalIllustrationModal } from './MedicalIllustrationModal';
 import { NewIllustrationModal } from './NewIllustrationModal';
 import { EditCourseNotesModal } from './EditCourseNotesModal';
+import { PrintFlashcardsModal } from './PrintFlashcardsModal';
 import { getLocalTodayString } from '../utils/dateUtils';
 import {
   ArrowLeft,
@@ -47,7 +51,10 @@ import {
   Image as ImageIcon,
   Printer,
   Download,
-  BookOpen
+  BookOpen,
+  Layers,
+  Star,
+  Link2
 } from 'lucide-react';
 
 interface CourseDetailViewProps {
@@ -63,6 +70,9 @@ interface CourseDetailViewProps {
   onCourseUpdated?: (course: Course) => void;
   onOpenAddRevisionModal?: (initialDate?: string, courseId?: string) => void;
   onOpenEditQcmModal?: (qcm?: QcmQuestion, courseId?: string) => void;
+  onOpenEditFlashcardModal?: (flashcard?: Flashcard, defaultCourseId?: string) => void;
+  onStartFlashcardsStudy?: (flashcards: Flashcard[], initialIndex?: number, title?: string) => void;
+  onShowToast?: (msg: string) => void;
   revisionUpdateTrigger?: number;
 }
 
@@ -79,11 +89,17 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
   onCourseUpdated,
   onOpenAddRevisionModal,
   onOpenEditQcmModal,
+  onOpenEditFlashcardModal,
+  onStartFlashcardsStudy,
+  onShowToast,
   revisionUpdateTrigger
 }) => {
   const [currentCourse, setCurrentCourse] = useState<Course>(course);
   const [sessions, setSessions] = useState<RevisionSession[]>([]);
   const [qcms, setQcms] = useState<QcmQuestion[]>([]);
+  const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
+  const [isGeneratingFlashcards, setIsGeneratingFlashcards] = useState(false);
+  const [flashcardGenerationSuccess, setFlashcardGenerationSuccess] = useState(false);
   const [attempts, setAttempts] = useState<QcmAttempt[]>([]);
   const [illustrations, setIllustrations] = useState<MedicalIllustration[]>([]);
   const [scans, setScans] = useState<HandwrittenScanResult[]>([]);
@@ -97,6 +113,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
   const [revealedQcmIds, setRevealedQcmIds] = useState<Set<string>>(new Set());
   const [globalShowAnswers, setGlobalShowAnswers] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [isPrintFlashcardsModalOpen, setIsPrintFlashcardsModalOpen] = useState(false);
 
   const fileUploadRef = useRef<HTMLInputElement>(null);
 
@@ -105,6 +122,12 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
   const [verificationResult, setVerificationResult] = useState<QcmVerificationResult | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+
+  // Gemini Flashcard Verification
+  const [verifyingFlashcard, setVerifyingFlashcard] = useState<Flashcard | null>(null);
+  const [isFlashcardVerificationModalOpen, setIsFlashcardVerificationModalOpen] = useState(false);
+  const [flashcardVerificationResult, setFlashcardVerificationResult] = useState<FlashcardVerification | null>(null);
+  const [isVerifyingFlashcard, setIsVerifyingFlashcard] = useState(false);
 
   const subject = subjects.find(s => s.id.toLowerCase() === currentCourse.ueId.toLowerCase() || s.code.toLowerCase() === currentCourse.ueId.toLowerCase());
   const [currentColor, setCurrentColor] = useState<string>(currentCourse.color || (subject ? subject.color : '#0284c7'));
@@ -151,10 +174,11 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
 
   const loadCourseData = async () => {
     try {
-      const [freshCourse, allRevs, courseQcms, courseAttempts, courseIllus, courseScans] = await Promise.all([
+      const [freshCourse, allRevs, courseQcms, courseFlashcards, courseAttempts, courseIllus, courseScans] = await Promise.all([
         api.getCourse(course.id).catch(() => course),
         api.getAllRevisions({ courseId: course.id }),
         api.getQcms(course.id),
+        api.getFlashcards(course.id),
         api.getQcmAttempts(course.id),
         api.getIllustrations(course.id),
         api.getScans(course.id)
@@ -164,6 +188,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
       }
       setSessions(allRevs.sort((a, b) => a.jStep - b.jStep));
       setQcms(courseQcms);
+      setFlashcards(courseFlashcards);
       setAttempts(courseAttempts);
       setIllustrations(courseIllus);
       setScans(courseScans);
@@ -297,6 +322,28 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
     }
   };
 
+  const handleGenerateFlashcards = async () => {
+    setIsGeneratingFlashcards(true);
+    setFlashcardGenerationSuccess(false);
+    try {
+      const generated = await api.generateFlashcards(
+        course.id,
+        course.title,
+        course.ueCode || 'UE',
+        course.ueId || 'ue1',
+        course.notes || course.title,
+        5
+      );
+      setFlashcards(prev => [...generated, ...prev]);
+      setFlashcardGenerationSuccess(true);
+      setTimeout(() => setFlashcardGenerationSuccess(false), 4000);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsGeneratingFlashcards(false);
+    }
+  };
+
   const handleVerifyQcm = async (qcm: QcmQuestion) => {
     setVerifyingQcm(qcm);
     setVerificationResult(null);
@@ -319,6 +366,34 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
       loadCourseData();
     } catch (e) {
       console.error('Failed to apply correction', e);
+      throw e;
+    }
+  };
+
+  const handleVerifyFlashcard = async (card: Flashcard) => {
+    setVerifyingFlashcard(card);
+    setFlashcardVerificationResult(null);
+    setIsVerifyingFlashcard(true);
+    setIsFlashcardVerificationModalOpen(true);
+    try {
+      const result = await api.verifyFlashcardById(card.id);
+      setFlashcardVerificationResult(result);
+    } catch (e) {
+      console.error('Failed to verify flashcard', e);
+      if (onShowToast) onShowToast('❌ Erreur lors de la vérification');
+    } finally {
+      setIsVerifyingFlashcard(false);
+    }
+  };
+
+  const handleApplyFlashcardCorrection = async (correctedCard: Flashcard) => {
+    try {
+      const updated = await api.updateFlashcard(correctedCard.id, correctedCard);
+      setFlashcards(prev => prev.map(f => f.id === updated.id ? updated : f));
+      loadCourseData();
+      if (onShowToast) onShowToast('✓ Flashcard optimisée avec succès !');
+    } catch (e) {
+      console.error('Failed to apply flashcard correction', e);
       throw e;
     }
   };
@@ -907,11 +982,189 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
         )}
       </div>
 
+      {/* Flashcards (Active Recall) Section */}
+      <div className="glass-panel rounded-2xl p-6 border border-slate-200 dark:border-slate-800 space-y-4 bg-white/70 dark:bg-slate-900/50 backdrop-blur-md shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                <Layers className="w-4 h-4 text-amber-500" />
+                <span>Fiches de Mémorisation Active & Flashcards</span>
+              </h2>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 shadow-2xs">
+                {flashcards.length} carte{flashcards.length > 1 ? 's' : ''}
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+              Révisez les formules, définitions et repères essentiels avec le lecteur 3D aléatoire.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+            {flashcards.length > 0 && onStartFlashcardsStudy && (
+              <button
+                onClick={() => onStartFlashcardsStudy(flashcards, 0, currentCourse.title)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-md shadow-amber-950/30 transition-all cursor-pointer active:scale-95"
+              >
+                <Play className="w-4 h-4 fill-slate-950" />
+                <span>S'entraîner ({flashcards.length})</span>
+              </button>
+            )}
+
+            {flashcards.length > 0 && (
+              <button
+                onClick={() => setIsPrintFlashcardsModalOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold border border-slate-300 dark:border-slate-700 shadow-2xs transition-all cursor-pointer active:scale-95"
+                title="Imprimer ou exporter en PDF les flashcards de ce cours"
+              >
+                <Printer className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span>Imprimer</span>
+              </button>
+            )}
+
+            {onOpenEditFlashcardModal && (
+              <button
+                onClick={() => onOpenEditFlashcardModal(undefined, currentCourse.id)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold border border-slate-300 dark:border-slate-700 shadow-2xs transition-all cursor-pointer active:scale-95"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Ajouter</span>
+              </button>
+            )}
+
+            <button
+              onClick={handleGenerateFlashcards}
+              disabled={isGeneratingFlashcards}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs font-bold shadow-md shadow-amber-950/30 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${isGeneratingFlashcards ? 'animate-spin' : ''}`} />
+              <span>{isGeneratingFlashcards ? 'Génération Gemini...' : '✨ Générer +5 Flashcards'}</span>
+            </button>
+          </div>
+        </div>
+
+        {flashcards.length === 0 ? (
+          <div className="p-8 text-center border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl space-y-2 bg-slate-50/50 dark:bg-slate-950/30">
+            <Layers className="w-8 h-8 text-slate-400 dark:text-slate-600 mx-auto" />
+            <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+              Aucune flashcard enregistrée pour ce cours.
+            </p>
+            <div className="flex justify-center gap-2 pt-1">
+              <button
+                onClick={handleGenerateFlashcards}
+                disabled={isGeneratingFlashcards}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950"
+              >
+                ✨ Générer 5 cartes avec l'IA
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {flashcards.map((fc) => (
+              <div
+                key={fc.id}
+                className="p-4 rounded-2xl bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/80 hover:border-amber-500/40 transition-all shadow-xs flex flex-col justify-between space-y-3"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-800/30">
+                      Flashcard
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const url = `${window.location.origin}/flashcards/${fc.id}`;
+                          navigator.clipboard.writeText(url);
+                          window.history.pushState(null, '', `/flashcards/${fc.id}`);
+                          if (onShowToast) onShowToast(`✓ Lien direct copié : /flashcards/${fc.id}`);
+                        }}
+                        className="text-slate-400 hover:text-amber-500 transition-colors p-1"
+                        title="Copier le lien direct de la flashcard (/flashcards/...)"
+                      >
+                        <Link2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await api.toggleFlashcardFavorite(fc.id);
+                          loadCourseData();
+                        }}
+                        className="text-slate-400 hover:text-amber-400 transition-colors p-1"
+                        title={fc.isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris ⭐'}
+                      >
+                        <Star className={`w-3.5 h-3.5 ${fc.isFavorite ? 'fill-amber-400 text-amber-400' : ''}`} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="text-xs font-semibold text-slate-800 dark:text-slate-100 line-clamp-2 leading-snug">
+                    <MarkdownRenderer content={fc.front} />
+                  </div>
+                  {fc.hint && (
+                    <div className="text-[11px] text-amber-700 dark:text-amber-300/90 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/30 px-2 py-0.5 rounded truncate">
+                      💡 {fc.hint}
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                  {onStartFlashcardsStudy && (
+                    <button
+                      type="button"
+                      onClick={() => onStartFlashcardsStudy([fc], 0, currentCourse.title)}
+                      className="flex items-center gap-1 text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:text-amber-500 cursor-pointer"
+                    >
+                      <Play className="w-3 h-3 fill-amber-500" />
+                      <span>Réviser</span>
+                    </button>
+                  )}
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleVerifyFlashcard(fc)}
+                      className="p-1 text-slate-400 hover:text-amber-500 rounded"
+                      title="Vérifier la flashcard par IA (Fact-Checking)"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                    </button>
+                    {onOpenEditFlashcardModal && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenEditFlashcardModal(fc, currentCourse.id)}
+                        className="p-1 text-slate-400 hover:text-sky-400 rounded"
+                        title="Modifier"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!window.confirm('Supprimer cette flashcard ?')) return;
+                        await api.deleteFlashcard(fc.id);
+                        loadCourseData();
+                      }}
+                      className="p-1 text-slate-400 hover:text-rose-400 rounded"
+                      title="Supprimer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Medical Illustrations & Fill-in-the-Blank Diagrams Gallery */}
-      <div className="glass-panel rounded-2xl p-6 border border-slate-800 space-y-4">
+      <div className="glass-panel rounded-2xl p-6 border border-slate-200 dark:border-slate-800 space-y-4 bg-white/70 dark:bg-slate-900/50 backdrop-blur-md shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
+            <h2 className="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
               <span className="text-purple-400">🎨</span>
               Croquis, Schémas & Dessins à Trous ({illustrations.length})
             </h2>
@@ -1321,6 +1574,20 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
         onApplyCorrection={handleApplyCorrection}
       />
 
+      {/* Flashcard Verification Modal */}
+      <FlashcardVerificationModal
+        isOpen={isFlashcardVerificationModalOpen}
+        onClose={() => {
+          setIsFlashcardVerificationModalOpen(false);
+          setVerifyingFlashcard(null);
+          setFlashcardVerificationResult(null);
+        }}
+        flashcard={verifyingFlashcard}
+        verificationResult={flashcardVerificationResult}
+        isLoading={isVerifyingFlashcard}
+        onApplyCorrection={handleApplyFlashcardCorrection}
+      />
+
       {/* Edit Course Rich Notes Modal */}
       <EditCourseNotesModal
         isOpen={isEditNotesOpen}
@@ -1360,6 +1627,16 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
           }}
         />
       )}
+
+      {/* Print Flashcards Modal */}
+      <PrintFlashcardsModal
+        isOpen={isPrintFlashcardsModalOpen}
+        onClose={() => setIsPrintFlashcardsModalOpen(false)}
+        flashcards={flashcards}
+        subjects={subjects}
+        contextTitle={`Flashcards • [${currentCourse.ueCode}] ${currentCourse.title}`}
+        onShowToast={onShowToast}
+      />
 
     </div>
   );

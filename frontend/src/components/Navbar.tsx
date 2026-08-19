@@ -10,13 +10,14 @@ import {
   HelpCircle,
   Award,
   Sun,
-  Moon
+  Moon,
+  Layers
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 interface NavbarProps {
-  currentTab: 'dashboard' | 'calendar' | 'courses' | 'qcms' | 'tutor' | 'scans';
-  onSelectTab: (tab: 'dashboard' | 'calendar' | 'courses' | 'qcms' | 'tutor' | 'scans') => void;
+  currentTab: 'dashboard' | 'calendar' | 'courses' | 'qcms' | 'flashcards' | 'tutor' | 'scans';
+  onSelectTab: (tab: 'dashboard' | 'calendar' | 'courses' | 'qcms' | 'flashcards' | 'tutor' | 'scans') => void;
   onOpenScanner: () => void;
   onOpenSettings: () => void;
   onSyncCalendar: () => void;
@@ -108,6 +109,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <HelpCircle className="w-4 h-4" />
               <span>QCMs</span>
+            </button>
+
+            <button
+              onClick={() => onSelectTab('flashcards')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                currentTab === 'flashcards'
+                  ? 'bg-sky-600 text-white shadow-sm shadow-sky-600/30'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/50'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              <span>Flashcards</span>
             </button>
 
             <button
@@ -208,6 +221,15 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <HelpCircle className="w-4 h-4" />
           <span>QCMs</span>
+        </button>
+        <button
+          onClick={() => onSelectTab('flashcards')}
+          className={`flex flex-col items-center gap-1 text-[10px] font-medium transition-colors ${
+            currentTab === 'flashcards' ? 'text-sky-600 dark:text-sky-400 font-bold' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>Flashcards</span>
         </button>
         <button
           onClick={() => onSelectTab('tutor')}

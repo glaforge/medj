@@ -27,6 +27,16 @@ public class MedicalIllustrationTools {
         String generateImageForPrompt(String visualPrompt, String type);
     }
 
+    private String activeCourseId;
+    private String activeCourseTitle;
+    private String activeUeCode;
+
+    public void setActiveCourse(String courseId, String courseTitle, String ueCode) {
+        this.activeCourseId = courseId;
+        this.activeCourseTitle = courseTitle;
+        this.activeUeCode = ueCode;
+    }
+
     public MedicalIllustrationTools(FirestoreService firestoreService, StorageService storageService) {
         this.firestoreService = firestoreService;
         this.storageService = storageService;
@@ -51,31 +61,44 @@ public class MedicalIllustrationTools {
         LOG.info("LangChain4j @Tool createAndSaveMedicalIllustration invoked: title='{}', type='{}'", title, illustrationType);
 
         // Resolve course and subject
-        String resolvedCourseId = "course-general";
-        String resolvedCourseTitle = "Cours PASS Médecine";
-        String resolvedUeCode = "UE";
+        String resolvedCourseId = (activeCourseId != null && !activeCourseId.isBlank()) ? activeCourseId : "course-general";
+        String resolvedCourseTitle = (activeCourseTitle != null && !activeCourseTitle.isBlank()) ? activeCourseTitle : "Cours PASS Médecine";
+        String resolvedUeCode = (activeUeCode != null && !activeUeCode.isBlank()) ? activeUeCode : "UE";
 
         if (courseOrUe != null && !courseOrUe.isBlank()) {
             String target = courseOrUe.trim().toLowerCase();
-            Optional<Course> courseOpt = firestoreService.getAllCourses().stream()
-                .filter(c -> c.id().equalsIgnoreCase(target) ||
-                             c.title().toLowerCase().contains(target) ||
-                             c.ueCode().equalsIgnoreCase(target) ||
-                             c.ueId().equalsIgnoreCase(target))
-                .findFirst();
-
-            if (courseOpt.isPresent()) {
-                Course c = courseOpt.get();
-                resolvedCourseId = c.id();
-                resolvedCourseTitle = c.title();
-                resolvedUeCode = c.ueCode();
+            
+            // 1. Direct match with active course
+            if (activeCourseId != null && (activeCourseId.equalsIgnoreCase(target) || (activeCourseTitle != null && (activeCourseTitle.toLowerCase().contains(target) || target.contains(activeCourseTitle.toLowerCase()))))) {
+                resolvedCourseId = activeCourseId;
+                resolvedCourseTitle = activeCourseTitle;
+                if (activeUeCode != null) resolvedUeCode = activeUeCode;
             } else {
-                Optional<SubjectUE> ueOpt = firestoreService.getAllSubjects().stream()
-                    .filter(u -> u.id().equalsIgnoreCase(target) || u.code().equalsIgnoreCase(target))
+                // 2. Specific Course ID or Title match in Firestore
+                Optional<Course> courseOpt = firestoreService.getAllCourses().stream()
+                    .filter(c -> c.id().equalsIgnoreCase(target) ||
+                                 c.title().equalsIgnoreCase(target) ||
+                                 c.title().toLowerCase().contains(target) ||
+                                 target.contains(c.title().toLowerCase()))
                     .findFirst();
-                if (ueOpt.isPresent()) {
-                    resolvedUeCode = ueOpt.get().code();
-                    resolvedCourseTitle = ueOpt.get().name();
+
+                if (courseOpt.isPresent()) {
+                    Course c = courseOpt.get();
+                    resolvedCourseId = c.id();
+                    resolvedCourseTitle = c.title();
+                    resolvedUeCode = c.ueCode();
+                } else if (activeCourseId != null && !activeCourseId.isBlank()) {
+                    resolvedCourseId = activeCourseId;
+                    resolvedCourseTitle = activeCourseTitle != null ? activeCourseTitle : resolvedCourseTitle;
+                    if (activeUeCode != null) resolvedUeCode = activeUeCode;
+                } else {
+                    Optional<SubjectUE> ueOpt = firestoreService.getAllSubjects().stream()
+                        .filter(u -> u.id().equalsIgnoreCase(target) || u.code().equalsIgnoreCase(target))
+                        .findFirst();
+                    if (ueOpt.isPresent()) {
+                        resolvedUeCode = ueOpt.get().code();
+                        resolvedCourseTitle = ueOpt.get().name();
+                    }
                 }
             }
         }

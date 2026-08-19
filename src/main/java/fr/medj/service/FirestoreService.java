@@ -32,6 +32,7 @@ public class FirestoreService {
     private final Map<String, HandwrittenScanResult> scans = new ConcurrentHashMap<>();
     private final Map<String, TutorConversationThread> tutorThreads = new ConcurrentHashMap<>();
     private final Map<String, MedicalIllustration> illustrations = new ConcurrentHashMap<>();
+    private final Map<String, Flashcard> flashcards = new ConcurrentHashMap<>();
     private final List<AiTutorMessage> tutorMessages = Collections.synchronizedList(new ArrayList<>());
     private volatile JScheduleConfig scheduleConfig = JScheduleConfig.defaultConfiguration();
 
@@ -93,7 +94,85 @@ public class FirestoreService {
             );
             tutorThreads.put(th1Id, th1);
         }
-        LOG.info("Seeded {} official courses and {} QCMs for Paris Cité PASS", courses.size(), qcms.size());
+
+        // Seed Sample Flashcards for Active Recall
+        List<Flashcard> sampleCards = List.of(
+            new Flashcard(
+                "fc-seed-1",
+                "course-ue3-03",
+                "Élasticité de la paroi vasculaire et loi de Laplace",
+                "UE3",
+                "ue3",
+                "Quelle est la loi de Laplace pour un vaisseau cylindrique (relation entre Tension pariétale T, Pression transmurale P et Rayon r) ?",
+                "Pour un cylindre : $T = P \\times r$.\n\nLa tension pariétale est directement proportionnelle à la pression transmurale et au rayon du vaisseau. Pour une sphère (ex: alvéole pulmonaire), la formule est $T = \\frac{P \\times r}{2}$.",
+                "Pensez à la formule simple T = P × r pour le cylindre et division par 2 pour la sphère.",
+                3,
+                true,
+                List.of("UE3", "Biophysique", "Hémodynamique", "Laplace"),
+                LocalDateTime.now().minusDays(3)
+            ),
+            new Flashcard(
+                "fc-seed-2",
+                "course-ue5-07",
+                "Membre supérieur : Plexus brachial, loges du bras et de l'avant-bras",
+                "UE5",
+                "ue5",
+                "Quels muscles sont innervés par le nerf musculocutané et quelle est sa racine d'origine ?",
+                "Le nerf musculocutané (racines **C5, C6, C7**, issu du tronc secondaire antéro-latéral) innerve les **3 muscles de la loge antérieure du bras** :\n1. Muscle biceps brachial\n2. Muscle coraco-brachial\n3. Muscle brachial\n\nIl assure la flexion du coude et la supination.",
+                "Loge antérieure du bras uniquement (3 muscles fléchisseurs).",
+                2,
+                true,
+                List.of("UE5", "Anatomie", "Plexus brachial", "Nerf musculocutané"),
+                LocalDateTime.now().minusDays(2)
+            ),
+            new Flashcard(
+                "fc-seed-3",
+                "course-ue6-02",
+                "Pharmacocinétique : Clairance, demi-vie et volume de distribution",
+                "UE6",
+                "ue6",
+                "Donner la définition et la formule de la clairance corporelle totale ($Cl_{tot}$) en fonction de la Dose, de la biodisponibilité $F$ et de l'$AUC$.",
+                "La clairance corporelle totale représente le **volume virtuel de plasma totalement épuré d'un médicament par unité de temps** (en mL/min ou L/h) :\n\n$$Cl_{tot} = \\frac{Dose \\times F}{AUC}$$\n\nPour une administration intraveineuse ($F = 1$), $Cl_{tot} = \\frac{Dose_{IV}}{AUC}$.",
+                "Cl = Volume épuré par unité de temps (Dose * F / AUC).",
+                3,
+                false,
+                List.of("UE6", "Pharmacocinétique", "Clairance", "Formules"),
+                LocalDateTime.now().minusDays(1)
+            ),
+            new Flashcard(
+                "fc-seed-4",
+                "course-ue1-04",
+                "Enzymologie : Cinétique de Michaelis-Menten et inhibiteurs",
+                "UE1",
+                "ue1",
+                "Écrire l'équation de Michaelis-Menten et donner la signification de la constante de Michaelis ($K_m$).",
+                "Équation de Michaelis-Menten :\n$$v = \\frac{V_{max} \\cdot [S]}{K_m + [S]}$$\n\n$K_m$ est la concentration en substrat pour laquelle la vitesse de réaction est égale à la **moitié de la vitesse maximale** ($v = \\frac{V_{max}}{2}$). Un $K_m$ faible traduit une **forte affinité** de l'enzyme pour son substrat.",
+                "Km = [S] quand v = Vmax / 2. Affinité inversement proportionnelle à Km.",
+                2,
+                true,
+                List.of("UE1", "Biochimie", "Enzymologie", "Michaelis-Menten"),
+                LocalDateTime.now().minusDays(4)
+            ),
+            new Flashcard(
+                "fc-seed-5",
+                "course-ue4-02",
+                "Épidémiologie diagnostique : Sensibilité, Spécificité, VPP et VPN",
+                "UE4",
+                "ue4",
+                "Comment évoluent la Valeur Prédictive Positive (VPP) et la Valeur Prédictive Négative (VPN) lorsque la prévalence d'une maladie augmente dans la population ?",
+                "Lorsque la **prévalence augmente** :\n- La **VPP augmente** (un test positif a plus de chances de correspondre à un vrai malade).\n- La **VPN diminue**.\n\n*Rappel* : La Sensibilité ($Se$) et la Spécificité ($Sp$) sont des caractéristiques intrinsèques du test et **ne dépendent pas de la prévalence**.",
+                "VPP suit la prévalence (augmente quand prévalence augmente). Se et Sp sont constantes.",
+                3,
+                false,
+                List.of("UE4", "Biostatistiques", "Épidémiologie", "Bayes"),
+                LocalDateTime.now().minusDays(5)
+            )
+        );
+        for (Flashcard card : sampleCards) {
+            flashcards.put(card.id(), card);
+        }
+
+        LOG.info("Seeded {} official courses, {} QCMs and {} Flashcards for Paris Cité PASS", courses.size(), qcms.size(), flashcards.size());
     }
 
     // --- Subject UEs ---
@@ -198,8 +277,20 @@ public class FirestoreService {
     }
 
     public List<QcmQuestion> getQcmsForCourse(String courseId) {
+        if (courseId == null || courseId.isBlank()) return List.of();
+        Optional<Course> courseOpt = Optional.ofNullable(courses.get(courseId));
+        String courseTitleLower = courseOpt.map(c -> c.title().toLowerCase()).orElse("");
+
         return qcms.values().stream()
-            .filter(q -> q.courseId().equals(courseId))
+            .filter(q -> {
+                if (q.courseId() != null && q.courseId().equalsIgnoreCase(courseId)) return true;
+                if (!courseTitleLower.isBlank()) {
+                    if (q.courseTitle() != null && (q.courseTitle().equalsIgnoreCase(courseTitleLower) || q.courseTitle().toLowerCase().contains(courseTitleLower) || courseTitleLower.contains(q.courseTitle().toLowerCase()))) {
+                        return true;
+                    }
+                }
+                return false;
+            })
             .collect(Collectors.toList());
     }
 
@@ -302,8 +393,25 @@ public class FirestoreService {
     }
 
     public List<MedicalIllustration> getIllustrationsForCourse(String courseId) {
+        if (courseId == null || courseId.isBlank()) return List.of();
+        Optional<Course> courseOpt = Optional.ofNullable(courses.get(courseId));
+        String courseTitleLower = courseOpt.map(c -> c.title().toLowerCase()).orElse("");
+
         return illustrations.values().stream()
-            .filter(i -> i.courseId().equals(courseId))
+            .filter(i -> {
+                if (i.courseId() != null && i.courseId().equalsIgnoreCase(courseId)) return true;
+                if (!courseTitleLower.isBlank()) {
+                    if (i.courseTitle() != null && (i.courseTitle().equalsIgnoreCase(courseTitleLower) || i.courseTitle().toLowerCase().contains(courseTitleLower) || courseTitleLower.contains(i.courseTitle().toLowerCase()))) {
+                        return true;
+                    }
+                    if (i.title() != null) {
+                        String titleLower = i.title().toLowerCase();
+                        if (titleLower.contains(courseTitleLower) || courseTitleLower.contains(titleLower)) return true;
+                        if (courseTitleLower.contains("équilibres acido-basiques") && (titleLower.contains("équilibres acido-basiques") || titleLower.contains("acido-basique") || titleLower.contains("tampons"))) return true;
+                    }
+                }
+                return false;
+            })
             .sorted(Comparator.comparing(MedicalIllustration::createdAt).reversed())
             .collect(Collectors.toList());
     }
@@ -319,6 +427,91 @@ public class FirestoreService {
 
     public boolean deleteIllustration(String id) {
         return illustrations.remove(id) != null;
+    }
+
+    // --- Flashcards (Active Recall) ---
+    public List<Flashcard> getAllFlashcards() {
+        return flashcards.values().stream()
+            .sorted(Comparator.comparing(Flashcard::createdAt).reversed())
+            .collect(Collectors.toList());
+    }
+
+    public List<Flashcard> getFlashcardsForCourse(String courseId) {
+        if (courseId == null || courseId.isBlank()) return List.of();
+        Optional<Course> courseOpt = Optional.ofNullable(courses.get(courseId));
+        String courseTitleLower = courseOpt.map(c -> c.title().toLowerCase()).orElse("");
+
+        return flashcards.values().stream()
+            .filter(f -> {
+                if (f.courseId() != null && f.courseId().equalsIgnoreCase(courseId)) return true;
+                if (!courseTitleLower.isBlank()) {
+                    if (f.courseTitle() != null && (f.courseTitle().equalsIgnoreCase(courseTitleLower) || f.courseTitle().toLowerCase().contains(courseTitleLower) || courseTitleLower.contains(f.courseTitle().toLowerCase()))) {
+                        return true;
+                    }
+                }
+                return false;
+            })
+            .sorted(Comparator.comparing(Flashcard::createdAt).reversed())
+            .collect(Collectors.toList());
+    }
+
+    public Optional<Flashcard> getFlashcard(String id) {
+        return Optional.ofNullable(flashcards.get(id));
+    }
+
+    public Flashcard saveFlashcard(Flashcard card) {
+        flashcards.put(card.id(), card);
+        return card;
+    }
+
+    public boolean deleteFlashcard(String id) {
+        return flashcards.remove(id) != null;
+    }
+
+    public Optional<Flashcard> toggleFlashcardFavorite(String id) {
+        Flashcard existing = flashcards.get(id);
+        if (existing == null) return Optional.empty();
+        Flashcard updated = new Flashcard(
+            existing.id(),
+            existing.courseId(),
+            existing.courseTitle(),
+            existing.ueCode(),
+            existing.ueId(),
+            existing.front(),
+            existing.back(),
+            existing.hint(),
+            existing.difficulty(),
+            !existing.isFavorite(),
+            existing.tags(),
+            existing.reviewCount(),
+            existing.lastReviewedAt(),
+            existing.createdAt()
+        );
+        flashcards.put(id, updated);
+        return Optional.of(updated);
+    }
+
+    public Optional<Flashcard> recordFlashcardReview(String id, String rating) {
+        Flashcard existing = flashcards.get(id);
+        if (existing == null) return Optional.empty();
+        Flashcard updated = new Flashcard(
+            existing.id(),
+            existing.courseId(),
+            existing.courseTitle(),
+            existing.ueCode(),
+            existing.ueId(),
+            existing.front(),
+            existing.back(),
+            existing.hint(),
+            existing.difficulty(),
+            existing.isFavorite(),
+            existing.tags(),
+            existing.reviewCount() + 1,
+            LocalDateTime.now(),
+            existing.createdAt()
+        );
+        flashcards.put(id, updated);
+        return Optional.of(updated);
     }
 
     // --- Configuration ---

@@ -6,6 +6,7 @@ import fr.medj.service.FirestoreService;
 import fr.medj.service.GeminiMedicalService;
 import fr.medj.service.MedicalIllustrationTools;
 import fr.medj.service.MedicalQcmTools;
+import fr.medj.service.MedicalFlashcardTools;
 import fr.medj.service.StorageService;
 import io.micronaut.serde.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,8 +30,9 @@ public class GroundingTutorTest {
         MedicalQcmTools medicalQcmTools = new MedicalQcmTools(firestoreService);
         StorageService storageService = new StorageService("./build/test-uploads");
         MedicalIllustrationTools medicalIllustrationTools = new MedicalIllustrationTools(firestoreService, storageService);
+        MedicalFlashcardTools medicalFlashcardTools = new MedicalFlashcardTools(firestoreService);
         ObjectMapper objectMapper = ObjectMapper.getDefault();
-        geminiMedicalService = new GeminiMedicalService(objectMapper, firestoreService, medicalQcmTools, medicalIllustrationTools, storageService);
+        geminiMedicalService = new GeminiMedicalService(objectMapper, firestoreService, medicalQcmTools, medicalIllustrationTools, medicalFlashcardTools, storageService);
         geminiMedicalService.init();
     }
 
@@ -58,10 +60,11 @@ public class GroundingTutorTest {
         assertNotNull(response.groundingSources());
         assertFalse(response.groundingSources().isEmpty());
 
-        // Check markdown link formatting in answer
-        assertTrue(response.answer().contains("Sources & Liens Web consultés (Google Search)"));
+        // Check grounding sources returned cleanly in structured list
+        assertFalse(response.groundingSources().isEmpty());
         for (GroundingSource source : response.groundingSources()) {
-            assertTrue(response.answer().contains(source.uri()));
+            assertNotNull(source.uri());
+            assertNotNull(source.domain());
         }
     }
 
@@ -102,6 +105,7 @@ public class GroundingTutorTest {
             firestoreService,
             new MedicalQcmTools(firestoreService),
             new MedicalIllustrationTools(firestoreService, new StorageService("./build/test-uploads")),
+            new MedicalFlashcardTools(firestoreService),
             new StorageService("./build/test-uploads")
         );
         service.setApiKey(apiKey);
@@ -153,6 +157,7 @@ public class GroundingTutorTest {
             firestoreService,
             new MedicalQcmTools(firestoreService),
             new MedicalIllustrationTools(firestoreService, new StorageService("./build/test-uploads")),
+            new MedicalFlashcardTools(firestoreService),
             new StorageService("./build/test-uploads")
         );
         service.setApiKey(apiKey);

@@ -242,18 +242,18 @@ export const QcmBankView: React.FC<QcmBankViewProps> = ({
     <div className="space-y-6 animate-fadeIn">
       
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 glass-panel rounded-2xl p-5 border border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 glass-panel rounded-2xl p-5 border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 backdrop-blur-md shadow-sm">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
-              <Award className="w-5 h-5 text-sky-400" />
-              Banque de QCMs de Concours & Entraînements
+            <h1 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+              <Award className="w-5 h-5 text-sky-500 dark:text-sky-400 shrink-0" />
+              <span>Banque de QCMs de Concours & Entraînements</span>
             </h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-950 text-sky-400 border border-sky-800/40">
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-100 dark:bg-sky-950/70 text-sky-800 dark:text-sky-300 border border-sky-300 dark:border-sky-800/40 shrink-0">
               {qcms.length} QCM{qcms.length > 1 ? 's' : ''}
             </span>
           </div>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
             Consultez, filtrez par cours/UE et testez vos connaissances en affichant ou masquant les réponses.
           </p>
         </div>

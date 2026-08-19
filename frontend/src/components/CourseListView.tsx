@@ -82,28 +82,28 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
     <div className="space-y-6 animate-fadeIn">
       
       {/* Top Header with Tab Switcher */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 glass-panel rounded-2xl p-5 border border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 glass-panel rounded-2xl p-5 border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 backdrop-blur-md shadow-sm">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-sky-400" />
-              Catalogue des Matières & Cours PASS
+            <h1 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-sky-500 dark:text-sky-400 shrink-0" />
+              <span>Catalogue des Matières & Cours PASS</span>
             </h1>
           </div>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-600 dark:text-slate-400">
             {subjects.length} UEs configurées • {courses.length} cours enregistrés • Suivi des cycles de mémorisation
           </p>
         </div>
 
         {/* View mode switcher & Primary actions */}
         <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
-          <div className="flex items-center p-1 rounded-xl bg-slate-900 border border-slate-800 text-xs font-semibold">
+          <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold">
             <button
               onClick={() => setActiveSubTab('subjects')}
               className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeSubTab === 'subjects'
                   ? 'bg-sky-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
@@ -115,7 +115,7 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
               className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeSubTab === 'courses'
                   ? 'bg-sky-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
               <BookOpen className="w-3.5 h-3.5" />

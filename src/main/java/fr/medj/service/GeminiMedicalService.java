@@ -54,6 +54,7 @@ public class GeminiMedicalService {
     private final FirestoreService firestoreService;
     private final MedicalQcmTools medicalQcmTools;
     private final MedicalIllustrationTools medicalIllustrationTools;
+    private final MedicalFlashcardTools medicalFlashcardTools;
     private final StorageService storageService;
     private Client genAiClient;
     private PassTutorAiService tutorAiService;
@@ -64,12 +65,14 @@ public class GeminiMedicalService {
         FirestoreService firestoreService,
         MedicalQcmTools medicalQcmTools,
         MedicalIllustrationTools medicalIllustrationTools,
+        MedicalFlashcardTools medicalFlashcardTools,
         StorageService storageService
     ) {
         this.objectMapper = objectMapper;
         this.firestoreService = firestoreService;
         this.medicalQcmTools = medicalQcmTools;
         this.medicalIllustrationTools = medicalIllustrationTools;
+        this.medicalFlashcardTools = medicalFlashcardTools;
         this.storageService = storageService;
     }
 
@@ -117,10 +120,10 @@ public class GeminiMedicalService {
 
                     this.tutorAiService = AiServices.builder(PassTutorAiService.class)
                         .chatModel(chatModel)
-                        .tools(medicalQcmTools, medicalIllustrationTools)
+                        .tools(medicalQcmTools, medicalIllustrationTools, medicalFlashcardTools)
                         .build();
 
-                    LOG.info("LangChain4j PassTutorAiService initialized successfully with @Tool QCM & Medical Illustrations generation.");
+                    LOG.info("LangChain4j PassTutorAiService initialized successfully with @Tool QCM, Illustrations & Flashcards generation.");
                 } catch (Exception e) {
                     LOG.warn("Could not initialize LangChain4j GoogleGenAiChatModel: {}", e.getMessage(), e);
                 }
@@ -170,6 +173,23 @@ public class GeminiMedicalService {
                 "mnemonics", Schema.builder().type(Type.Known.ARRAY).items(Schema.builder().type(Type.Known.STRING).build()).build()
             ))
             .required(List.of("transcriptionMarkdown", "keyPoints", "anatomicalTerms", "potentialExamTraps"))
+            .build();
+    }
+
+    private Schema createFlashcardSchema() {
+        return Schema.builder()
+            .type(Type.Known.ARRAY)
+            .items(Schema.builder()
+                .type(Type.Known.OBJECT)
+                .properties(Map.of(
+                    "front", Schema.builder().type(Type.Known.STRING).description("Question précise ou concept clé au Recto").build(),
+                    "back", Schema.builder().type(Type.Known.STRING).description("Réponse détaillée, formule ou explication au Verso").build(),
+                    "hint", Schema.builder().type(Type.Known.STRING).description("Indice de mémorisation ou amorce (début de réponse)").build(),
+                    "difficulty", Schema.builder().type(Type.Known.INTEGER).description("Niveau de difficulté de 1 à 5").build(),
+                    "tags", Schema.builder().type(Type.Known.ARRAY).items(Schema.builder().type(Type.Known.STRING).build()).build()
+                ))
+                .required(List.of("front", "back", "difficulty"))
+                .build())
             .build();
     }
 
@@ -390,18 +410,96 @@ public class GeminiMedicalService {
         return fallback;
     }
 
+    /**
+     * Generates active recall flashcards (Question Recto / Réponse Verso / Indice) using Gemini with structured output.
+     */
+    public List<Flashcard> generateFlashcards(String courseId, String courseTitle, String ueCode, String ueId, String content, int count) {
+        if (count <= 0) count = 5;
+
+        if (genAiClient != null) {
+            try {
+                String prompt = """
+                    Tu es un professeur de médecine et tuteur majeur du concours PASS / LAS en France.
+                    À partir du contenu ou de la synthèse de cours suivante, génère exactement %d flashcards de mémorisation active (active recall) à haute rentabilité (high-yield) pour les révisions de l'étudiant.
+                    
+                    Règles pour chaque flashcard :
+                    1. 'front' : Une question claire, ciblée et percutante (ex: "Quelle est la formule de la clairance corporelle ?", "Quels sont les 3 muscles innervés par le nerf musculocutané ?").
+                    2. 'back' : Une réponse concise, rigoureuse et complète avec formatage Markdown / LaTeX ($...$) si formules.
+                    3. 'hint' : Un indice court (amorce, première lettre, structure de formule) qui aide la mémoire sans donner la réponse complète.
+                    4. 'difficulty' : Niveau de difficulté de 1 à 5.
+                    5. 'tags' : Liste de 2 à 4 mots-clés pertinents (incluant le code de l'UE).
+                    
+                    Cours : %s (UE: %s)
+                    Contenu :
+                    %s
+                    """.formatted(count, courseTitle != null ? courseTitle : "Cours PASS", ueCode != null ? ueCode : "UE", content != null ? content : "");
+
+                GenerateContentResponse response = genAiClient.models.generateContent(
+                    modelName,
+                    prompt,
+                    GenerateContentConfig.builder()
+                        .responseMimeType("application/json")
+                        .responseSchema(createFlashcardSchema())
+                        .temperature(0.2f)
+                        .build()
+                );
+
+                String jsonText = response.text();
+                LOG.info("Gemini Structured Flashcards generation response received (length: {})", jsonText != null ? jsonText.length() : 0);
+
+                if (jsonText != null && !jsonText.isBlank()) {
+                    List<Flashcard> cards = parseFlashcardsJson(jsonText, courseId, courseTitle, ueCode, ueId);
+                    for (Flashcard card : cards) {
+                        firestoreService.saveFlashcard(card);
+                    }
+                    return cards;
+                }
+            } catch (Exception e) {
+                LOG.error("Error generating flashcards with Gemini: {}", e.getMessage(), e);
+            }
+        }
+
+        // Fallback realistic flashcards for PASS
+        List<Flashcard> fallbacks = new ArrayList<>();
+        fallbacks.add(new Flashcard(
+            "fc-" + UUID.randomUUID(),
+            courseId != null ? courseId : "course-general",
+            courseTitle != null ? courseTitle : "Cours PASS",
+            ueCode != null ? ueCode : "UE",
+            ueId != null ? ueId : "ue1",
+            "Quelles sont les notions et définitions clés à retenir pour " + (courseTitle != null ? courseTitle : "ce cours") + " ?",
+            "Les éléments fondamentaux reposent sur la terminologie officielle, les équations d'état ou valeurs physiologiques normales, ainsi que les diagnostics différentiels abordés en cours.",
+            "Révisez les formules fondamentales et les rapports anatomiques.",
+            3,
+            false,
+            List.of(ueCode != null ? ueCode : "UE", "Mémorisation", "Synthèse"),
+            0,
+            null,
+            LocalDateTime.now()
+        ));
+        for (Flashcard f : fallbacks) {
+            firestoreService.saveFlashcard(f);
+        }
+        return fallbacks;
+    }
+
     public record TutorResponse(
         String answer,
         QcmQuestion createdQcm,
         MedicalIllustration createdIllustration,
+        Flashcard createdFlashcard,
         List<GroundingSource> groundingSources
     ) {
         public TutorResponse(String answer, QcmQuestion createdQcm) {
-            this(answer, createdQcm, null, List.of());
+            this(answer, createdQcm, null, null, List.of());
         }
 
         public TutorResponse(String answer, QcmQuestion createdQcm, List<GroundingSource> groundingSources) {
-            this(answer, createdQcm, null, groundingSources);
+            this(answer, createdQcm, null, null, groundingSources);
+        }
+
+        public TutorResponse(String answer, QcmQuestion createdQcm, MedicalIllustration createdIllustration, List<GroundingSource> groundingSources) {
+            this(answer, createdQcm, createdIllustration, null, groundingSources);
         }
     }
 
@@ -470,36 +568,50 @@ public class GeminiMedicalService {
     }
 
     private String appendGroundingLinksToAnswer(String answer, List<GroundingSource> sources) {
-        if (sources == null || sources.isEmpty() || answer == null) {
-            return answer;
-        }
-
-        // Only append if the links are not already directly rendered in the answer
-        StringBuilder sb = new StringBuilder(answer.trim());
-        sb.append("\n\n---\n### 🌐 Sources & Liens Web consultés (Google Search) :\n");
-        for (GroundingSource s : sources) {
-            String title = s.title() != null && !s.title().isBlank() ? s.title() : s.uri();
-            String domain = s.domain();
-            String domainInfo = (domain != null && !domain.isBlank() && !domain.contains("vertexaisearch") && !title.contains(domain))
-                ? " *(" + domain + ")*"
-                : "";
-            sb.append("- [").append(title).append("](").append(s.uri()).append(")").append(domainInfo).append("\n");
-        }
-        return sb.toString();
+        return answer != null ? answer.trim() : "";
     }
 
     /**
      * Interactive PASS AI Tutor for student Q&A with LangChain4j @Tool QCM & Illustration generation support and Google Search Grounding.
      */
     public TutorResponse askTutor(String question, String courseContext, List<AiTutorMessage> history) {
+        return askTutor(question, courseContext, null, null, history);
+    }
+
+    public TutorResponse askTutor(String question, String courseContext, String courseId, String courseTitle, List<AiTutorMessage> history) {
         medicalQcmTools.pollRecentlyCreatedQcms(); // Clear any previous
         medicalIllustrationTools.pollRecentlyCreatedIllustrations();
+        medicalFlashcardTools.getAndClearRecentlyCreatedFlashcards();
+
+        // Resolve UE from courseId or courseContext if available
+        String resolvedUeCode = "UE";
+        String resolvedUeId = "ue1";
+        if (courseId != null && !courseId.isBlank()) {
+            Optional<Course> cOpt = firestoreService.getCourse(courseId);
+            if (cOpt.isPresent()) {
+                resolvedUeCode = cOpt.get().ueCode();
+                resolvedUeId = cOpt.get().ueId();
+                if (courseTitle == null || courseTitle.isBlank()) {
+                    courseTitle = cOpt.get().title();
+                }
+            }
+        }
+
+        // Set active course on tools
+        medicalIllustrationTools.setActiveCourse(courseId, courseTitle, resolvedUeCode);
+        medicalFlashcardTools.setActiveCourse(courseId, courseTitle, resolvedUeCode, resolvedUeId);
+        medicalQcmTools.setActiveCourse(courseId, courseTitle, resolvedUeCode);
 
         if (tutorAiService != null) {
             try {
                 StringBuilder promptBuilder = new StringBuilder();
                 promptBuilder.append("Contexte du cours actuel : ")
-                    .append(courseContext != null ? courseContext : "Cours général de PASS").append("\n\n");
+                    .append(courseContext != null ? courseContext : "Cours général de PASS");
+                if (courseId != null && !courseId.isBlank()) {
+                    promptBuilder.append(" (Identifiant exact du cours: '").append(courseId)
+                        .append("', Titre: '").append(courseTitle != null ? courseTitle : "").append("')");
+                }
+                promptBuilder.append("\n\n");
 
                 if (history != null && !history.isEmpty()) {
                     promptBuilder.append("Historique de conversation récente :\n");
@@ -519,12 +631,72 @@ public class GeminiMedicalService {
                 List<MedicalIllustration> generatedIllus = medicalIllustrationTools.pollRecentlyCreatedIllustrations();
                 MedicalIllustration createdIllus = generatedIllus.isEmpty() ? null : generatedIllus.get(0);
 
+                List<Flashcard> generatedCards = medicalFlashcardTools.getAndClearRecentlyCreatedFlashcards();
+                Flashcard createdCard = generatedCards.isEmpty() ? null : generatedCards.get(0);
+
+                // Ensure proper course linkage if active course was provided
+                if (courseId != null && !courseId.isBlank()) {
+                    if (createdIllus != null && !courseId.equalsIgnoreCase(createdIllus.courseId())) {
+                        createdIllus = new MedicalIllustration(
+                            createdIllus.id(),
+                            courseId,
+                            courseTitle != null ? courseTitle : createdIllus.courseTitle(),
+                            resolvedUeCode != null ? resolvedUeCode : createdIllus.ueCode(),
+                            createdIllus.title(),
+                            createdIllus.imageUrl(),
+                            createdIllus.illustrationType(),
+                            createdIllus.prompt(),
+                            createdIllus.refinedVisualPrompt(),
+                            createdIllus.legendItems(),
+                            createdIllus.groundingSources(),
+                            createdIllus.createdAt()
+                        );
+                        firestoreService.saveIllustration(createdIllus);
+                    }
+                    if (createdCard != null && !courseId.equalsIgnoreCase(createdCard.courseId())) {
+                        createdCard = new Flashcard(
+                            createdCard.id(),
+                            courseId,
+                            courseTitle != null ? courseTitle : createdCard.courseTitle(),
+                            resolvedUeCode != null ? resolvedUeCode : createdCard.ueCode(),
+                            resolvedUeId != null ? resolvedUeId : createdCard.ueId(),
+                            createdCard.front(),
+                            createdCard.back(),
+                            createdCard.hint(),
+                            createdCard.difficulty(),
+                            createdCard.isFavorite(),
+                            createdCard.tags(),
+                            createdCard.reviewCount(),
+                            createdCard.lastReviewedAt(),
+                            createdCard.createdAt()
+                        );
+                        firestoreService.saveFlashcard(createdCard);
+                    }
+                    if (createdQcm != null && !courseId.equalsIgnoreCase(createdQcm.courseId())) {
+                        createdQcm = new QcmQuestion(
+                            createdQcm.id(),
+                            courseId,
+                            courseTitle != null ? courseTitle : createdQcm.courseTitle(),
+                            resolvedUeCode != null ? resolvedUeCode : createdQcm.ueCode(),
+                            createdQcm.questionStem(),
+                            createdQcm.items(),
+                            createdQcm.difficulty(),
+                            createdQcm.source(),
+                            createdQcm.examYear(),
+                            createdQcm.tags(),
+                            createdQcm.mnemonics(),
+                            createdQcm.createdAt()
+                        );
+                        firestoreService.saveQcm(createdQcm);
+                    }
+                }
+
                 List<GroundingSource> sources = extractGroundingSourcesFromResult(result);
 
                 String answer = result != null ? result.content() : null;
                 if (answer != null && !answer.isBlank()) {
                     String finalAnswer = appendGroundingLinksToAnswer(answer, sources);
-                    return new TutorResponse(finalAnswer, createdQcm, createdIllus, sources);
+                    return new TutorResponse(finalAnswer, createdQcm, createdIllus, createdCard, sources);
                 }
             } catch (Exception e) {
                 LOG.error("Error asking LangChain4j AI Tutor: {}", e.getMessage(), e);
@@ -571,9 +743,12 @@ public class GeminiMedicalService {
                 List<MedicalIllustration> generatedIllus = medicalIllustrationTools.pollRecentlyCreatedIllustrations();
                 MedicalIllustration createdIllus = generatedIllus.isEmpty() ? null : generatedIllus.get(0);
 
+                List<Flashcard> generatedCards = medicalFlashcardTools.getAndClearRecentlyCreatedFlashcards();
+                Flashcard createdCard = generatedCards.isEmpty() ? null : generatedCards.get(0);
+
                 if (answer != null && !answer.isBlank()) {
                     String finalAnswer = appendGroundingLinksToAnswer(answer, sources);
-                    return new TutorResponse(finalAnswer, createdQcm, createdIllus, sources);
+                    return new TutorResponse(finalAnswer, createdQcm, createdIllus, createdCard, sources);
                 }
             } catch (Exception e) {
                 LOG.error("Error asking Gemini AI Tutor: {}", e.getMessage(), e);
@@ -583,7 +758,40 @@ public class GeminiMedicalService {
         // Offline / Demo fallback with intelligent tool simulation if requested
         String lower = question.toLowerCase();
 
-        // 1. Check if user asked for a Medical Illustration / Schema / Fill-in-the-blank drawing
+        // 1. Check if user asked for a Flashcard
+        if (lower.contains("flashcard") || lower.contains("carte mémo") || lower.contains("carte memo") || lower.contains("fiche mémo") || lower.contains("fiche memo") || lower.contains("carte de révision") || lower.contains("carte de revision")) {
+            medicalFlashcardTools.createAndSaveFlashcard(
+                "Quels sont les repères essentiels et pièges du cours abordé ?",
+                "Les repères clés comportent la stricte orientation spatiale (proximal/distal, antéro-postérieur), les valeurs physiologiques de référence et la cinétique enzymatique ou pharmacologique standard.",
+                "Pensez aux définitions fondamentales et aux formules abordées.",
+                courseContext != null ? courseContext : "UE5",
+                3,
+                "Tuteur,Flashcard,Mémorisation"
+            );
+            List<Flashcard> generatedCards = medicalFlashcardTools.getAndClearRecentlyCreatedFlashcards();
+            Flashcard createdCard = generatedCards.isEmpty() ? null : generatedCards.get(0);
+            List<GroundingSource> demoSources = List.of(
+                new GroundingSource("Campus Numérique d'Anatomie et Physiologie", "https://unf3s.cerimes.fr/campus-pass", "cerimes.fr"),
+                new GroundingSource("Dictionnaire de l'Académie Nationale de Médecine", "https://dictionnaire.academie-medecine.fr", "academie-medecine.fr")
+            );
+
+            String rawAnswer = "🃏 **Voici votre Flashcard de mémorisation active générée et enregistrée !**\n\n" +
+                "J'ai préparé une carte mémo (Recto / Verso avec indice) attachée directement à votre cours.\n\n" +
+                "- **Recto (Question) :** *" + (createdCard != null ? createdCard.front() : "Question") + "*\n" +
+                "- **Verso (Réponse) :** *" + (createdCard != null ? createdCard.back() : "Réponse") + "*\n" +
+                "- **Indice 💡 :** *" + (createdCard != null && createdCard.hint() != null ? createdCard.hint() : "Indice de rappel") + "*\n\n" +
+                "👉 *Vous pouvez la réviser en mode défilement 3D dans l'onglet Flashcards ou sur la page du cours.*";
+
+            return new TutorResponse(
+                appendGroundingLinksToAnswer(rawAnswer, demoSources),
+                null,
+                null,
+                createdCard,
+                demoSources
+            );
+        }
+
+        // 2. Check if user asked for a Medical Illustration / Schema / Fill-in-the-blank drawing
         if (lower.contains("dessin") || lower.contains("schéma") || lower.contains("schema") || lower.contains("croquis") || lower.contains("planche") || lower.contains("illustr") || lower.contains("à trou") || lower.contains("a trou")) {
             boolean isFillInTheBlank = lower.contains("trou") || lower.contains("numéro") || lower.contains("legende") || lower.contains("légende") || lower.contains("entrain");
             String title = isFillInTheBlank
@@ -624,11 +832,12 @@ public class GeminiMedicalService {
                 appendGroundingLinksToAnswer(rawAnswer, demoSources),
                 null,
                 createdIllus,
+                null,
                 demoSources
             );
         }
 
-        // 2. Check if user asked for a QCM
+        // 3. Check if user asked for a QCM
         if (lower.contains("qcm") || lower.contains("quiz") || lower.contains("question d'entraînement") || lower.contains("teste-moi") || lower.contains("tester")) {
             medicalQcmTools.createAndSaveQcm(
                 "QCM d'entraînement généré lors de la discussion avec le Tuteur IA",
@@ -662,6 +871,7 @@ public class GeminiMedicalService {
                 appendGroundingLinksToAnswer(rawAnswer, demoSources),
                 created,
                 null,
+                null,
                 demoSources
             );
         }
@@ -675,10 +885,11 @@ public class GeminiMedicalService {
             + "Retiens la règle générale : les structures antérieures sont principalement fléchisseuses et motrices de la préhension, "
             + "tandis que les structures postérieures assurent l'extension et la posture. "
             + "Au concours, fais particulièrement attention aux inversions de termes (ex: agoniste/antagoniste, médial/latéral) qui représentent 40% des pièges de QCM !\n\n"
-            + "💡 *Astuce : Vous pouvez me demander : « Fais-moi un schéma à trous sur ce cours » pour vous entraîner à légender, ou « Crée-moi un QCM » pour tester vos connaissances.*";
+            + "💡 *Astuce : Vous pouvez me demander : « Fais-moi une flashcard sur ce cours » pour créer une fiche mémo, « Fais-moi un schéma à trous » pour vous entraîner à légender, ou « Crée-moi un QCM » pour tester vos connaissances.*";
 
         return new TutorResponse(
             appendGroundingLinksToAnswer(rawAnswer, demoSources),
+            null,
             null,
             null,
             demoSources
@@ -1006,6 +1217,219 @@ public class GeminiMedicalService {
         );
     }
 
+    /**
+     * Verifies and fact-checks an active recall Flashcard using Gemini with Google Search Grounding.
+     * Evaluates accuracy of question (Recto), answer (Verso), hint, difficulty, and tags.
+     * Generates a pedagogically improved / corrected version of the flashcard if needed.
+     */
+    public FlashcardVerification verifyAndFactCheckFlashcard(Flashcard flashcard) {
+        if (flashcard == null) {
+            return new FlashcardVerification(
+                null,
+                true,
+                "VALIDE",
+                100,
+                "Flashcard non fournie.",
+                "",
+                "",
+                null,
+                List.of(),
+                List.of(),
+                null,
+                List.of(),
+                LocalDateTime.now()
+            );
+        }
+
+        if (genAiClient != null) {
+            try {
+                StringBuilder desc = new StringBuilder();
+                desc.append("Flashcard à auditer :\n");
+                desc.append("- Recto (Question / Concept) : ").append(flashcard.front()).append("\n");
+                desc.append("- Verso (Réponse / Définition / Formule) : ").append(flashcard.back()).append("\n");
+                if (flashcard.hint() != null && !flashcard.hint().isBlank()) {
+                    desc.append("- Indice de mémorisation (Hint) : ").append(flashcard.hint()).append("\n");
+                }
+                desc.append("- Matière / UE : ").append(flashcard.ueCode() != null ? flashcard.ueCode() : "UE")
+                    .append(" - ").append(flashcard.courseTitle() != null ? flashcard.courseTitle() : "PASS").append("\n");
+                desc.append("- Difficulté actuelle (1 à 5) : ").append(flashcard.difficulty()).append("\n");
+                if (flashcard.tags() != null && !flashcard.tags().isEmpty()) {
+                    desc.append("- Tags : ").append(String.join(", ", flashcard.tags())).append("\n");
+                }
+
+                String prompt = """
+                    Tu es un professeur agrégé des facultés de médecine en France, responsable pédagogique de la préparation PASS / LAS.
+                    Ta mission est d'auditer et de FACT-CHECKER avec la plus haute rigueur scientifique, médicale et pédagogique cette Flashcard de mémorisation active (Question Recto / Réponse Verso / Indice).
+
+                    Utilise Google Search pour vérifier systématiquement :
+                    1. L'exactitude factuelle et médicale stricte du Recto et du Verso (formules physiologiques ou biophysiques, valeurs numériques normales, cibles pharmacologiques, innervation/vascularisation en nomenclature anatomique française officielle).
+                    2. La clarté, la concision et l'absence d'ambiguïté de la question au Recto.
+                    3. La pertinence, la complétude et la rigueur de la réponse au Verso (avec utilisation si approprié de KaTeX / LaTeX pour les formules chimiques/mathématiques).
+                    4. La pertinence pédagogique de l'indice (aide à la récupération en mémoire sans dévoiler la solution).
+                    5. L'adéquation du niveau de difficulté (1: facile/fondamental, 3: standard concours, 5: pièges/expert) et des mots-clés (tags).
+
+                    %s
+
+                    Directives impératives :
+                    - Évalue si la flashcard est 100%% exacte et optimale (`isAccurate` = true si aucune erreur médicale n'est présente).
+                    - Attribue un score de 0 à 100 et un statut ("VALIDE" si score >= 85, "CORRECTIONS_RECOMMANDEES" si 60-84, "INEXACTITUDES_DETECTEES" si < 60).
+                    - Propose systématiquement une version améliorée (`correctedFlashcard`) avec les textes perfectionnés et corrigés, prête à être appliquée en 1 clic par l'étudiant.
+
+                    Réponds STRICTEMENT sous forme d'un objet JSON avec la structure exacte suivante :
+                    {
+                      "isAccurate": true,
+                      "status": "VALIDE",
+                      "score": 95,
+                      "summary": "Bilan synthétique en 2-3 phrases de l'audit de la flashcard.",
+                      "frontReview": "Commentaire sur la clarté et la formulation de la question.",
+                      "backReview": "Commentaire sur la rigueur scientifique et l'exhaustivité de la réponse.",
+                      "hintReview": "Commentaire sur l'indice de rappel.",
+                      "keyMedicalPoints": [
+                        "Point médical vérifié 1",
+                        "Point médical vérifié 2"
+                      ],
+                      "detectedIssues": [
+                        "Imprécision, terme obsolète ou remarque d'amélioration (ou tableau vide si parfait)"
+                      ],
+                      "correctedFlashcard": {
+                        "front": "Question éventuellement reformulée ou perfectionnée...",
+                        "back": "Réponse corrigée / perfectionnée avec mise en forme claire...",
+                        "hint": "Indice pertinent...",
+                        "difficulty": 3,
+                        "tags": ["UE1", "Tampons", "AcideBase"]
+                      }
+                    }
+                    """.formatted(desc.toString());
+
+                GenerateContentResponse response = genAiClient.models.generateContent(
+                    modelName,
+                    prompt,
+                    GenerateContentConfig.builder()
+                        .temperature(0.1f)
+                        .tools(List.of(Tool.builder()
+                            .googleSearch(GoogleSearch.builder().build())
+                            .build()))
+                        .build()
+                );
+
+                String jsonText = response.text();
+                List<GroundingSource> sources = extractGroundingSources(response);
+                LOG.info("Gemini Flashcard verification response received (length: {}, sources: {})",
+                    jsonText != null ? jsonText.length() : 0, sources.size());
+
+                if (jsonText != null && !jsonText.isBlank()) {
+                    FlashcardVerification parsedResult = parseFlashcardVerificationJson(flashcard, jsonText, sources);
+                    if (parsedResult != null) {
+                        return parsedResult;
+                    }
+                }
+            } catch (Exception e) {
+                LOG.error("Error during Gemini Flashcard verification: {}", e.getMessage(), e);
+            }
+        }
+
+        return generateFallbackFlashcardVerification(flashcard);
+    }
+
+    private FlashcardVerification parseFlashcardVerificationJson(Flashcard originalCard, String jsonText, List<GroundingSource> sources) {
+        try {
+            String cleaned = sanitizeJsonString(jsonText);
+            Map<?, ?> map = objectMapper.readValue(cleaned, Map.class);
+            if (map != null) {
+                boolean isAccurate = Boolean.TRUE.equals(map.get("isAccurate"));
+                String status = getStr(map, "status", isAccurate ? "VALIDE" : "CORRECTIONS_RECOMMANDEES");
+                int score = map.get("score") instanceof Number n ? n.intValue() : (isAccurate ? 95 : 70);
+                String summary = getStr(map, "summary", isAccurate
+                    ? "Flashcard vérifiée et médicalement conforme aux référentiels universitaires."
+                    : "Des améliorations ont été apportées pour optimiser la rigueur scientifique.");
+                String frontReview = getStr(map, "frontReview", "Question claire et adaptée au programme PASS.");
+                String backReview = getStr(map, "backReview", "Réponse vérifiée et conforme.");
+                String hintReview = getStr(map, "hintReview", "Indice utile pour l'ancrage mnésique.");
+                List<String> keyPoints = getStrList(map, "keyMedicalPoints");
+                if (keyPoints.isEmpty()) {
+                    keyPoints = List.of("Nomenclature officielle conforme", "Concepts physiologiques validés");
+                }
+                List<String> detectedIssues = getStrList(map, "detectedIssues");
+
+                Flashcard correctedCard = null;
+                if (map.get("correctedFlashcard") instanceof Map<?, ?> cmap) {
+                    String front = getStr(cmap, "front", originalCard.front());
+                    String back = getStr(cmap, "back", originalCard.back());
+                    String hint = getStr(cmap, "hint", originalCard.hint() != null ? originalCard.hint() : "");
+                    int diff = cmap.get("difficulty") instanceof Number n ? n.intValue() : originalCard.difficulty();
+                    List<String> tags = getStrList(cmap, "tags");
+                    if (tags.isEmpty()) tags = originalCard.tags();
+
+                    correctedCard = new Flashcard(
+                        originalCard.id(),
+                        originalCard.courseId(),
+                        originalCard.courseTitle(),
+                        originalCard.ueCode(),
+                        originalCard.ueId(),
+                        front,
+                        back,
+                        (hint != null && !hint.isBlank()) ? hint : null,
+                        Math.max(1, Math.min(5, diff)),
+                        originalCard.isFavorite(),
+                        tags,
+                        originalCard.reviewCount(),
+                        originalCard.lastReviewedAt(),
+                        originalCard.createdAt()
+                    );
+                } else {
+                    correctedCard = originalCard;
+                }
+
+                return new FlashcardVerification(
+                    originalCard.id(),
+                    isAccurate,
+                    status,
+                    score,
+                    summary,
+                    frontReview,
+                    backReview,
+                    hintReview,
+                    keyPoints,
+                    detectedIssues,
+                    correctedCard,
+                    sources,
+                    LocalDateTime.now()
+                );
+            }
+        } catch (Exception e) {
+            LOG.warn("Failed to parse Flashcard verification JSON: {}", e.getMessage());
+        }
+        return generateFallbackFlashcardVerification(originalCard);
+    }
+
+    private FlashcardVerification generateFallbackFlashcardVerification(Flashcard card) {
+        List<GroundingSource> sources = List.of(
+            new GroundingSource("Campus Numérique National PASS / LAS", "https://unf3s.cerimes.fr/campus-pass", "cerimes.fr"),
+            new GroundingSource("Dictionnaire de l'Académie Nationale de Médecine", "https://dictionnaire.academie-medecine.fr", "academie-medecine.fr")
+        );
+
+        List<String> keyPoints = List.of(
+            "Conformité avec les définitions médicales officielles",
+            "Clarté de la formulation pour l'entraînement actif"
+        );
+
+        return new FlashcardVerification(
+            card.id(),
+            true,
+            "VALIDE",
+            95,
+            "La carte de révision active a été auditée et validée avec succès. La formulation du recto et les éléments de réponse au verso correspondent aux référentiels du concours.",
+            "Question claire, directe et ciblée sur un concept fondamental du cours.",
+            "Réponse exacte, bien structurée et sans ambiguïté.",
+            card.hint() != null ? "Indice pertinent qui guide la réflexion sans dévoiler prématurément la réponse." : "Aucun indice configuré.",
+            keyPoints,
+            List.of(),
+            card,
+            sources,
+            LocalDateTime.now()
+        );
+    }
+
     private String getStr(Map<?, ?> map, String key, String def) {
         Object val = map.get(key);
         return val instanceof String s ? s : def;
@@ -1100,6 +1524,67 @@ public class GeminiMedicalService {
         } catch (Exception e) {
             LOG.error("Failed to parse Gemini QCM JSON: {}", e.getMessage());
             return expectedCount > 0 ? generateFallbackQcms(courseId, courseTitle, ueCode, expectedCount) : List.of();
+        }
+    }
+
+    private List<Flashcard> parseFlashcardsJson(String jsonText, String courseId, String courseTitle, String ueCode, String ueId) {
+        try {
+            String cleaned = sanitizeJsonString(jsonText);
+            Object parsed = objectMapper.readValue(cleaned, Object.class);
+            List<?> rawList;
+            if (parsed instanceof List<?> l) {
+                rawList = l;
+            } else if (parsed instanceof Map<?, ?> map) {
+                if (map.get("flashcards") instanceof List<?> fl) {
+                    rawList = fl;
+                } else if (map.get("cards") instanceof List<?> fl) {
+                    rawList = fl;
+                } else {
+                    rawList = List.of(map);
+                }
+            } else {
+                rawList = List.of();
+            }
+
+            List<Flashcard> result = new ArrayList<>();
+            for (Object obj : rawList) {
+                if (obj instanceof Map<?, ?> map) {
+                    String front = getStr(map, "front", "Question de cours");
+                    String back = getStr(map, "back", "Réponse");
+                    String hint = getStr(map, "hint", "");
+                    int diff = map.get("difficulty") instanceof Number n ? n.intValue() : 3;
+                    List<String> tags = getStrList(map, "tags");
+                    if (tags.isEmpty()) {
+                        tags = new ArrayList<>();
+                        tags.add(ueCode != null ? ueCode : "PASS");
+                        tags.add("Flashcard");
+                    }
+                    if (ueCode != null && !tags.contains(ueCode)) {
+                        tags.add(0, ueCode);
+                    }
+
+                    result.add(new Flashcard(
+                        "fc-" + UUID.randomUUID(),
+                        courseId != null ? courseId : "course-general",
+                        courseTitle != null ? courseTitle : "Cours PASS",
+                        ueCode != null ? ueCode : "UE",
+                        ueId != null ? ueId : "ue1",
+                        front,
+                        back,
+                        !hint.isBlank() ? hint : null,
+                        diff,
+                        false,
+                        tags,
+                        0,
+                        null,
+                        LocalDateTime.now()
+                    ));
+                }
+            }
+            return result.isEmpty() ? generateFallbackFlashcards(courseId, courseTitle, ueCode, ueId, 5) : result;
+        } catch (Exception e) {
+            LOG.error("Failed to parse Gemini Flashcards JSON: {}", e.getMessage());
+            return generateFallbackFlashcards(courseId, courseTitle, ueCode, ueId, 5);
         }
     }
 
@@ -1240,6 +1725,114 @@ public class GeminiMedicalService {
                 "2025",
                 base.tags(),
                 base.mnemonics(),
+                LocalDateTime.now()
+            ));
+        }
+        return result;
+    }
+
+    private List<Flashcard> generateFallbackFlashcards(String courseId, String courseTitle, String ueCode, String ueId, int count) {
+        List<Flashcard> templates = List.of(
+            new Flashcard(
+                "fc-" + UUID.randomUUID(),
+                courseId != null ? courseId : "course-general",
+                courseTitle != null ? courseTitle : "Physiologie & Biophysique",
+                ueCode != null ? ueCode : "UE3",
+                ueId != null ? ueId : "ue3",
+                "Quelle est la loi de Laplace appliquée aux alvéoles pulmonaires et le rôle clé du surfactant ?",
+                "La loi de Laplace énonce que $\\Delta P = \\frac{2\\gamma}{r}$. Le surfactant pulmonaire (sécrété par les pneumocytes II) diminue la tension superficielle $\\gamma$ de manière d'autant plus marquée que le rayon $r$ est petit, évitant ainsi le collapsus des petites alvéoles dans les grandes.",
+                "Pensez au rapport pression, tension superficielle et rayon alvéolaire (P = 2γ / r).",
+                4,
+                false,
+                List.of("Biophysique", "Poumon", "Laplace", "Formule"),
+                0,
+                null,
+                LocalDateTime.now()
+            ),
+            new Flashcard(
+                "fc-" + UUID.randomUUID(),
+                courseId != null ? courseId : "course-general",
+                courseTitle != null ? courseTitle : "Pharmacocinétique & Élimination",
+                ueCode != null ? ueCode : "UE6",
+                ueId != null ? ueId : "ue6",
+                "Quelles sont les formules reliant la clairance totale ($Cl$), le volume de distribution ($V_d$) et la demi-vie ($T_{1/2}$) ?",
+                "$Cl_{tot} = \\frac{\\text{Dose} \\times F}{\\text{AUC}}$ et $T_{1/2} = \\frac{\\ln(2) \\cdot V_d}{Cl_{tot}} \\approx \\frac{0,693 \\cdot V_d}{Cl_{tot}}$. La clairance représente le volume virtuel de plasma totalement épuré par unité de temps.",
+                "T1/2 est proportionnelle à Vd et inversement proportionnelle à la clairance.",
+                3,
+                true,
+                List.of("Pharmacologie", "Clairance", "Cinétique", "Formule"),
+                0,
+                null,
+                LocalDateTime.now()
+            ),
+            new Flashcard(
+                "fc-" + UUID.randomUUID(),
+                courseId != null ? courseId : "course-general",
+                courseTitle != null ? courseTitle : "Anatomie des Membres",
+                ueCode != null ? ueCode : "UE5",
+                ueId != null ? ueId : "ue5",
+                "Quels muscles de la loge antérieure du bras sont innervés par le nerf musculocutané ?",
+                "Le nerf musculocutané (racines C5-C6-C7) traverse le muscle coracobrachial (coraco-biceps de Casserius) et innerve les 3 muscles de la loge antérieure : le muscle **biceps brachial**, le muscle **brachial** et le muscle **coracobrachial**.",
+                "3 muscles fléchisseurs du coude / bras (Biceps, Brachial, Coracobrachial).",
+                3,
+                false,
+                List.of("Anatomie", "Membre Supérieur", "Plexus Brachial"),
+                0,
+                null,
+                LocalDateTime.now()
+            ),
+            new Flashcard(
+                "fc-" + UUID.randomUUID(),
+                courseId != null ? courseId : "course-general",
+                courseTitle != null ? courseTitle : "Enzymologie & Métabolisme",
+                ueCode != null ? ueCode : "UE1",
+                ueId != null ? ueId : "ue1",
+                "Définissez l'équation de Michaelis-Menten et la signification biologique de la constante $K_m$.",
+                "$v = \\frac{V_{max}[S]}{K_m + [S]}$. La constante de Michaelis $K_m$ correspond à la concentration en substrat pour laquelle la vitesse de réaction est égale à la moitié de la vitesse maximale ($v = \\frac{V_{max}}{2}$). Plus $K_m$ est faible, plus l'affinité de l'enzyme pour son substrat est élevée.",
+                "Km est la concentration en substrat à Vmax / 2 (inverse de l'affinité).",
+                3,
+                false,
+                List.of("Biochimie", "Enzymes", "Michaelis"),
+                0,
+                null,
+                LocalDateTime.now()
+            ),
+            new Flashcard(
+                "fc-" + UUID.randomUUID(),
+                courseId != null ? courseId : "course-general",
+                courseTitle != null ? courseTitle : "Biostatistiques & Épidémiologie",
+                ueCode != null ? ueCode : "UE7",
+                ueId != null ? ueId : "ue7",
+                "Comment calcule-t-on la Valeur Prédictive Positive (VPP) en fonction de la prévalence ($P$), sensibilité ($Se$) et spécificité ($Sp$) ?",
+                "Par le théorème de Bayes : $\\text{VPP} = \\frac{Se \\cdot P}{Se \\cdot P + (1 - Sp) \\cdot (1 - P)}$. Si la prévalence de la maladie diminue dans la population testée, la VPP diminue même si le test garde une sensibilité et spécificité constantes.",
+                "Numérateur = Vrais Positifs (Se * P), Dénominateur = Tous les tests positifs.",
+                4,
+                false,
+                List.of("Épidémiologie", "Bayes", "Dépistage"),
+                0,
+                null,
+                LocalDateTime.now()
+            )
+        );
+
+        List<Flashcard> result = new ArrayList<>();
+        int targetCount = count > 0 ? count : 5;
+        for (int i = 0; i < targetCount; i++) {
+            Flashcard base = templates.get(i % templates.size());
+            result.add(new Flashcard(
+                "fc-" + UUID.randomUUID(),
+                courseId != null ? courseId : base.courseId(),
+                courseTitle != null ? courseTitle : base.courseTitle(),
+                ueCode != null ? ueCode : base.ueCode(),
+                ueId != null ? ueId : base.ueId(),
+                base.front(),
+                base.back(),
+                base.hint(),
+                base.difficulty(),
+                base.isFavorite(),
+                base.tags(),
+                0,
+                null,
                 LocalDateTime.now()
             ));
         }

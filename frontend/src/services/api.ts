@@ -3,6 +3,8 @@ import {
   Course,
   RevisionSession,
   QcmQuestion,
+  Flashcard,
+  FlashcardReviewRating,
   HandwrittenScanResult,
   JScheduleConfig,
   TodaySummary
@@ -315,6 +317,7 @@ export const api = {
     timestamp: string;
     createdQcm?: import('../types').QcmQuestion;
     createdIllustration?: import('../types').MedicalIllustration;
+    createdFlashcard?: import('../types').Flashcard;
     groundingSources?: import('../types').GroundingSource[];
   }> {
     const res = await fetch(`${API_BASE}/gemini/tutor`, {
@@ -536,6 +539,104 @@ export const api = {
       body: formData,
     });
     if (!res.ok) throw new Error('Failed to upload file');
+    return res.json();
+  },
+
+  // Flashcards (Active Recall)
+  async getFlashcards(courseId?: string, ueId?: string, favorite?: boolean): Promise<Flashcard[]> {
+    const params = new URLSearchParams();
+    if (courseId && courseId !== 'ALL') params.append('courseId', courseId);
+    if (ueId && ueId !== 'ALL') params.append('ueId', ueId);
+    if (favorite) params.append('favorite', 'true');
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE}/gemini/flashcards${qs}`);
+    if (!res.ok) throw new Error('Failed to load flashcards');
+    return res.json();
+  },
+
+  async getFlashcard(id: string): Promise<Flashcard> {
+    const res = await fetch(`${API_BASE}/gemini/flashcards/${encodeURIComponent(id)}`);
+    if (!res.ok) throw new Error('Failed to load flashcard');
+    return res.json();
+  },
+
+  async createFlashcard(flashcard: Partial<Flashcard>): Promise<Flashcard> {
+    const res = await fetch(`${API_BASE}/gemini/flashcards`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(flashcard),
+    });
+    if (!res.ok) throw new Error('Failed to create flashcard');
+    return res.json();
+  },
+
+  async updateFlashcard(id: string, flashcard: Partial<Flashcard>): Promise<Flashcard> {
+    const res = await fetch(`${API_BASE}/gemini/flashcards/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(flashcard),
+    });
+    if (!res.ok) throw new Error('Failed to update flashcard');
+    return res.json();
+  },
+
+  async deleteFlashcard(id: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/gemini/flashcards/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('Failed to delete flashcard');
+  },
+
+  async toggleFlashcardFavorite(id: string): Promise<Flashcard> {
+    const res = await fetch(`${API_BASE}/gemini/flashcards/${encodeURIComponent(id)}/favorite`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error('Failed to toggle flashcard favorite');
+    return res.json();
+  },
+
+  async recordFlashcardReview(id: string, rating: FlashcardReviewRating): Promise<Flashcard> {
+    const res = await fetch(`${API_BASE}/gemini/flashcards/${encodeURIComponent(id)}/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rating }),
+    });
+    if (!res.ok) throw new Error('Failed to record flashcard review');
+    return res.json();
+  },
+
+  async generateFlashcards(
+    courseId?: string,
+    courseTitle?: string,
+    ueCode?: string,
+    ueId?: string,
+    content?: string,
+    count: number = 5
+  ): Promise<Flashcard[]> {
+    const res = await fetch(`${API_BASE}/gemini/generate-flashcards`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ courseId, courseTitle, ueCode, ueId, content, count }),
+    });
+    if (!res.ok) throw new Error('Failed to generate flashcards');
+    return res.json();
+  },
+
+  async verifyFlashcardById(id: string): Promise<import('../types').FlashcardVerification> {
+    const res = await fetch(`${API_BASE}/gemini/flashcards/${encodeURIComponent(id)}/verify`, {
+      method: 'POST'
+    });
+    if (!res.ok) throw new Error('Failed to verify flashcard');
+    return res.json();
+  },
+
+  async verifyFlashcard(flashcard: Flashcard): Promise<import('../types').FlashcardVerification> {
+    const res = await fetch(`${API_BASE}/gemini/verify-flashcard`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(flashcard)
+    });
+    if (!res.ok) throw new Error('Failed to verify flashcard');
     return res.json();
   }
 };
