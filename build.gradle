@@ -108,3 +108,9 @@ tasks.named("processResources") {
         into("public")
     }
 }
+
+tasks.register("prepareCloudRun", Sync) {
+    dependsOn("buildLayers")
+    from("build/docker/main/layers")
+    into("build/cloud-run")
+}

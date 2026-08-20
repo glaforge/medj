@@ -259,38 +259,166 @@ export GOOGLE_APPLICATION_CREDENTIALS="/chemin/vers/credentials.json"
 
 ---
 
-## 6. Tests & Déploiement
+## 6. Build & Déploiement Cloud (Production)
 
-### Exécution des Tests Automatisés
-La suite de tests unitaires valide le moteur des J, le lissage de charge, le seeder de cours, la sérialisation des modèles et les outils LangChain4j :
+L'architecture de production de MedJ repose entièrement sur l'écosystème **Google Cloud** et **Firebase** :
+
+```mermaid
+flowchart TB
+    User(["Étudiant / Admin (Navigateur / PWA)"])
+    
+    subgraph HostingLayer ["Firebase Hosting (Domaine medj.web.app)"]
+        FHost["Firebase Multi-site Hosting (/ & SPA assets)"]
+        Rewrite["/api/** Rewrite Proxy"]
+    end
+    
+    subgraph ComputeLayer ["Google Cloud Run (europe-west1)"]
+        CRun["Micronaut 5.1 (Java 25 Runtime Image / no-build)"]
+        AuthFilter["FirebaseAuthFilter (Vérification JWT & Allowlist)"]
+    end
+    
+    subgraph SecurityDataLayer ["Services Google Cloud & Secrets"]
+        SecretMgr["Secret Manager (GEMINI_API_KEY)"]
+        Firestore["Cloud Firestore (Base Native europe-west1)"]
+        GCS["Cloud Storage (gs://medj-505807-assets)"]
+        FirebaseAuth["Firebase Auth / Identity Platform (Google Sign-In)"]
+    end
+    
+    User -->|HTTPS| FHost
+    User -->|Authentification Google| FirebaseAuth
+    FHost -->|Requêtes API /api/*| Rewrite
+    Rewrite -->|Proxying Interne| CRun
+    CRun --> AuthFilter
+    AuthFilter --> Firestore & GCS & SecretMgr
+```
+
+### 📋 Services GCP & Firebase Utilisés
+
+| Service | Rôle en Production | Configuration / Ressource |
+| :--- | :--- | :--- |
+| **Google Cloud Run** | Hébergement backend Micronaut ultra-rapide | Image de base **Java 25** (`google-24-full/runtimes/java25`), région `europe-west1`, déploiement direct sans Cloud Build (`--no-build`). |
+| **Firebase Hosting** | CDN global & distribution SPA React 19 | Sites `medj.web.app` et `medj-505807.web.app` avec redirection automatique `/api/**` vers Cloud Run. |
+| **Firebase Authentication** | Authentification sécurisée Google Sign-In | Fournisseur Google actif, vérification backend des jetons JWT et filtrage par liste blanche d'adresses emails. |
+| **Cloud Firestore** | Base de données NoSQL serverless | Mode Natif dans `europe-west1` (collections préfixées `medj_*`). |
+| **Google Cloud Storage** | Stockage persistant des polycopiés et schémas IA | Bucket `gs://medj-505807-assets` en `europe-west1`. |
+| **Secret Manager** | Stockage sécurisé des clés d'API | Secret `GEMINI_API_KEY` injecté comme variable d'environnement dans Cloud Run. |
+
+---
+
+### 🚀 Guide de Déploiement Pas-à-Pas
+
+#### 1. Préparation & Activation des APIs GCP
+Assurez-vous que le CLI `gcloud` est authentifié et configuré sur votre projet :
 ```bash
-./gradlew test
+export PROJECT_ID="medj-505807"
+export REGION="europe-west1"
+
+gcloud config set project $PROJECT_ID
+
+# Activation des APIs nécessaires
+gcloud services enable \
+  run.googleapis.com \
+  firestore.googleapis.com \
+  storage.googleapis.com \
+  secretmanager.googleapis.com \
+  identitytoolkit.googleapis.com \
+  firebase.googleapis.com \
+  firebasehosting.googleapis.com
 ```
 
-### Construction du JAR de Production
-Génère une archive JAR autonome (*Fat JAR*) optimisée incluant l'API backend et les assets du frontend React :
+#### 2. Configuration du Secret Manager & Stockage
 ```bash
-./gradlew build
-# Fichier produit : build/libs/medj-0.1.0-all.jar
+# Création du secret Gemini API Key
+echo -n "VOTRE_CLE_GEMINI_API" | gcloud secrets create GEMINI_API_KEY \
+  --data-file=- \
+  --replication-policy="automatic"
 
-# Exécution autonome :
-java -jar build/libs/medj-0.1.0-all.jar
+# Attribution des droits au compte de service Cloud Run
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+gcloud secrets add-iam-policy-binding GEMINI_API_KEY \
+  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+
+# Création du bucket Cloud Storage pour les schémas et fiches
+gcloud storage buckets create gs://${PROJECT_ID}-assets \
+  --location=$REGION \
+  --uniform-bucket-level-access
 ```
 
-### Déploiement Google Cloud Run (Docker)
-MedJ est prêt pour le déploiement sur **Google Cloud Run** via conteneur Docker sans état :
-```dockerfile
-FROM gradle:9.0-jdk25 AS build
-WORKDIR /app
-COPY . .
-RUN ./gradlew build -x test --no-daemon
+#### 3. Build & Déploiement du Backend sur Cloud Run (Java 25)
+La tâche Gradle `prepareCloudRun` extrait et organise les couches de l'application Micronaut (`app/`, `libs/`, `resources/`) dans le répertoire `build/cloud-run/`. Le déploiement s'effectue sans Cloud Build (`--no-build`) sur l'image de base officielle **Java 25** :
 
-FROM eclipse-temurin:25-jre-alpine
-WORKDIR /app
-COPY --from=build /app/build/libs/medj-0.1.0-all.jar app.jar
-EXPOSE 8080
-ENTRYPOINT ["java", "-XX:+UseZGC", "-Xmx512m", "-jar", "app.jar"]
+```bash
+# 1. Préparation des couches de l'application
+./gradlew prepareCloudRun
+
+# 2. Déploiement sur Cloud Run
+gcloud beta run deploy medj-backend \
+  --source build/cloud-run \
+  --no-build \
+  --base-image=europe-west1-docker.pkg.dev/serverless-runtimes/google-24-full/runtimes/java25 \
+  --command="java" \
+  --args="-cp,app/*:libs/*:resources,fr.medj.Application" \
+  --region=$REGION \
+  --project=$PROJECT_ID \
+  --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest" \
+  --set-env-vars="^#^GCP_PROJECT_ID=${PROJECT_ID}#GCS_BUCKET=${PROJECT_ID}-assets#MEDJ_SEED_SAMPLE_DATA=false#MEDJ_ALLOWED_EMAILS=glaforge@gmail.com,marionlaforge4@gmail.com" \
+  --allow-unauthenticated
 ```
+
+#### 4. Build & Déploiement du Frontend sur Firebase Hosting
+```bash
+# 1. Compilation des assets de production React 19
+./gradlew buildFrontend
+
+# 2. Déploiement vers Firebase Hosting
+npx -y firebase-tools@latest deploy --only hosting --project=$PROJECT_ID
+```
+
+#### 5. Configuration de Firebase Authentication
+1. Rendez-vous sur la [Console Firebase Authentication](https://console.firebase.google.com/project/medj-505807/authentication).
+2. Dans **Sign-in method**, activez le fournisseur **Google** et renseignez l'email d'assistance du projet (`glaforge@gmail.com`).
+3. Dans **Paramètres** $\rightarrow$ **Domaines autorisés**, vérifiez la présence de `medj.web.app` et `medj-505807.web.app`.
+
+---
+
+### 🔄 Mises à Jour Ultérieures (One-Liner)
+Pour déployer rapidement une nouvelle version du backend et du frontend :
+```bash
+# Déploiement complet en production
+./gradlew prepareCloudRun buildFrontend && \
+gcloud beta run deploy medj-backend \
+  --source build/cloud-run \
+  --no-build \
+  --base-image=europe-west1-docker.pkg.dev/serverless-runtimes/google-24-full/runtimes/java25 \
+  --command="java" \
+  --args="-cp,app/*:libs/*:resources,fr.medj.Application" \
+  --region=europe-west1 \
+  --project=medj-505807 \
+  --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest" \
+  --set-env-vars="^#^GCP_PROJECT_ID=medj-505807#GCS_BUCKET=medj-505807-assets#MEDJ_SEED_SAMPLE_DATA=false#MEDJ_ALLOWED_EMAILS=glaforge@gmail.com,marionlaforge4@gmail.com" \
+  --allow-unauthenticated && \
+npx -y firebase-tools@latest deploy --only hosting --project=medj-505807
+```
+
+---
+
+### 📦 Sauvegardes Automatiques & Restauration (Disaster Recovery)
+
+MedJ intègre un système de sauvegarde automatique exécuté **toutes les nuits à 02h00 du matin (heure de Paris)** :
+- **Cloud Firestore** : Point-in-Time Recovery (PITR 7 jours) + backup natif 14 jours + export journalier dans `gs://medj-505807-backups/firestore/`.
+- **Cloud Storage Assets** : Object Versioning actif + snapshot miroir journalier dans `gs://medj-505807-backups/assets/`.
+- **Règle de rétention** : Purge automatique des sauvegardes de plus de 30 jours.
+
+```bash
+# Déclencher une sauvegarde manuelle immédiate
+./scripts/backup-now.sh
+
+# Restaurer l'application (Rollback complet ou sélectif)
+./scripts/restore-backup.sh --date 2026-08-20
+./scripts/restore-backup.sh --list
+```
+👉 Voir le guide complet : [`BACKUP_AND_RESTORE.md`](BACKUP_AND_RESTORE.md).
 
 ---
 

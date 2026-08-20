@@ -9,14 +9,24 @@ import {
   JScheduleConfig,
   TodaySummary
 } from '../types';
+import { getAuthToken } from './firebase';
 
 const API_BASE = '/api';
+
+async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const token = await getAuthToken();
+  const headers = new Headers(options.headers || {});
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  return fetch(url, { ...options, headers });
+}
 
 export const api = {
   // Subjects / UEs
   async getSubjects(): Promise<SubjectUE[]> {
     try {
-      const res = await fetch(`${API_BASE}/subjects`);
+      const res = await authFetch(`${API_BASE}/subjects`);
       if (res.ok) {
         const data = await res.json();
         localStorage.setItem('medj_subjects_cache', JSON.stringify(data));
@@ -30,13 +40,13 @@ export const api = {
   },
 
   async getSubject(id: string): Promise<SubjectUE> {
-    const res = await fetch(`${API_BASE}/subjects/${encodeURIComponent(id)}`);
+    const res = await authFetch(`${API_BASE}/subjects/${encodeURIComponent(id)}`);
     if (!res.ok) throw new Error('Failed to fetch subject');
     return res.json();
   },
 
   async createSubject(subject: Partial<SubjectUE>): Promise<SubjectUE> {
-    const res = await fetch(`${API_BASE}/subjects`, {
+    const res = await authFetch(`${API_BASE}/subjects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(subject),
@@ -46,7 +56,7 @@ export const api = {
   },
 
   async updateSubject(id: string, subject: Partial<SubjectUE>): Promise<SubjectUE> {
-    const res = await fetch(`${API_BASE}/subjects/${encodeURIComponent(id)}`, {
+    const res = await authFetch(`${API_BASE}/subjects/${encodeURIComponent(id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(subject),
@@ -56,7 +66,7 @@ export const api = {
   },
 
   async deleteSubject(id: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/subjects/${encodeURIComponent(id)}`, {
+    const res = await authFetch(`${API_BASE}/subjects/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     if (!res.ok) throw new Error('Failed to delete subject');
@@ -66,7 +76,7 @@ export const api = {
   async getCourses(ueId?: string): Promise<Course[]> {
     try {
       const url = ueId ? `${API_BASE}/courses?ueId=${encodeURIComponent(ueId)}` : `${API_BASE}/courses`;
-      const res = await fetch(url);
+      const res = await authFetch(url);
       if (res.ok) {
         const data = await res.json();
         localStorage.setItem('medj_courses_cache', JSON.stringify(data));
@@ -80,7 +90,7 @@ export const api = {
   },
 
   async createCourse(course: Partial<Course>): Promise<Course> {
-    const res = await fetch(`${API_BASE}/courses`, {
+    const res = await authFetch(`${API_BASE}/courses`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(course),
@@ -90,7 +100,7 @@ export const api = {
   },
 
   async updateCourse(id: string, course: Partial<Course>): Promise<Course> {
-    const res = await fetch(`${API_BASE}/courses/${id}`, {
+    const res = await authFetch(`${API_BASE}/courses/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(course),
@@ -100,18 +110,18 @@ export const api = {
   },
 
   async getCourse(id: string): Promise<Course> {
-    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(id)}`);
+    const res = await authFetch(`${API_BASE}/courses/${encodeURIComponent(id)}`);
     if (!res.ok) throw new Error('Failed to fetch course');
     return res.json();
   },
 
   async deleteCourse(id: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/courses/${id}`, { method: 'DELETE' });
+    const res = await authFetch(`${API_BASE}/courses/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Failed to delete course');
   },
 
   async deleteDocumentAttachment(courseId: string, docId: string): Promise<Course> {
-    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(courseId)}/documents/${encodeURIComponent(docId)}`, {
+    const res = await authFetch(`${API_BASE}/courses/${encodeURIComponent(courseId)}/documents/${encodeURIComponent(docId)}`, {
       method: 'DELETE',
     });
     if (!res.ok) throw new Error('Failed to delete document attachment');
@@ -124,7 +134,7 @@ export const api = {
     const url = fileType
       ? `${API_BASE}/courses/${encodeURIComponent(courseId)}/documents?fileType=${encodeURIComponent(fileType)}`
       : `${API_BASE}/courses/${encodeURIComponent(courseId)}/documents`;
-    const res = await fetch(url, {
+    const res = await authFetch(url, {
       method: 'POST',
       body: formData,
     });
@@ -133,7 +143,7 @@ export const api = {
   },
 
   async attachDocumentToCourse(courseId: string, doc: Partial<import('../types').DocumentAttachment>): Promise<Course> {
-    const res = await fetch(`${API_BASE}/courses/${encodeURIComponent(courseId)}/attach-document`, {
+    const res = await authFetch(`${API_BASE}/courses/${encodeURIComponent(courseId)}/attach-document`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(doc),
@@ -145,7 +155,7 @@ export const api = {
   // Revisions
   async getTodaySummary(): Promise<TodaySummary> {
     try {
-      const res = await fetch(`${API_BASE}/revisions/today`);
+      const res = await authFetch(`${API_BASE}/revisions/today`);
       if (res.ok) {
         const data = await res.json();
         localStorage.setItem('medj_today_summary', JSON.stringify(data));
@@ -173,7 +183,7 @@ export const api = {
     if (filters?.courseId) params.append('courseId', filters.courseId);
 
     try {
-      const res = await fetch(`${API_BASE}/revisions?${params.toString()}`);
+      const res = await authFetch(`${API_BASE}/revisions?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         localStorage.setItem('medj_all_revisions', JSON.stringify(data));
@@ -187,7 +197,7 @@ export const api = {
   },
 
   async completeRevision(id: string, evaluation: string, scorePercent?: number, timeSpentMinutes?: number, notes?: string): Promise<RevisionSession> {
-    const res = await fetch(`${API_BASE}/revisions/${id}/complete`, {
+    const res = await authFetch(`${API_BASE}/revisions/${id}/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ evaluation, scorePercent, timeSpentMinutes, notes }),
@@ -197,7 +207,7 @@ export const api = {
   },
 
   async uncompleteRevision(id: string): Promise<RevisionSession> {
-    const res = await fetch(`${API_BASE}/revisions/${id}/uncomplete`, {
+    const res = await authFetch(`${API_BASE}/revisions/${id}/uncomplete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
@@ -207,7 +217,7 @@ export const api = {
   },
 
   async shiftRevision(id: string, daysToAdd: number): Promise<RevisionSession> {
-    const res = await fetch(`${API_BASE}/revisions/${id}/shift`, {
+    const res = await authFetch(`${API_BASE}/revisions/${id}/shift`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ daysToAdd }),
@@ -217,7 +227,7 @@ export const api = {
   },
 
   async shiftSubject(ueId: string, daysToAdd: number): Promise<RevisionSession[]> {
-    const res = await fetch(`${API_BASE}/revisions/shift-subject`, {
+    const res = await authFetch(`${API_BASE}/revisions/shift-subject`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ueId, daysToAdd }),
@@ -227,7 +237,7 @@ export const api = {
   },
 
   async smoothWorkload(dailyLimit?: number): Promise<{ adjustedSessionsCount: number; appliedLimit: number }> {
-    const res = await fetch(`${API_BASE}/revisions/smooth-workload`, {
+    const res = await authFetch(`${API_BASE}/revisions/smooth-workload`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ dailyLimit }),
@@ -237,7 +247,7 @@ export const api = {
   },
 
   async createRevisionSession(courseId: string, jStep?: number, scheduledDate?: string): Promise<RevisionSession> {
-    const res = await fetch(`${API_BASE}/revisions`, {
+    const res = await authFetch(`${API_BASE}/revisions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ courseId, jStep, scheduledDate }),
@@ -247,7 +257,7 @@ export const api = {
   },
 
   async deleteRevision(id: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/revisions/${id}`, { method: 'DELETE' });
+    const res = await authFetch(`${API_BASE}/revisions/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Failed to delete revision');
   },
 
@@ -256,14 +266,14 @@ export const api = {
     overloadedDays: string[];
     dailyThreshold: number;
   }> {
-    const res = await fetch(`${API_BASE}/revisions/workload`);
+    const res = await authFetch(`${API_BASE}/revisions/workload`);
     if (!res.ok) throw new Error('Failed to load workload overview');
     return res.json();
   },
 
   // Gemini AI
   async generateQcm(courseId: string, courseTitle: string, ueCode: string, content: string, count: number = 3): Promise<QcmQuestion[]> {
-    const res = await fetch(`${API_BASE}/gemini/generate-qcm`, {
+    const res = await authFetch(`${API_BASE}/gemini/generate-qcm`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ courseId, courseTitle, ueCode, content, count }),
@@ -280,7 +290,7 @@ export const api = {
     if (courseTitle) params.append('courseTitle', courseTitle);
     if (ueCode) params.append('ueCode', ueCode);
 
-    const res = await fetch(`${API_BASE}/gemini/scan-annale?${params.toString()}`, {
+    const res = await authFetch(`${API_BASE}/gemini/scan-annale?${params.toString()}`, {
       method: 'POST',
       body: formData,
     });
@@ -296,7 +306,7 @@ export const api = {
     if (courseTitle) params.append('courseTitle', courseTitle);
     if (ueCode) params.append('ueCode', ueCode);
 
-    const res = await fetch(`${API_BASE}/gemini/scan-handwritten?${params.toString()}`, {
+    const res = await authFetch(`${API_BASE}/gemini/scan-handwritten?${params.toString()}`, {
       method: 'POST',
       body: formData,
     });
@@ -320,7 +330,7 @@ export const api = {
     createdFlashcard?: import('../types').Flashcard;
     groundingSources?: import('../types').GroundingSource[];
   }> {
-    const res = await fetch(`${API_BASE}/gemini/tutor`, {
+    const res = await authFetch(`${API_BASE}/gemini/tutor`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ question, courseContext, courseId, courseTitle, threadId }),
@@ -333,19 +343,19 @@ export const api = {
     const url = courseId
       ? `${API_BASE}/gemini/tutor/threads?courseId=${encodeURIComponent(courseId)}`
       : `${API_BASE}/gemini/tutor/threads`;
-    const res = await fetch(url);
+    const res = await authFetch(url);
     if (!res.ok) return [];
     return res.json();
   },
 
   async getTutorThread(threadId: string): Promise<import('../types').TutorConversationThread> {
-    const res = await fetch(`${API_BASE}/gemini/tutor/threads/${encodeURIComponent(threadId)}`);
+    const res = await authFetch(`${API_BASE}/gemini/tutor/threads/${encodeURIComponent(threadId)}`);
     if (!res.ok) throw new Error('Failed to fetch tutor thread');
     return res.json();
   },
 
   async createTutorThread(data?: { title?: string; courseId?: string; courseTitle?: string; ueCode?: string }): Promise<import('../types').TutorConversationThread> {
-    const res = await fetch(`${API_BASE}/gemini/tutor/threads`, {
+    const res = await authFetch(`${API_BASE}/gemini/tutor/threads`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data || {}),
@@ -355,7 +365,7 @@ export const api = {
   },
 
   async deleteTutorThread(threadId: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/gemini/tutor/threads/${encodeURIComponent(threadId)}`, {
+    const res = await authFetch(`${API_BASE}/gemini/tutor/threads/${encodeURIComponent(threadId)}`, {
       method: 'DELETE',
     });
     if (!res.ok) throw new Error('Failed to delete tutor thread');
@@ -363,19 +373,19 @@ export const api = {
 
   async getQcms(courseId?: string): Promise<QcmQuestion[]> {
     const url = courseId ? `${API_BASE}/gemini/qcms?courseId=${encodeURIComponent(courseId)}` : `${API_BASE}/gemini/qcms`;
-    const res = await fetch(url);
+    const res = await authFetch(url);
     if (!res.ok) return [];
     return res.json();
   },
 
   async getQcm(id: string): Promise<QcmQuestion> {
-    const res = await fetch(`${API_BASE}/gemini/qcms/${encodeURIComponent(id)}`);
+    const res = await authFetch(`${API_BASE}/gemini/qcms/${encodeURIComponent(id)}`);
     if (!res.ok) throw new Error('Failed to fetch QCM');
     return res.json();
   },
 
   async verifyQcm(qcm: QcmQuestion): Promise<import('../types').QcmVerificationResult> {
-    const res = await fetch(`${API_BASE}/gemini/verify-qcm`, {
+    const res = await authFetch(`${API_BASE}/gemini/verify-qcm`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(qcm),
@@ -385,7 +395,7 @@ export const api = {
   },
 
   async verifyQcmById(id: string): Promise<import('../types').QcmVerificationResult> {
-    const res = await fetch(`${API_BASE}/gemini/qcms/${encodeURIComponent(id)}/verify`, {
+    const res = await authFetch(`${API_BASE}/gemini/qcms/${encodeURIComponent(id)}/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -394,7 +404,7 @@ export const api = {
   },
 
   async createCustomQcm(qcm: Partial<QcmQuestion>): Promise<QcmQuestion> {
-    const res = await fetch(`${API_BASE}/gemini/qcms`, {
+    const res = await authFetch(`${API_BASE}/gemini/qcms`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(qcm),
@@ -404,7 +414,7 @@ export const api = {
   },
 
   async updateQcm(id: string, qcm: Partial<QcmQuestion>): Promise<QcmQuestion> {
-    const res = await fetch(`${API_BASE}/gemini/qcms/${encodeURIComponent(id)}`, {
+    const res = await authFetch(`${API_BASE}/gemini/qcms/${encodeURIComponent(id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(qcm),
@@ -414,14 +424,14 @@ export const api = {
   },
 
   async deleteQcm(id: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/gemini/qcms/${encodeURIComponent(id)}`, {
+    const res = await authFetch(`${API_BASE}/gemini/qcms/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     if (!res.ok) throw new Error('Failed to delete QCM');
   },
 
   async recordQcmAttempt(attempt: import('../types').QcmAttempt): Promise<import('../types').QcmAttempt> {
-    const res = await fetch(`${API_BASE}/gemini/qcm-attempts`, {
+    const res = await authFetch(`${API_BASE}/gemini/qcm-attempts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(attempt),
@@ -432,33 +442,33 @@ export const api = {
 
   async getQcmAttempts(courseId?: string): Promise<import('../types').QcmAttempt[]> {
     const url = courseId ? `${API_BASE}/gemini/qcm-attempts?courseId=${encodeURIComponent(courseId)}` : `${API_BASE}/gemini/qcm-attempts`;
-    const res = await fetch(url);
+    const res = await authFetch(url);
     if (!res.ok) return [];
     return res.json();
   },
 
   async getScans(courseId?: string): Promise<HandwrittenScanResult[]> {
     const url = courseId ? `${API_BASE}/gemini/scans?courseId=${encodeURIComponent(courseId)}` : `${API_BASE}/gemini/scans`;
-    const res = await fetch(url);
+    const res = await authFetch(url);
     if (!res.ok) return [];
     return res.json();
   },
 
   async deleteScan(id: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/gemini/scans/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const res = await authFetch(`${API_BASE}/gemini/scans/${encodeURIComponent(id)}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Failed to delete scan');
   },
 
   // Medical Illustrations & Printable Fill-in-the-blank Drawings
   async getIllustrations(courseId?: string): Promise<import('../types').MedicalIllustration[]> {
     const url = courseId ? `${API_BASE}/gemini/illustrations?courseId=${encodeURIComponent(courseId)}` : `${API_BASE}/gemini/illustrations`;
-    const res = await fetch(url);
+    const res = await authFetch(url);
     if (!res.ok) return [];
     return res.json();
   },
 
   async getIllustration(id: string): Promise<import('../types').MedicalIllustration> {
-    const res = await fetch(`${API_BASE}/gemini/illustrations/${encodeURIComponent(id)}`);
+    const res = await authFetch(`${API_BASE}/gemini/illustrations/${encodeURIComponent(id)}`);
     if (!res.ok) throw new Error('Failed to fetch illustration');
     return res.json();
   },
@@ -472,7 +482,7 @@ export const api = {
     illustrationType?: string;
     legendItems?: string[];
   }): Promise<import('../types').MedicalIllustration> {
-    const res = await fetch(`${API_BASE}/gemini/illustrations/generate`, {
+    const res = await authFetch(`${API_BASE}/gemini/illustrations/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -482,7 +492,7 @@ export const api = {
   },
 
   async regenerateIllustration(id: string, userAdjustmentPrompt?: string): Promise<import('../types').MedicalIllustration> {
-    const res = await fetch(`${API_BASE}/gemini/illustrations/${encodeURIComponent(id)}/regenerate`, {
+    const res = await authFetch(`${API_BASE}/gemini/illustrations/${encodeURIComponent(id)}/regenerate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userAdjustmentPrompt: userAdjustmentPrompt || '' }),
@@ -492,7 +502,7 @@ export const api = {
   },
 
   async verifyIllustration(id: string): Promise<import('../types').IllustrationVerification> {
-    const res = await fetch(`${API_BASE}/gemini/illustrations/${encodeURIComponent(id)}/verify`, {
+    const res = await authFetch(`${API_BASE}/gemini/illustrations/${encodeURIComponent(id)}/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -501,7 +511,7 @@ export const api = {
   },
 
   async deleteIllustration(id: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/gemini/illustrations/${encodeURIComponent(id)}`, {
+    const res = await authFetch(`${API_BASE}/gemini/illustrations/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     if (!res.ok) throw new Error('Failed to delete illustration');
@@ -509,7 +519,7 @@ export const api = {
 
   // Google Calendar & Config
   async syncGoogleCalendar(): Promise<{ syncedCount: number; calendarName: string; status: string }> {
-    const res = await fetch(`${API_BASE}/calendar/sync`, {
+    const res = await authFetch(`${API_BASE}/calendar/sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
@@ -519,13 +529,13 @@ export const api = {
   },
 
   async getConfig(): Promise<JScheduleConfig> {
-    const res = await fetch(`${API_BASE}/config`);
+    const res = await authFetch(`${API_BASE}/config`);
     if (!res.ok) throw new Error('Failed to get config');
     return res.json();
   },
 
   async updateConfig(config: Partial<JScheduleConfig>): Promise<JScheduleConfig> {
-    const res = await fetch(`${API_BASE}/config`, {
+    const res = await authFetch(`${API_BASE}/config`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config),
@@ -537,7 +547,7 @@ export const api = {
   async uploadFile(file: File): Promise<{ url: string; name: string; sizeBytes: number }> {
     const formData = new FormData();
     formData.append('file', file);
-    const res = await fetch(`${API_BASE}/storage/upload`, {
+    const res = await authFetch(`${API_BASE}/storage/upload`, {
       method: 'POST',
       body: formData,
     });
@@ -552,19 +562,19 @@ export const api = {
     if (ueId && ueId !== 'ALL') params.append('ueId', ueId);
     if (favorite) params.append('favorite', 'true');
     const qs = params.toString() ? `?${params.toString()}` : '';
-    const res = await fetch(`${API_BASE}/gemini/flashcards${qs}`);
+    const res = await authFetch(`${API_BASE}/gemini/flashcards${qs}`);
     if (!res.ok) throw new Error('Failed to load flashcards');
     return res.json();
   },
 
   async getFlashcard(id: string): Promise<Flashcard> {
-    const res = await fetch(`${API_BASE}/gemini/flashcards/${encodeURIComponent(id)}`);
+    const res = await authFetch(`${API_BASE}/gemini/flashcards/${encodeURIComponent(id)}`);
     if (!res.ok) throw new Error('Failed to load flashcard');
     return res.json();
   },
 
   async createFlashcard(flashcard: Partial<Flashcard>): Promise<Flashcard> {
-    const res = await fetch(`${API_BASE}/gemini/flashcards`, {
+    const res = await authFetch(`${API_BASE}/gemini/flashcards`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(flashcard),
@@ -574,7 +584,7 @@ export const api = {
   },
 
   async updateFlashcard(id: string, flashcard: Partial<Flashcard>): Promise<Flashcard> {
-    const res = await fetch(`${API_BASE}/gemini/flashcards/${encodeURIComponent(id)}`, {
+    const res = await authFetch(`${API_BASE}/gemini/flashcards/${encodeURIComponent(id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(flashcard),
@@ -584,14 +594,14 @@ export const api = {
   },
 
   async deleteFlashcard(id: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/gemini/flashcards/${encodeURIComponent(id)}`, {
+    const res = await authFetch(`${API_BASE}/gemini/flashcards/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
     if (!res.ok) throw new Error('Failed to delete flashcard');
   },
 
   async toggleFlashcardFavorite(id: string): Promise<Flashcard> {
-    const res = await fetch(`${API_BASE}/gemini/flashcards/${encodeURIComponent(id)}/favorite`, {
+    const res = await authFetch(`${API_BASE}/gemini/flashcards/${encodeURIComponent(id)}/favorite`, {
       method: 'POST',
     });
     if (!res.ok) throw new Error('Failed to toggle flashcard favorite');
@@ -599,7 +609,7 @@ export const api = {
   },
 
   async recordFlashcardReview(id: string, rating: FlashcardReviewRating): Promise<Flashcard> {
-    const res = await fetch(`${API_BASE}/gemini/flashcards/${encodeURIComponent(id)}/review`, {
+    const res = await authFetch(`${API_BASE}/gemini/flashcards/${encodeURIComponent(id)}/review`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rating }),
@@ -616,7 +626,7 @@ export const api = {
     content?: string,
     count: number = 5
   ): Promise<Flashcard[]> {
-    const res = await fetch(`${API_BASE}/gemini/generate-flashcards`, {
+    const res = await authFetch(`${API_BASE}/gemini/generate-flashcards`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ courseId, courseTitle, ueCode, ueId, content, count }),
@@ -626,7 +636,7 @@ export const api = {
   },
 
   async verifyFlashcardById(id: string): Promise<import('../types').FlashcardVerification> {
-    const res = await fetch(`${API_BASE}/gemini/flashcards/${encodeURIComponent(id)}/verify`, {
+    const res = await authFetch(`${API_BASE}/gemini/flashcards/${encodeURIComponent(id)}/verify`, {
       method: 'POST'
     });
     if (!res.ok) throw new Error('Failed to verify flashcard');
@@ -634,7 +644,7 @@ export const api = {
   },
 
   async verifyFlashcard(flashcard: Flashcard): Promise<import('../types').FlashcardVerification> {
-    const res = await fetch(`${API_BASE}/gemini/verify-flashcard`, {
+    const res = await authFetch(`${API_BASE}/gemini/verify-flashcard`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(flashcard)
@@ -652,7 +662,7 @@ export const api = {
     flashcardsCount: number;
     illustrationsCount: number;
   }> {
-    const res = await fetch(`${API_BASE}/sample-data/status`);
+    const res = await authFetch(`${API_BASE}/sample-data/status`);
     if (!res.ok) throw new Error('Failed to get sample data status');
     return res.json();
   },
@@ -664,7 +674,7 @@ export const api = {
     flashcardsCount: number;
     message: string;
   }> {
-    const res = await fetch(`${API_BASE}/sample-data/seed`, {
+    const res = await authFetch(`${API_BASE}/sample-data/seed`, {
       method: 'POST'
     });
     if (!res.ok) throw new Error('Failed to seed sample data');
@@ -675,7 +685,7 @@ export const api = {
     success: boolean;
     message: string;
   }> {
-    const res = await fetch(`${API_BASE}/sample-data/clear`, {
+    const res = await authFetch(`${API_BASE}/sample-data/clear`, {
       method: 'POST'
     });
     if (!res.ok) throw new Error('Failed to clear sample data');

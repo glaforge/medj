@@ -399,18 +399,32 @@ public class CourseController {
         return HttpResponse.ok(result);
     }
 
-    @Get("/storage/{filename}")
+    @Get(value = "/storage/{filename:.*}")
     public HttpResponse<byte[]> getStorageFile(@PathVariable String filename) {
+        if (filename == null || filename.isBlank()) {
+            return HttpResponse.notFound();
+        }
         File file = storageService.getFile(filename);
         if (!file.exists()) {
+            LOG.warn("Requested storage file '{}' not found in local cache or GCS", filename);
             return HttpResponse.notFound();
         }
         try {
             byte[] bytes = Files.readAllBytes(file.toPath());
             String contentType = Files.probeContentType(file.toPath());
+            if (contentType == null) {
+                String lower = filename.toLowerCase();
+                if (lower.endsWith(".png")) contentType = "image/png";
+                else if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) contentType = "image/jpeg";
+                else if (lower.endsWith(".svg")) contentType = "image/svg+xml";
+                else if (lower.endsWith(".webp")) contentType = "image/webp";
+                else if (lower.endsWith(".pdf")) contentType = "application/pdf";
+            }
             return HttpResponse.ok(bytes)
-                .contentType(contentType != null ? MediaType.of(contentType) : MediaType.APPLICATION_OCTET_STREAM_TYPE);
+                .contentType(contentType != null ? MediaType.of(contentType) : MediaType.APPLICATION_OCTET_STREAM_TYPE)
+                .header("Cache-Control", "public, max-age=86400");
         } catch (IOException e) {
+            LOG.error("Error reading storage file '{}': {}", filename, e.getMessage());
             return HttpResponse.serverError();
         }
     }

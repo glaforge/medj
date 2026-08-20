@@ -11,9 +11,12 @@ import {
   Award,
   Sun,
   Moon,
-  Layers
+  Layers,
+  LogOut,
+  User as UserIcon
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 interface NavbarProps {
   currentTab: 'dashboard' | 'calendar' | 'courses' | 'qcms' | 'flashcards' | 'tutor' | 'scans';
@@ -35,6 +38,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   totalDueCount
 }) => {
   const { resolvedTheme, setTheme } = useTheme();
+  const { user, logout } = useAuth();
 
   const toggleTheme = () => {
     setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
@@ -179,6 +183,35 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Settings className="w-4 h-4" />
             </button>
+
+            {/* User Profile & Logout */}
+            {user && (
+              <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200 dark:border-slate-800">
+                {user.photoURL ? (
+                  <img
+                    src={user.photoURL}
+                    alt={user.displayName || user.email || 'User'}
+                    title={user.email || 'Connecté'}
+                    className="w-7 h-7 rounded-full border border-sky-400"
+                  />
+                ) : (
+                  <div
+                    title={user.email || 'Connecté'}
+                    className="w-7 h-7 rounded-full bg-sky-600 text-white text-xs font-bold flex items-center justify-center"
+                  >
+                    {user.email?.charAt(0).toUpperCase() || <UserIcon className="w-3.5 h-3.5" />}
+                  </div>
+                )}
+
+                <button
+                  onClick={logout}
+                  title={`Se déconnecter (${user.email})`}
+                  className="p-2 rounded-xl bg-slate-100 hover:bg-red-50 dark:bg-slate-900 dark:hover:bg-red-950/50 text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 border border-slate-200 dark:border-slate-800 transition-all"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
           </div>
         </div>

@@ -29,8 +29,11 @@ import { MedicalIllustrationModal } from './components/MedicalIllustrationModal'
 import { getLocalTodayString } from './utils/dateUtils';
 import { AddRevisionModal } from './components/AddRevisionModal';
 import { SettingsModal } from './components/SettingsModal';
+import { useAuth } from './context/AuthContext';
+import { LoginView } from './components/LoginView';
 
 export const App: React.FC = () => {
+  const { user, loading } = useAuth();
   const [currentTab, setCurrentTab] = useState<'dashboard' | 'calendar' | 'courses' | 'qcms' | 'flashcards' | 'tutor' | 'scans'>('dashboard');
   const [subjects, setSubjects] = useState<SubjectUE[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -187,8 +190,10 @@ export const App: React.FC = () => {
   }, [courses]);
 
   useEffect(() => {
-    loadAllData();
-  }, []);
+    if (user) {
+      loadAllData();
+    }
+  }, [user]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -442,6 +447,19 @@ export const App: React.FC = () => {
       setIsSyncingCalendar(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center">
+        <div className="w-10 h-10 border-4 border-sky-500 border-t-transparent rounded-full animate-spin mb-4" />
+        <span className="text-sm font-semibold text-slate-600 dark:text-slate-400">Chargement de MedJ...</span>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginView />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-sky-500 selection:text-white">

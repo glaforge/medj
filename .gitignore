@@ -32,6 +32,12 @@ Thumbs.db
 
 # Environment variables & local configs
 .env
+.env.*
 .env.local
 *.local
+frontend/.env
+frontend/.env.*
+frontend/.env.local
+!frontend/.env.example
+.firebase/
 

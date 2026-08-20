@@ -566,24 +566,27 @@ java -jar build/libs/medj-0.1.0-all.jar
 
 ## 9. Infrastructure & Deployment Architecture
 
-### 1. Cloud Run Container Deployment
-MedJ is fully containerizable and optimized for **Google Cloud Run**:
-- Fast cold starts (<500ms on Java 25 / Micronaut Netty).
-- Stateless execution with automatic horizontal scaling (0 to $N$).
-- Local storage fallback mounts to Google Cloud Storage (GCS) or persistent Cloud Firestore.
+### 1. Cloud Run & Firebase Production Architecture
+MedJ is fully containerizable and optimized for **Google Cloud Run** and **Firebase Hosting**:
+- **Backend on Cloud Run (`medj-backend`)**: Deployed from pre-packaged layers (`prepareCloudRun`) using `--no-build` on the official **Java 25** runtime base image (`europe-west1-docker.pkg.dev/serverless-runtimes/google-24-full/runtimes/java25`).
+- **Frontend on Firebase Hosting (`medj.web.app`)**: Serves the React 19 SPA with native rewrite proxy `/api/**` routing to Cloud Run.
+- **Security & Allowlist**: `FirebaseAuthFilter` verifies Google JWT ID tokens and restricts access to allowed accounts (`glaforge@gmail.com`, `marionlaforge4@gmail.com`). Public exemptions for `/api/calendar/feed.ics` and `/api/storage/**`.
+- **Stateless Cloud Persistence**: Cloud Firestore in Native mode (`europe-west1`) and Google Cloud Storage bucket (`gs://medj-505807-assets`).
 
-```dockerfile
-# Multi-stage Dockerfile for Cloud Run
-FROM gradle:9.0-jdk25 AS build
-WORKDIR /app
-COPY . .
-RUN ./gradlew build -x test --no-daemon
-
-FROM eclipse-temurin:25-jre-alpine
-WORKDIR /app
-COPY --from=build /app/build/libs/medj-0.1.0-all.jar app.jar
-EXPOSE 8080
-ENTRYPOINT ["java", "-XX:+UseZGC", "-Xmx512m", "-jar", "app.jar"]
+```bash
+# Build layers and deploy to Cloud Run (Java 25, no-build)
+./gradlew prepareCloudRun
+gcloud beta run deploy medj-backend \
+  --source build/cloud-run \
+  --no-build \
+  --base-image=europe-west1-docker.pkg.dev/serverless-runtimes/google-24-full/runtimes/java25 \
+  --command="java" \
+  --args="-cp,app/*:libs/*:resources,fr.medj.Application" \
+  --region=europe-west1 \
+  --project=medj-505807 \
+  --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest" \
+  --set-env-vars="^#^GCP_PROJECT_ID=medj-505807#GCS_BUCKET=medj-505807-assets#MEDJ_SEED_SAMPLE_DATA=false#MEDJ_ALLOWED_EMAILS=glaforge@gmail.com,marionlaforge4@gmail.com" \
+  --allow-unauthenticated
 ```
 
 ### 2. Environment Variables & Secret Configuration
@@ -591,13 +594,13 @@ Configure the following runtime environment variables:
 
 | Variable | Description | Default | Required for |
 | :--- | :--- | :--- | :--- |
-| `GEMINI_API_KEY` | Google Gemini API Key | — | Live AI generation, OCR, Tuteur & Fact-checking |
+| `GEMINI_API_KEY` | Google Gemini API Key (Secret Manager) | — | Live AI generation, OCR, Tuteur & Fact-checking |
 | `GEMINI_MODEL` | Primary text & reasoning model | `gemini-3.7-flash` | QCMs, Flashcards, Tutor & OCR |
 | `GEMINI_IMAGE_MODEL`| Image generation model | `gemini-3-pro-image`| Anatomical illustrations & drawings |
-| `GCP_PROJECT_ID` | Google Cloud Project ID | `medj-pass` | Cloud Firestore & GCS persistence |
-| `GOOGLE_APPLICATION_CREDENTIALS`| Service account key path | — | GCP Cloud Firestore & GCS |
-| `MEDJ_STORAGE_DIR`| Local upload folder path | `./uploads` | Local file storage fallback |
-| `MICRONAUT_SERVER_PORT` | HTTP Server port | `8080` | Server binding |
+| `GCP_PROJECT_ID` | Google Cloud Project ID | `medj-505807` | Cloud Firestore & GCS persistence |
+| `GCS_BUCKET` | Cloud Storage assets bucket | `medj-505807-assets` | PDFs, scans, generated images |
+| `MEDJ_ALLOWED_EMAILS`| Whitelisted user email list | `glaforge@gmail.com,...` | Access control & student auth |
+| `MEDJ_SEED_SAMPLE_DATA`| Seed demo curriculum on startup | `false` | Zero-data vs Demo mode |
 
 ---
 

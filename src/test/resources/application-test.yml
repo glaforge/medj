@@ -1,3 +1,14 @@
 micronaut:
   server:
     port: -1
+
+medj:
+  security:
+    enabled: false
+    allowed-emails:
+      - "glaforge@gmail.com"
+      - "marionlaforge4@gmail.com"
+  google:
+    cloud:
+      firestore:
+        enabled: false
