@@ -23,7 +23,9 @@ import {
   BookOpen,
   TrendingUp,
   RotateCcw,
-  Star
+  Star,
+  Plus,
+  Database
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -37,6 +39,7 @@ interface DashboardViewProps {
   onSelectCourse: (course: Course) => void;
   onTriggerSmoothing: () => void;
   onNewCourseJ0: () => void;
+  onLoadSampleData?: () => void;
   revisionUpdateTrigger?: number;
 }
 
@@ -51,6 +54,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onSelectCourse,
   onTriggerSmoothing,
   onNewCourseJ0,
+  onLoadSampleData,
   revisionUpdateTrigger
 }) => {
   const [selectedEvaluation, setSelectedEvaluation] = useState<Record<string, string>>({});
@@ -133,6 +137,44 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="space-y-8 animate-fadeIn">
+
+      {/* Onboarding Welcome Banner when starting in clean mode with 0 courses */}
+      {courses.length === 0 && (
+        <div className="rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-sky-900/40 via-slate-900/90 to-indigo-950/40 border border-sky-500/30 shadow-xl relative overflow-hidden">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="space-y-2 max-w-xl">
+              <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/30 text-xs font-bold">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Mode Vierge / Prêt pour vos cours</span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-black text-white">
+                Bienvenue sur MedJ
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                L'application est lancée sans données pré-installées. Vous pouvez commencer à saisir vos propres cours et séances de révision, ou charger le programme officiel PASS (Université Paris Cité - 186 cours & QCMs) pour tester l'application.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
+              <button
+                onClick={onNewCourseJ0}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-lg shadow-sky-950/30 active:scale-95 transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Créer mon 1er cours (J0)</span>
+              </button>
+              {onLoadSampleData && (
+                <button
+                  onClick={onLoadSampleData}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-amber-500/30 text-xs font-bold shadow-sm active:scale-95 transition-all cursor-pointer"
+                >
+                  <Database className="w-4 h-4 text-amber-400" />
+                  <span>Charger les données d'exemple</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Hero Welcome & Stats Bar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

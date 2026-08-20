@@ -9,7 +9,8 @@ import {
   MedicalIllustration,
   HandwrittenScanResult,
   Flashcard,
-  FlashcardVerification
+  FlashcardVerification,
+  TutorConversationThread
 } from '../types';
 import { api } from '../services/api';
 import { MarkdownRenderer } from './MarkdownRenderer';
@@ -54,7 +55,8 @@ import {
   BookOpen,
   Layers,
   Star,
-  Link2
+  Link2,
+  MessageSquare
 } from 'lucide-react';
 
 interface CourseDetailViewProps {
@@ -63,6 +65,7 @@ interface CourseDetailViewProps {
   onBack: () => void;
   onStartQcmQuiz: (course: Course, qcms?: QcmQuestion[]) => void;
   onOpenAiTutor: (course: Course) => void;
+  onOpenAiTutorThread?: (course: Course, threadId: string) => void;
   onOpenScannerForCourse: (course: Course) => void;
   onShiftRevision: (sessionId: string, days: number) => void;
   onCompleteRevision: (sessionId: string, evaluation: string) => void;
@@ -82,6 +85,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
   onBack,
   onStartQcmQuiz,
   onOpenAiTutor,
+  onOpenAiTutorThread,
   onOpenScannerForCourse,
   onShiftRevision,
   onCompleteRevision,
@@ -103,6 +107,8 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
   const [attempts, setAttempts] = useState<QcmAttempt[]>([]);
   const [illustrations, setIllustrations] = useState<MedicalIllustration[]>([]);
   const [scans, setScans] = useState<HandwrittenScanResult[]>([]);
+  const [tutorThreads, setTutorThreads] = useState<TutorConversationThread[]>([]);
+  const [isDeletingThreadId, setIsDeletingThreadId] = useState<string | null>(null);
   const [expandedScanIds, setExpandedScanIds] = useState<Set<string>>(new Set());
   const [selectedIllustration, setSelectedIllustration] = useState<MedicalIllustration | null>(null);
   const [isNewIllustrationModalOpen, setIsNewIllustrationModalOpen] = useState(false);
@@ -174,14 +180,15 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
 
   const loadCourseData = async () => {
     try {
-      const [freshCourse, allRevs, courseQcms, courseFlashcards, courseAttempts, courseIllus, courseScans] = await Promise.all([
+      const [freshCourse, allRevs, courseQcms, courseFlashcards, courseAttempts, courseIllus, courseScans, courseThreads] = await Promise.all([
         api.getCourse(course.id).catch(() => course),
         api.getAllRevisions({ courseId: course.id }),
         api.getQcms(course.id),
         api.getFlashcards(course.id),
         api.getQcmAttempts(course.id),
         api.getIllustrations(course.id),
-        api.getScans(course.id)
+        api.getScans(course.id),
+        api.getTutorThreads(course.id).catch(() => [])
       ]);
       if (freshCourse) {
         setCurrentCourse(freshCourse);
@@ -192,6 +199,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
       setAttempts(courseAttempts);
       setIllustrations(courseIllus);
       setScans(courseScans);
+      setTutorThreads(courseThreads);
     } catch (e) {
       console.error('Failed to load course details', e);
     }
@@ -233,6 +241,21 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
       setScans(prev => prev.filter(s => s.id !== scanId));
     } catch (e) {
       console.error('Failed to delete scan', e);
+    }
+  };
+
+  const handleDeleteThread = async (e: React.MouseEvent, threadId: string) => {
+    e.stopPropagation();
+    if (!window.confirm('Supprimer définitivement cette conversation avec le Tuteur IA ?')) return;
+    setIsDeletingThreadId(threadId);
+    try {
+      await api.deleteTutorThread(threadId);
+      setTutorThreads(prev => prev.filter(t => t.id !== threadId));
+      if (onShowToast) onShowToast('✓ Conversation supprimée');
+    } catch (err) {
+      console.error('Failed to delete tutor thread', err);
+    } finally {
+      setIsDeletingThreadId(null);
     }
   };
 
@@ -1554,6 +1577,152 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
                 <span>Numériser un document avec Gemini</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 5. TUTEUR IA CONVERSATION THREADS FOR THIS COURSE                         */}
+      {/* ========================================================================= */}
+      <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-0.5">
+            <h2 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+              <div className="p-1 rounded-lg bg-gradient-to-tr from-sky-500 to-indigo-600 text-white shadow-xs">
+                <Bot className="w-4 h-4" />
+              </div>
+              <span>Conversations avec le Tuteur IA</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-100 dark:bg-sky-500/20 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-500/30">
+                {tutorThreads.length}
+              </span>
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Échanges, questions-réponses et synthèses interactives générées avec le Tuteur IA pour ce cours.
+            </p>
+          </div>
+
+          <button
+            onClick={() => onOpenAiTutor(currentCourse)}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-sky-950/20 active:scale-95 transition-all cursor-pointer shrink-0 self-start sm:self-auto"
+          >
+            <Bot className="w-4 h-4" />
+            <span>+ Poser une question au Tuteur IA</span>
+          </button>
+        </div>
+
+        {tutorThreads.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            {tutorThreads.map((thread) => {
+              const messageCount = thread.messages?.length || 0;
+              const lastMsg = thread.messages && thread.messages.length > 0 ? thread.messages[thread.messages.length - 1] : null;
+              const hasCreatedQcm = thread.messages?.some(m => m.createdQcm != null);
+              const hasCreatedIllus = thread.messages?.some(m => m.createdIllustration != null);
+              const hasCreatedFlashcard = thread.messages?.some(m => m.createdFlashcard != null);
+
+              const formattedDate = thread.updatedAt
+                ? new Date(thread.updatedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                : thread.createdAt
+                  ? new Date(thread.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+                  : '';
+
+              return (
+                <div
+                  key={thread.id}
+                  onClick={() => onOpenAiTutorThread ? onOpenAiTutorThread(currentCourse, thread.id) : onOpenAiTutor(currentCourse)}
+                  className="p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-sky-500/50 dark:hover:border-sky-500/50 hover:shadow-lg hover:shadow-sky-950/10 cursor-pointer transition-all flex flex-col justify-between gap-3 group shadow-2xs"
+                >
+                  <div className="space-y-2">
+                    {/* Card Top: Title & Delete */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-xl bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/20 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0 group-hover:scale-105 transition-transform">
+                          <MessageSquare className="w-3.5 h-3.5" />
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate group-hover:text-sky-600 dark:group-hover:text-sky-300 transition-colors" title={thread.title}>
+                          {thread.title}
+                        </h4>
+                      </div>
+
+                      <button
+                        onClick={(e) => handleDeleteThread(e, thread.id)}
+                        disabled={isDeletingThreadId === thread.id}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
+                        title="Supprimer cette conversation"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Last message preview */}
+                    {lastMsg && (
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed bg-slate-50 dark:bg-slate-950/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/60 italic">
+                        « {lastMsg.content.replace(/[#*`_]/g, '').slice(0, 140)}... »
+                      </p>
+                    )}
+
+                    {/* Generated Tools Badges */}
+                    {(hasCreatedQcm || hasCreatedIllus || hasCreatedFlashcard) && (
+                      <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                        {hasCreatedQcm && (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-500/20 flex items-center gap-1">
+                            <span>✨</span>
+                            <span>QCM généré</span>
+                          </span>
+                        )}
+                        {hasCreatedIllus && (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-100 dark:bg-indigo-500/10 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/20 flex items-center gap-1">
+                            <span>🖼️</span>
+                            <span>Schéma généré</span>
+                          </span>
+                        )}
+                        {hasCreatedFlashcard && (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/20 flex items-center gap-1">
+                            <span>🃏</span>
+                            <span>Flashcard générée</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Card Footer: Message count, Date & Action */}
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
+                    <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                      <span className="font-semibold text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                        {messageCount} message{messageCount > 1 ? 's' : ''}
+                      </span>
+                      {formattedDate && <span className="text-[10px]">{formattedDate}</span>}
+                    </div>
+
+                    <div className="flex items-center gap-1 text-xs font-bold text-sky-600 dark:text-sky-400 group-hover:translate-x-0.5 transition-transform">
+                      <span>Ouvrir</span>
+                      <span>→</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-8 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-xs text-slate-500 dark:text-slate-400 space-y-3 bg-slate-50/50 dark:bg-slate-950/20">
+            <div className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center mx-auto text-sky-500 shadow-2xs">
+              <Bot className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="font-semibold text-slate-700 dark:text-slate-300">Aucune conversation enregistrée pour ce cours.</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Posez vos questions de cours, demandez des explications physiologiques ou générez des QCMs ciblés avec le Tuteur IA.
+              </p>
+            </div>
+            <div className="pt-1">
+              <button
+                onClick={() => onOpenAiTutor(currentCourse)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-sky-950/20 active:scale-95 transition-all cursor-pointer"
+              >
+                <Bot className="w-4 h-4" />
+                <span>Démarrer une conversation sur ce cours</span>
               </button>
             </div>
           </div>

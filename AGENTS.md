@@ -369,7 +369,7 @@ classDiagram
 | `POST` | `/api/gemini/scan-annale` | Multipart (`file`) | Multimodal OCR of exam papers/PDFs into interactive QCM questions. |
 | `POST` | `/api/gemini/scan-handwritten` | Multipart (`file`) | Multimodal extraction of handwritten fiches into structured markdown, terms, and traps. |
 | `POST` | `/api/gemini/tutor` | `AskTutorRequest` | Conversational PASS tutor with LangChain4j `@Tool` calls and Google Search Grounding. |
-| `GET` | `/api/gemini/tutor/threads` | — | Lists all tutor conversation threads. |
+| `GET` | `/api/gemini/tutor/threads` | Query: `courseId` (opt) | Lists all or course-specific tutor conversation threads. |
 | `POST` | `/api/gemini/tutor/threads` | `CreateThreadRequest` | Creates a new tutor conversation thread. |
 | `DELETE` | `/api/gemini/tutor/threads/{id}` | — | Deletes a conversation thread. |
 | `GET` | `/api/gemini/qcms` | Query: `courseId` (opt) | Lists persisted QCMs. |
@@ -401,6 +401,9 @@ classDiagram
 | `GET` | `/api/calendar/feed.ics` | — | Returns standard iCalendar (`.ics`) subscription stream. |
 | `GET` | `/api/config` | — | Retrieves global J-Method and calendar settings. |
 | `PUT` | `/api/config` | `JScheduleConfig` | Updates settings (intervals, daily limits, presets). |
+| `GET` | `/api/sample-data/status` | — | Returns data counts & whether demo data is active. |
+| `POST` | `/api/sample-data/seed` | — | Dynamically seeds Paris Cité curriculum (186 courses, QCMs, flashcards). |
+| `POST` | `/api/sample-data/clear` | — | Clears all courses, revisions, QCMs and flashcards. |
 | `POST` | `/api/storage/upload` | Multipart (`file`) | Uploads a file (PDF, image) to local storage or GCS. |
 | `GET` | `/api/storage/{filename}` | — | Streams stored file bytes with appropriate content-type. |
 

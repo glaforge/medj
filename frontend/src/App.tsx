@@ -47,6 +47,7 @@ export const App: React.FC = () => {
   // Modal and view states
   const [selectedCourseForDetail, setSelectedCourseForDetail] = useState<Course | null>(null);
   const [tutorInitialCourse, setTutorInitialCourse] = useState<Course | null>(null);
+  const [tutorInitialThreadId, setTutorInitialThreadId] = useState<string | null>(null);
   const [targetQcmId, setTargetQcmId] = useState<string | null>(null);
   const [targetFlashcardId, setTargetFlashcardId] = useState<string | null>(null);
   const [activeQcmCourse, setActiveQcmCourse] = useState<Course | null>(null);
@@ -82,6 +83,7 @@ export const App: React.FC = () => {
     courseId?: string;
     qcmId?: string;
     flashcardId?: string;
+    threadId?: string;
   } => {
     const clean = pathname.replace(/\/+$/, '') || '/';
 
@@ -115,6 +117,10 @@ export const App: React.FC = () => {
     if (clean === '/ia' || clean === '/tutor') {
       return { tab: 'tutor' };
     }
+    if (clean.startsWith('/ia/thread/') || clean.startsWith('/tutor/thread/')) {
+      const parts = clean.split('/');
+      return { tab: 'tutor', threadId: parts[3] };
+    }
     if (clean.startsWith('/ia/') || clean.startsWith('/tutor/')) {
       const parts = clean.split('/');
       return { tab: 'tutor', courseId: parts[2] };
@@ -133,13 +139,20 @@ export const App: React.FC = () => {
       if (route.courseId) {
         const found = courseList.find(c => c.id.toLowerCase() === route.courseId!.toLowerCase());
         setTutorInitialCourse(found || null);
+      } else {
+        setTutorInitialCourse(null);
+      }
+      if (route.threadId) {
+        setTutorInitialThreadId(route.threadId);
+      } else {
+        setTutorInitialThreadId(null);
       }
       setSelectedCourseForDetail(null);
-    } else if (route.courseId) {
+    } else if (route.tab === 'courses' && route.courseId) {
       const found = courseList.find(c => c.id.toLowerCase() === route.courseId!.toLowerCase());
       setSelectedCourseForDetail(found || null);
     } else {
-      setSelectedCourseForDetail(prev => prev ? (courseList.find(c => c.id.toLowerCase() === prev.id.toLowerCase()) || null) : null);
+      setSelectedCourseForDetail(null);
     }
 
     if (route.qcmId) {
@@ -210,6 +223,28 @@ export const App: React.FC = () => {
       applyRoute(window.location.pathname, courseData);
     } catch (e) {
       console.error('Failed to load initial data', e);
+    }
+  };
+
+  const handleLoadSampleData = async () => {
+    try {
+      const res = await api.loadSampleData();
+      await loadAllData();
+      showToast(`✓ ${res.message || 'Données d\'exemple chargées avec succès !'}`);
+    } catch (e) {
+      console.error('Failed to load sample data', e);
+      showToast('❌ Erreur lors du chargement des données d\'exemple');
+    }
+  };
+
+  const handleClearData = async () => {
+    try {
+      const res = await api.clearSampleData();
+      await loadAllData();
+      showToast(`✓ ${res.message || 'Données réinitialisées avec succès.'}`);
+    } catch (e) {
+      console.error('Failed to clear data', e);
+      showToast('❌ Erreur lors de la réinitialisation des données');
     }
   };
 
@@ -454,8 +489,15 @@ export const App: React.FC = () => {
             onStartQcmQuiz={handleStartQuiz}
             onOpenAiTutor={(c) => {
               setTutorInitialCourse(c);
+              setTutorInitialThreadId(null);
               setSelectedCourseForDetail(null);
               navigate(`/ia/${c.id}`);
+            }}
+            onOpenAiTutorThread={(c, threadId) => {
+              setTutorInitialCourse(c);
+              setTutorInitialThreadId(threadId);
+              setSelectedCourseForDetail(null);
+              navigate(`/ia/thread/${threadId}`);
             }}
             onOpenScannerForCourse={(c) => {
               setSelectedCourseForScan(c);
@@ -497,6 +539,7 @@ export const App: React.FC = () => {
                 }}
                 onTriggerSmoothing={handleTriggerSmoothing}
                 onNewCourseJ0={() => setIsNewCourseOpen(true)}
+                onLoadSampleData={handleLoadSampleData}
                 revisionUpdateTrigger={revisionUpdateTrigger}
               />
             )}
@@ -580,9 +623,19 @@ export const App: React.FC = () => {
               <AiTutorChat
                 courses={courses}
                 initialCourse={tutorInitialCourse || selectedCourseForDetail || undefined}
+                initialThreadId={tutorInitialThreadId || undefined}
                 onStartQcmQuiz={handleStartQuiz}
+                onNavigateToCourse={(c) => {
+                  setSelectedCourseForDetail(c);
+                  navigate(`/subjects/${c.id}`);
+                }}
                 onQcmCreated={() => {
                   showToast('🎯 Nouveau QCM généré et ajouté à vos cours !');
+                  setRevisionUpdateTrigger(prev => prev + 1);
+                  loadAllData();
+                }}
+                onFlashcardCreated={() => {
+                  showToast('🗂️ Nouvelle flashcard générée et ajoutée à vos cours !');
                   setRevisionUpdateTrigger(prev => prev + 1);
                   loadAllData();
                 }}
@@ -709,6 +762,8 @@ export const App: React.FC = () => {
           showToast('Paramètres mis à jour !');
           loadAllData();
         }}
+        onLoadSampleData={handleLoadSampleData}
+        onClearData={handleClearData}
       />
 
       <EditFlashcardModal

@@ -830,16 +830,16 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
                   {/* Day Column Header */}
                   <div className={`p-3 border-b rounded-t-2xl flex items-center justify-between ${
                     wd.isToday
-                      ? 'bg-sky-600 text-white border-sky-600 shadow-xs'
+                      ? 'bg-sky-600 !text-white text-white border-sky-600 shadow-xs'
                       : 'bg-white dark:bg-slate-950/60 border-slate-200 dark:border-slate-800'
                   }`}>
                     <div>
                       <div className="flex items-center gap-1">
-                        <span className={`text-xs font-black uppercase tracking-wider ${wd.isToday ? 'text-white' : 'text-slate-900 dark:text-white'}`}>
+                        <span className={`text-xs font-black uppercase tracking-wider ${wd.isToday ? '!text-white text-white' : 'text-slate-900 dark:text-white'}`}>
                           {wd.dayName}
                         </span>
                       </div>
-                      <div className={`text-[11px] font-semibold ${wd.isToday ? 'text-sky-100' : 'text-slate-500 dark:text-slate-400'}`}>
+                      <div className={`text-[11px] font-semibold ${wd.isToday ? '!text-white/90 text-white/90' : 'text-slate-500 dark:text-slate-400'}`}>
                         {wd.dayNum} {wd.monthName}
                       </div>
                     </div>

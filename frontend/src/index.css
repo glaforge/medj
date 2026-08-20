@@ -319,15 +319,33 @@ html.light .bg-emerald-500\/10 {
   background-color: #d1fae5 !important;
 }
 
-/* Text white override only when not inside colored badges / buttons */
-html.light h1.text-white,
-html.light h2.text-white,
-html.light h3.text-white,
-html.light h4.text-white,
-html.light p.text-white,
-html.light span.text-white:not([class*="bg-sky"]):not([class*="bg-emerald"]):not([class*="bg-rose"]):not([class*="bg-indigo"]):not([class*="bg-amber"]):not([class*="bg-purple"]):not([class*="bg-teal"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-gradient"]),
-html.light div.text-white:not([class*="bg-sky"]):not([class*="bg-emerald"]):not([class*="bg-rose"]):not([class*="bg-indigo"]):not([class*="bg-amber"]):not([class*="bg-purple"]):not([class*="bg-teal"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-gradient"]) {
+/* Text white override only for standalone text outside colored backgrounds */
+html.light h1.text-white:not([class*="bg-"]):not([class*="from-"]),
+html.light h2.text-white:not([class*="bg-"]):not([class*="from-"]),
+html.light h3.text-white:not([class*="bg-"]):not([class*="from-"]),
+html.light h4.text-white:not([class*="bg-"]):not([class*="from-"]),
+html.light p.text-white:not([class*="bg-"]):not([class*="from-"]) {
   color: #0f172a !important;
+}
+
+/* Ensure text inside colored backgrounds, headers and badges remains pure white */
+html.light [class*="bg-sky-600"] .text-white,
+html.light [class*="bg-sky-600"] span.text-white,
+html.light [class*="bg-sky-600"] div.text-sky-100,
+html.light [class*="bg-sky-600"] span,
+html.light [class*="bg-sky-700"] .text-white,
+html.light [class*="bg-indigo-600"] .text-white,
+html.light [class*="bg-emerald-600"] .text-white,
+html.light [class*="bg-rose-600"] .text-white,
+html.light [class*="bg-amber-600"] .text-white,
+html.light [class*="bg-purple-600"] .text-white,
+html.light button[class*="bg-sky"] .text-white,
+html.light button[class*="bg-indigo"] .text-white,
+html.light button[class*="bg-emerald"] .text-white,
+html.light .bg-white\/20.text-white,
+html.light .bg-white\/25.text-white,
+html.light .bg-white\/30.text-white {
+  color: #ffffff !important;
 }
 
 /* Inputs & Form Controls in Light Mode */

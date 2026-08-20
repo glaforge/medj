@@ -239,8 +239,11 @@ public class GeminiAiController {
         return "application/pdf";
     }
 
-    @Get("/tutor/threads")
-    public List<TutorConversationThread> getTutorThreads() {
+    @Get("/tutor/threads{?courseId}")
+    public List<TutorConversationThread> getTutorThreads(@QueryValue Optional<String> courseId) {
+        if (courseId.isPresent() && !courseId.get().isBlank()) {
+            return firestoreService.getTutorThreadsForCourse(courseId.get());
+        }
         return firestoreService.getAllTutorThreads();
     }
 
@@ -350,14 +353,29 @@ public class GeminiAiController {
         updatedMessages.add(userMsg);
         updatedMessages.add(modelMsg);
 
+        // Determine or generate summarized thread title
+        String summaryTitle;
+        boolean needsSummary = (thread == null)
+            || thread.title() == null
+            || "Nouvelle conversation".equalsIgnoreCase(thread.title().trim())
+            || thread.title().startsWith("Discussion :")
+            || (thread.messages() != null && thread.messages().size() <= 2);
+
+        if (needsSummary) {
+            String courseTitle = request.courseTitle() != null ? request.courseTitle() : (thread != null ? thread.courseTitle() : null);
+            summaryTitle = geminiMedicalService.summarizeConversationTitle(
+                request.question(),
+                tutorResponse.answer(),
+                courseTitle
+            );
+        } else {
+            summaryTitle = thread.title();
+        }
+
         if (thread == null) {
-            String title = request.question().trim();
-            if (title.length() > 50) {
-                title = title.substring(0, 47) + "...";
-            }
             thread = new TutorConversationThread(
                 threadId != null && !threadId.isBlank() ? threadId : "thread-" + UUID.randomUUID(),
-                title,
+                summaryTitle,
                 request.courseId(),
                 request.courseTitle(),
                 null,
@@ -366,14 +384,9 @@ public class GeminiAiController {
                 LocalDateTime.now()
             );
         } else {
-            String title = thread.title();
-            if ("Nouvelle conversation".equalsIgnoreCase(title) || title.startsWith("Discussion :")) {
-                String q = request.question().trim();
-                title = q.length() > 50 ? q.substring(0, 47) + "..." : q;
-            }
             thread = new TutorConversationThread(
                 thread.id(),
-                title,
+                summaryTitle,
                 thread.courseId() != null ? thread.courseId() : request.courseId(),
                 thread.courseTitle() != null ? thread.courseTitle() : request.courseTitle(),
                 thread.ueCode(),
@@ -395,6 +408,7 @@ public class GeminiAiController {
         response.put("groundingSources", tutorResponse.groundingSources());
         response.put("messageId", modelMsg.id());
         response.put("threadId", thread.id());
+        response.put("threadTitle", thread.title());
         response.put("timestamp", modelMsg.timestamp());
 
         return HttpResponse.ok(response);

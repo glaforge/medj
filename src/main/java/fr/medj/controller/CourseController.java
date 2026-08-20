@@ -377,6 +377,28 @@ public class CourseController {
         }
     }
 
+    // --- Sample Data Management (Seed / Clear / Status) ---
+
+    @Get("/sample-data/status")
+    public Map<String, Object> getSampleDataStatus() {
+        return firestoreService.getSampleDataStatus();
+    }
+
+    @Post("/sample-data/seed")
+    public HttpResponse<Map<String, Object>> seedSampleData() {
+        LOG.info("Manual seed of sample data requested via API");
+        Map<String, Object> result = firestoreService.seedSampleData();
+        jMethodEngineService.initializeDefaultRevisions();
+        return HttpResponse.ok(result);
+    }
+
+    @Post("/sample-data/clear")
+    public HttpResponse<Map<String, Object>> clearSampleData() {
+        LOG.info("Clear all sample & user data requested via API");
+        Map<String, Object> result = firestoreService.clearAllData();
+        return HttpResponse.ok(result);
+    }
+
     @Get("/storage/{filename}")
     public HttpResponse<byte[]> getStorageFile(@PathVariable String filename) {
         File file = storageService.getFile(filename);

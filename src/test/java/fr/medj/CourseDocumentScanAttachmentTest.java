@@ -35,6 +35,7 @@ public class CourseDocumentScanAttachmentTest {
     void setUp() {
         firestoreService = new FirestoreService();
         firestoreService.init();
+        firestoreService.seedSampleData();
 
         storageService = new StorageService("./build/test-storage-" + System.currentTimeMillis());
 

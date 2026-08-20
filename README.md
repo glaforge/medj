@@ -64,6 +64,15 @@ export GOOGLE_APPLICATION_CREDENTIALS="/chemin/vers/credentials.json"
 ```
 *(En l'absence de clé, MedJ fonctionne automatiquement en mode hybride local/hors-ligne avec moteur médical simulé et stockage local).*
 
+### 5. Données d'Exemple & Initialisation
+Par défaut, **MedJ se lance en mode totalement vierge** (0 matière/UE, 0 cours, 0 révision), vous permettant de configurer vos propres matières et cours personnalisés.
+
+- Pour lancer l'application avec les données d'exemple pré-chargées au démarrage (programme officiel PASS Université Paris Cité : 8 UEs + Mineure, 186 cours, QCMs et flashcards) :
+  ```bash
+  MEDJ_SEED_SAMPLE_DATA=true ./gradlew run
+  ```
+- Vous pouvez également charger le modèle d'exemple complet (UEs + 186 cours) ou réinitialiser l'ensemble des données à tout moment en 1 clic directement depuis l'interface (bannière d'accueil du Dashboard ou dans les **Paramètres ⚙️ > Données & Programme d'exemple**).
+
 ---
 
 ## 🧪 Tests & Build de Production

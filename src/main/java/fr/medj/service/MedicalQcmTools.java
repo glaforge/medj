@@ -105,6 +105,9 @@ public class MedicalQcmTools {
                     if (ueOpt.isPresent()) {
                         resolvedUeCode = ueOpt.get().code();
                         resolvedCourseTitle = ueOpt.get().name();
+                    } else if (courseOrUe.toUpperCase().startsWith("UE") || courseOrUe.length() <= 8) {
+                        resolvedUeCode = courseOrUe.toUpperCase();
+                        resolvedCourseTitle = "Matière " + resolvedUeCode;
                     }
                 }
             }

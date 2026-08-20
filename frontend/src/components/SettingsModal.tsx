@@ -18,19 +18,26 @@ import {
   Moon,
   Monitor,
   Palette,
-  Check
+  Check,
+  Database,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfigUpdated?: (config: JScheduleConfig) => void;
+  onLoadSampleData?: () => void;
+  onClearData?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
-  onConfigUpdated
+  onConfigUpdated,
+  onLoadSampleData,
+  onClearData
 }) => {
   useEscapeKey(isOpen, onClose);
   const { theme, setTheme } = useTheme();
@@ -46,12 +53,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncingGcal, setIsSyncingGcal] = useState(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
+  const [sampleDataStatus, setSampleDataStatus] = useState<{
+    hasData: boolean;
+    coursesCount: number;
+    revisionsCount: number;
+    qcmsCount: number;
+    flashcardsCount: number;
+  } | null>(null);
+  const [isLoadingSampleAction, setIsLoadingSampleAction] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       loadConfig();
+      loadDataStatus();
     }
   }, [isOpen]);
+
+  const loadDataStatus = async () => {
+    try {
+      const status = await api.getSampleDataStatus();
+      setSampleDataStatus(status);
+    } catch (e) {
+      console.error('Failed to get sample data status', e);
+    }
+  };
 
   const loadConfig = async () => {
     try {
@@ -287,6 +312,79 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <Download className="w-3.5 h-3.5" />
                   <span>Télécharger le fichier .ics</span>
                 </a>
+              </div>
+            </div>
+          </div>
+
+          {/* Data & Demo Management */}
+          <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
+            <h3 className="font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-[11px] flex items-center gap-2">
+              <Database className="w-4 h-4 text-amber-500" />
+              Données & Programme d'exemple
+            </h3>
+
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                Par défaut, MedJ se lance en <strong>mode vierge</strong> pour vous permettre de planifier vos propres cours. Vous pouvez charger à tout moment le programme officiel PASS Paris Cité (186 cours & QCMs) pour tester l'application ou réinitialiser votre espace.
+              </div>
+
+              {sampleDataStatus && (
+                <div className="flex items-center gap-2 flex-wrap text-[11px] font-mono text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900/90 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <span>📊 Actuellement :</span>
+                  <span className="font-bold text-sky-600 dark:text-sky-400">{sampleDataStatus.coursesCount} cours</span>
+                  <span>•</span>
+                  <span className="font-bold text-amber-600 dark:text-amber-400">{sampleDataStatus.revisionsCount} révisions</span>
+                  <span>•</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">{sampleDataStatus.qcmsCount} QCMs</span>
+                  <span>•</span>
+                  <span className="font-bold text-purple-600 dark:text-purple-400">{sampleDataStatus.flashcardsCount} flashcards</span>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
+                {onLoadSampleData && (
+                  <button
+                    type="button"
+                    disabled={isLoadingSampleAction}
+                    onClick={async () => {
+                      if (window.confirm('Charger les 186 cours, révisions, QCMs et flashcards du programme officiel PASS Paris Cité ?')) {
+                        setIsLoadingSampleAction(true);
+                        try {
+                          await onLoadSampleData();
+                          await loadDataStatus();
+                        } finally {
+                          setIsLoadingSampleAction(false);
+                        }
+                      }
+                    }}
+                    className="flex-1 px-3.5 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs"
+                  >
+                    <Database className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Charger les données d'exemple (Paris Cité)</span>
+                  </button>
+                )}
+
+                {onClearData && (
+                  <button
+                    type="button"
+                    disabled={isLoadingSampleAction}
+                    onClick={async () => {
+                      if (window.confirm('⚠️ ATTENTION : Voulez-vous vraiment effacer tous vos cours, révisions et QCMs pour repartir sur un espace 100% vierge ?')) {
+                        setIsLoadingSampleAction(true);
+                        try {
+                          await onClearData();
+                          await loadDataStatus();
+                        } finally {
+                          setIsLoadingSampleAction(false);
+                        }
+                      }
+                    }}
+                    className="px-3.5 py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-900 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                    <span>Tout effacer</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>

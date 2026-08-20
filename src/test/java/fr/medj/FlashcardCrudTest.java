@@ -23,6 +23,7 @@ public class FlashcardCrudTest {
     void setUp() {
         firestoreService = new FirestoreService();
         firestoreService.init();
+        firestoreService.seedSampleData();
         StorageService storageService = new StorageService("./build/test-uploads");
         MedicalQcmTools medicalQcmTools = new MedicalQcmTools(firestoreService);
         MedicalIllustrationTools medicalIllustrationTools = new MedicalIllustrationTools(firestoreService, storageService);

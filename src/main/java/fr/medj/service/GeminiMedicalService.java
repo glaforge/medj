@@ -2398,6 +2398,81 @@ public class GeminiMedicalService {
             </svg>
             """.formatted(isFill ? "Planche d'entraînement à trous (à compléter)" : "Modèle anatomique de référence");
     }
+
+    /**
+     * Summarizes an AI Tutor conversation into a short, informative medical title (4 to 7 words).
+     */
+    public String summarizeConversationTitle(String question, String answer, String courseTitle) {
+        if (question == null || question.isBlank()) {
+            return courseTitle != null && !courseTitle.isBlank() ? "Discussion : " + courseTitle : "Discussion Tuteur IA";
+        }
+
+        if (genAiClient != null) {
+            try {
+                String prompt = """
+                    Tu es un expert pédagogique médical PASS/LAS.
+                    Donne un titre très court, synthétique et précis (maximum 4 à 7 mots, en français médical, sans guillemets, sans formule d'introduction, sans ponctuation finale) qui résume le sujet précis de cet échange entre un étudiant en médecine et son tuteur IA.
+
+                    Matière / Cours : %s
+                    Question de l'étudiant : %s
+                    Réponse du tuteur : %s
+
+                    Titre court et synthétique :
+                    """.formatted(
+                        courseTitle != null && !courseTitle.isBlank() ? courseTitle : "Général",
+                        question,
+                        answer != null && answer.length() > 300 ? answer.substring(0, 300) : (answer != null ? answer : "")
+                    );
+
+                GenerateContentConfig config = GenerateContentConfig.builder()
+                    .temperature(0.2f)
+                    .maxOutputTokens(40)
+                    .build();
+
+                GenerateContentResponse response = genAiClient.models.generateContent(
+                    this.modelName != null ? this.modelName : "gemini-3.7-flash",
+                    prompt,
+                    config
+                );
+
+                if (response != null && response.text() != null && !response.text().isBlank()) {
+                    String cleanTitle = response.text().trim();
+                    // Strip quotes and extra spaces/lines
+                    cleanTitle = cleanTitle.replaceAll("^[\"«'\\s]+|[\"»'\\s.]+$", "").trim();
+                    // Remove prefixes like "Titre :", "Résumé :"
+                    cleanTitle = cleanTitle.replaceAll("^(?i)(titre|résumé|sujet)\\s*:\\s*", "").trim();
+                    if (!cleanTitle.isBlank() && cleanTitle.length() <= 80) {
+                        return cleanTitle;
+                    }
+                }
+            } catch (Exception e) {
+                LOG.warn("Gemini conversation title summarization failed, falling back to heuristic: {}", e.getMessage());
+            }
+        }
+
+        return generateHeuristicTitle(question, courseTitle);
+    }
+
+    private String generateHeuristicTitle(String question, String courseTitle) {
+        String clean = question.trim();
+        // Remove common greetings
+        clean = clean.replaceAll("^(?i)(bonjour|bonsoir|salut|hello|coucou)[,;!\\s]+", "");
+        // Remove conversational requests and helpers
+        clean = clean.replaceAll("^(?i)(peux-tu|peux tu|pourrais-tu|pourrais tu|est-ce que tu peux|merci de|stp|s'il te plaît|s'il vous plaît|veuillez)\\s+(m'expliquer|m'aider sur|me dire|m'éclairer sur|m'éclaircir sur|résumer|synthétiser|créer|générer|faire|donner)\\s+", "");
+        clean = clean.replaceAll("^(?i)(peux-tu m'expliquer|peux-tu m'aider sur|peux tu m'expliquer|peux tu m'aider sur|explique-moi|explique moi|crée-moi un qcm sur|crée moi un qcm sur|fais-moi un qcm sur|génère un qcm sur|génère des flashcards sur|crée des flashcards sur|qu'est-ce que|qu'est ce que|c'est quoi|quels sont les|quelles sont les|quel est le|quelle est la|donne-moi|donne moi|je ne comprends pas)[,;!\\s]+", "");
+        // Remove modifiers
+        clean = clean.replaceAll("^(?i)(en détail|brièvement|rapidement|de façon simple|clairement|précisément|sur|concernant)\\s+", "");
+        clean = clean.replaceAll("[?!.]+$", "").trim();
+        if (clean.isBlank() || clean.length() < 4) {
+            return courseTitle != null && !courseTitle.isBlank() ? courseTitle : "Discussion Tuteur IA";
+        }
+        // Capitalize first letter
+        clean = Character.toUpperCase(clean.charAt(0)) + (clean.length() > 1 ? clean.substring(1) : "");
+        if (clean.length() > 60) {
+            clean = clean.substring(0, 57) + "...";
+        }
+        return clean;
+    }
 }
 
 

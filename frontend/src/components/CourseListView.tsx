@@ -157,8 +157,28 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
       {/* SUB-TAB 1: UE & SUBJECTS MANAGEMENT */}
       {activeSubTab === 'subjects' && (
         <div className="space-y-4 animate-fadeIn">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {subjects.map(subject => {
+          {subjects.length === 0 ? (
+            <div className="glass-panel rounded-2xl p-12 text-center border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 shadow-xs">
+              <Layers className="w-12 h-12 text-slate-400 dark:text-slate-600 mx-auto mb-3" />
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">Aucune UE / Matière configurée</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+                Vous démarrez sans données pré-installées. Créez vos propres matières (UE1, UE2, Mineure...) ou chargez le modèle PASS officiel.
+              </p>
+              <div className="mt-5 flex items-center justify-center gap-3 flex-wrap">
+                {onOpenEditSubjectModal && (
+                  <button
+                    onClick={() => onOpenEditSubjectModal()}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white shadow-md shadow-emerald-950/20 active:scale-95 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4 stroke-[2.5]" />
+                    <span>Créer ma première UE / Matière</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {subjects.map(subject => {
               const count = getCoursesCountForUe(subject);
               const color = subject.color || '#0284c7';
 
@@ -275,6 +295,7 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
               );
             })}
           </div>
+          )}
         </div>
       )}
 

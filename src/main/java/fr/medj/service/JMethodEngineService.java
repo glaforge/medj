@@ -22,7 +22,7 @@ public class JMethodEngineService {
         initializeDefaultRevisions();
     }
 
-    private void initializeDefaultRevisions() {
+    public synchronized void initializeDefaultRevisions() {
         for (Course course : firestoreService.getAllCourses()) {
             if (firestoreService.getRevisionsForCourse(course.id()).isEmpty()) {
                 generateSessionsForCourse(course, course.customIntervals());

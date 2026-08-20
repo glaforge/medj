@@ -31,6 +31,8 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
   useEscapeKey(isOpen, onClose);
 
   const [ueId, setUeId] = useState(subjects[0]?.id || 'ue1');
+  const [quickUeCode, setQuickUeCode] = useState('UE1');
+  const [quickUeName, setQuickUeName] = useState('Matière Principale');
   const [title, setTitle] = useState('');
   const [color, setColor] = useState(subjects[0]?.color || '#0284c7');
   const [professor, setProfessor] = useState('');
@@ -80,9 +82,25 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
         .map(n => parseInt(n.trim(), 10))
         .filter(n => !isNaN(n));
 
+      let finalUeId = selectedSubject?.id;
+      let finalUeCode = selectedSubject?.code;
+
+      if (!selectedSubject) {
+        // Create new UE on the fly if subjects list is empty
+        const createdUe = await api.createSubject({
+          code: quickUeCode.trim().toUpperCase() || 'UE1',
+          name: quickUeName.trim() || 'Matière Principale',
+          color: color || '#0284c7',
+          coefficient: 10,
+          customIntervals: customIntervals.length > 0 ? customIntervals : [0, 1, 3, 7, 14, 30, 60]
+        });
+        finalUeId = createdUe.id;
+        finalUeCode = createdUe.code;
+      }
+
       const newCourse = await api.createCourse({
-        ueId: selectedSubject.id,
-        ueCode: selectedSubject.code,
+        ueId: finalUeId,
+        ueCode: finalUeCode,
         title,
         color,
         professor,
@@ -137,17 +155,38 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Matière / UE :</label>
-              <select
-                value={ueId}
-                onChange={(e) => handleUeChange(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2.5 text-slate-900 dark:text-slate-200 focus:outline-none focus:border-sky-500 font-semibold"
-              >
-                {subjects.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.code} - {s.name}
-                  </option>
-                ))}
-              </select>
+              {subjects.length > 0 ? (
+                <select
+                  value={ueId}
+                  onChange={(e) => handleUeChange(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2.5 text-slate-900 dark:text-slate-200 focus:outline-none focus:border-sky-500 font-semibold"
+                >
+                  {subjects.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.code} - {s.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="space-y-1.5">
+                  <input
+                    type="text"
+                    placeholder="Code UE (ex: UE1, MINEURE)"
+                    value={quickUeCode}
+                    onChange={(e) => setQuickUeCode(e.target.value)}
+                    required
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-200 focus:outline-none focus:border-sky-500 font-semibold uppercase"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Nom de la matière (ex: Anatomie)"
+                    value={quickUeName}
+                    onChange={(e) => setQuickUeName(e.target.value)}
+                    required
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-slate-200 focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+              )}
             </div>
 
             <div>

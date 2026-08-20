@@ -38,7 +38,9 @@ import {
 interface AiTutorChatProps {
   courses: Course[];
   initialCourse?: Course;
+  initialThreadId?: string;
   onStartQcmQuiz?: (course: Course) => void;
+  onNavigateToCourse?: (course: Course) => void;
   onQcmCreated?: () => void;
   onFlashcardCreated?: () => void;
 }
@@ -46,12 +48,14 @@ interface AiTutorChatProps {
 export const AiTutorChat: React.FC<AiTutorChatProps> = ({
   courses,
   initialCourse,
+  initialThreadId,
   onStartQcmQuiz,
+  onNavigateToCourse,
   onQcmCreated,
   onFlashcardCreated
 }) => {
   const [threads, setThreads] = useState<TutorConversationThread[]>([]);
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(initialThreadId || null);
   const [selectedCourseId, setSelectedCourseId] = useState<string>(initialCourse?.id || '');
   const [messages, setMessages] = useState<AiTutorMessage[]>([]);
   const [inputQuestion, setInputQuestion] = useState('');
@@ -77,7 +81,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
 
   useEffect(() => {
     loadThreads();
-  }, [initialCourse?.id]);
+  }, [initialCourse?.id, initialThreadId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -88,7 +92,17 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
       const list = await api.getTutorThreads();
       setThreads(list);
 
+      const targetThreadId = initialThreadId;
       const targetCourseId = initialCourse?.id;
+
+      if (targetThreadId) {
+        const found = list.find(t => t.id === targetThreadId);
+        if (found) {
+          selectThread(found);
+          return;
+        }
+      }
+
       if (targetCourseId) {
         setSelectedCourseId(targetCourseId);
         const matching = list.find(t => t.courseId === targetCourseId);
@@ -109,9 +123,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
 
   const selectThread = (thread: TutorConversationThread) => {
     setActiveThreadId(thread.id);
-    if (thread.courseId) {
-      setSelectedCourseId(thread.courseId);
-    }
+    setSelectedCourseId(thread.courseId || '');
     setMessages(thread.messages && thread.messages.length > 0 ? thread.messages : [DEFAULT_WELCOME_MSG]);
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
       setIsSidebarOpen(false);
@@ -424,15 +436,29 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
             </div>
           </div>
 
-          {/* Course Context Combobox */}
-          <div className="w-full sm:w-auto">
-            <CourseCombobox
-              courses={courses}
-              selectedCourseId={selectedCourseId}
-              onSelectCourse={(id) => setSelectedCourseId(id)}
-              generalOptionLabel="-- Contexte général PASS --"
-              placeholder="Rechercher un cours (UE, nom, mot-clé)..."
-            />
+          {/* Course Context Combobox & Course Link */}
+          <div className="w-full sm:w-auto flex items-center gap-2">
+            <div className="flex-1 sm:w-72">
+              <CourseCombobox
+                courses={courses}
+                selectedCourseId={selectedCourseId}
+                onSelectCourse={(id) => setSelectedCourseId(id)}
+                generalOptionLabel="-- Contexte général PASS --"
+                placeholder="Rechercher un cours (UE, nom, mot-clé)..."
+              />
+            </div>
+
+            {currentCourse && onNavigateToCourse && (
+              <button
+                onClick={() => onNavigateToCourse(currentCourse)}
+                title={`Ouvrir la fiche du cours : ${currentCourse.title}`}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-500/10 dark:hover:bg-sky-500/20 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-500/30 text-xs font-bold transition-all shrink-0 cursor-pointer shadow-2xs group"
+              >
+                <BookOpen className="w-3.5 h-3.5 group-hover:scale-110 transition-transform text-sky-600 dark:text-sky-400" />
+                <span className="hidden lg:inline">Fiche de cours</span>
+                <ExternalLink className="w-3 h-3 opacity-70 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+              </button>
+            )}
           </div>
         </div>
 

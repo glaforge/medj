@@ -35,6 +35,7 @@ micronaut:
             - "*"
 
 medj:
+  seed-sample-data: ${MEDJ_SEED_SAMPLE_DATA:false}
   gemini:
     api-key: ${GEMINI_API_KEY:}
     model: ${GEMINI_MODEL:gemini-3.7-flash}

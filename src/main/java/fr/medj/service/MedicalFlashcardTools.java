@@ -92,6 +92,10 @@ public class MedicalFlashcardTools {
                         resolvedUeCode = ue.code();
                         resolvedUeId = ue.id();
                         resolvedCourseTitle = ue.name();
+                    } else if (courseOrUe.toUpperCase().startsWith("UE") || courseOrUe.length() <= 8) {
+                        resolvedUeCode = courseOrUe.toUpperCase();
+                        resolvedUeId = courseOrUe.toLowerCase();
+                        resolvedCourseTitle = "Matière " + resolvedUeCode;
                     }
                 }
             }

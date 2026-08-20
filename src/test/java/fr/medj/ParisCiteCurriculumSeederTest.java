@@ -29,6 +29,10 @@ public class ParisCiteCurriculumSeederTest {
 
     @Test
     void testOfficialParisCiteCurriculumSeeding() {
+        // Explicitly trigger seeding
+        firestoreService.seedSampleData();
+        jMethodEngineService.initializeDefaultRevisions();
+
         // 1. Verify all 8 official UEs + Mineure are loaded
         List<SubjectUE> subjects = firestoreService.getAllSubjects();
         assertTrue(subjects.size() >= 8, "Expected at least 8 UEs");
@@ -106,5 +110,27 @@ public class ParisCiteCurriculumSeederTest {
             assertNotNull(q.questionStem());
             assertFalse(q.questionStem().isBlank());
         }
+    }
+
+    @Test
+    void testClearDataAndReseed() {
+        // Seed first
+        firestoreService.seedSampleData();
+        assertTrue(firestoreService.getAllCourses().size() > 0);
+
+        // Clear
+        var clearResult = firestoreService.clearAllData();
+        assertTrue((Boolean) clearResult.get("success"));
+        assertEquals(0, firestoreService.getAllCourses().size());
+        assertEquals(0, firestoreService.getAllRevisions().size());
+        assertEquals(0, firestoreService.getAllQcms().size());
+        assertEquals(0, firestoreService.getAllFlashcards().size());
+        assertEquals(0, firestoreService.getAllSubjects().size(), "Subjects should also be cleared");
+
+        // Check sample data status
+        var status = firestoreService.getSampleDataStatus();
+        assertEquals(false, status.get("hasData"));
+        assertEquals(0, status.get("coursesCount"));
+        assertEquals(0, status.get("subjectsCount"));
     }
 }

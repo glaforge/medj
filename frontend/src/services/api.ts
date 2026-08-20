@@ -329,8 +329,11 @@ export const api = {
     return res.json();
   },
 
-  async getTutorThreads(): Promise<import('../types').TutorConversationThread[]> {
-    const res = await fetch(`${API_BASE}/gemini/tutor/threads`);
+  async getTutorThreads(courseId?: string): Promise<import('../types').TutorConversationThread[]> {
+    const url = courseId
+      ? `${API_BASE}/gemini/tutor/threads?courseId=${encodeURIComponent(courseId)}`
+      : `${API_BASE}/gemini/tutor/threads`;
+    const res = await fetch(url);
     if (!res.ok) return [];
     return res.json();
   },
@@ -637,6 +640,45 @@ export const api = {
       body: JSON.stringify(flashcard)
     });
     if (!res.ok) throw new Error('Failed to verify flashcard');
+    return res.json();
+  },
+
+  // Sample Data Management
+  async getSampleDataStatus(): Promise<{
+    hasData: boolean;
+    coursesCount: number;
+    revisionsCount: number;
+    qcmsCount: number;
+    flashcardsCount: number;
+    illustrationsCount: number;
+  }> {
+    const res = await fetch(`${API_BASE}/sample-data/status`);
+    if (!res.ok) throw new Error('Failed to get sample data status');
+    return res.json();
+  },
+
+  async loadSampleData(): Promise<{
+    success: boolean;
+    coursesCount: number;
+    qcmsCount: number;
+    flashcardsCount: number;
+    message: string;
+  }> {
+    const res = await fetch(`${API_BASE}/sample-data/seed`, {
+      method: 'POST'
+    });
+    if (!res.ok) throw new Error('Failed to seed sample data');
+    return res.json();
+  },
+
+  async clearSampleData(): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    const res = await fetch(`${API_BASE}/sample-data/clear`, {
+      method: 'POST'
+    });
+    if (!res.ok) throw new Error('Failed to clear sample data');
     return res.json();
   }
 };

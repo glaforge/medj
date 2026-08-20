@@ -23,6 +23,9 @@ public class FirestoreService {
     @Value("${medj.google.cloud.firestore-collection-prefix:medj_}")
     private String collectionPrefix;
 
+    @Value("${medj.seed-sample-data:false}")
+    private boolean seedSampleData;
+
     // In-memory / fast local repository maps
     private final Map<String, SubjectUE> subjects = new ConcurrentHashMap<>();
     private final Map<String, Course> courses = new ConcurrentHashMap<>();
@@ -39,17 +42,25 @@ public class FirestoreService {
     @PostConstruct
     public void init() {
         LOG.info("Initializing MedJ Data Service (Project: {})", projectId);
-        // Load default PASS UEs
+        if (seedSampleData) {
+            LOG.info("Configuration medj.seed-sample-data=true detected: Seeding sample UEs and curriculum on startup...");
+            seedSampleData();
+        } else {
+            LOG.info("MedJ started in clean mode without pre-installed sample data (medj.seed-sample-data=false).");
+        }
+    }
+
+    /**
+     * Seeds Université Paris Cité official PASS curriculum (UE1 to UE8, 186 courses, QCMs, Flashcards, Threads).
+     */
+    public synchronized Map<String, Object> seedSampleData() {
+        LOG.info("Seeding Université Paris Cité official PASS curriculum and UEs (UE1 to UE8)...");
+
+        // Seed default PASS UEs (UE1 to UE8 + Mineure)
         for (SubjectUE ue : SubjectUE.getDefaultPassUEs()) {
             subjects.put(ue.id(), ue);
         }
-        seedSampleDataIfEmpty();
-    }
 
-    private void seedSampleDataIfEmpty() {
-        if (!courses.isEmpty()) return;
-
-        LOG.info("Seeding Université Paris Cité official PASS curriculum (UE1 to UE8)...");
         List<Course> officialCourses = ParisCiteCurriculumSeeder.createOfficialCourses();
         for (Course course : officialCourses) {
             courses.put(course.id(), course);
@@ -109,6 +120,8 @@ public class FirestoreService {
                 3,
                 true,
                 List.of("UE3", "Biophysique", "Hémodynamique", "Laplace"),
+                0,
+                null,
                 LocalDateTime.now().minusDays(3)
             ),
             new Flashcard(
@@ -123,6 +136,8 @@ public class FirestoreService {
                 2,
                 true,
                 List.of("UE5", "Anatomie", "Plexus brachial", "Nerf musculocutané"),
+                0,
+                null,
                 LocalDateTime.now().minusDays(2)
             ),
             new Flashcard(
@@ -137,6 +152,8 @@ public class FirestoreService {
                 3,
                 false,
                 List.of("UE6", "Pharmacocinétique", "Clairance", "Formules"),
+                0,
+                null,
                 LocalDateTime.now().minusDays(1)
             ),
             new Flashcard(
@@ -151,6 +168,8 @@ public class FirestoreService {
                 2,
                 true,
                 List.of("UE1", "Biochimie", "Enzymologie", "Michaelis-Menten"),
+                0,
+                null,
                 LocalDateTime.now().minusDays(4)
             ),
             new Flashcard(
@@ -165,6 +184,8 @@ public class FirestoreService {
                 3,
                 false,
                 List.of("UE4", "Biostatistiques", "Épidémiologie", "Bayes"),
+                0,
+                null,
                 LocalDateTime.now().minusDays(5)
             )
         );
@@ -173,6 +194,48 @@ public class FirestoreService {
         }
 
         LOG.info("Seeded {} official courses, {} QCMs and {} Flashcards for Paris Cité PASS", courses.size(), qcms.size(), flashcards.size());
+
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("success", true);
+        stats.put("coursesCount", courses.size());
+        stats.put("qcmsCount", qcms.size());
+        stats.put("flashcardsCount", flashcards.size());
+        stats.put("message", "Données d'exemple chargées avec succès (" + courses.size() + " cours, " + qcms.size() + " QCMs, " + flashcards.size() + " flashcards).");
+        return stats;
+    }
+
+    /**
+     * Clears all subjects, courses, revisions, QCMs, flashcards, illustrations, scans, attempts, and tutor history.
+     */
+    public synchronized Map<String, Object> clearAllData() {
+        LOG.info("Clearing all MedJ user and sample data (including UEs)...");
+        subjects.clear();
+        courses.clear();
+        revisions.clear();
+        qcms.clear();
+        qcmAttempts.clear();
+        scans.clear();
+        illustrations.clear();
+        flashcards.clear();
+        tutorThreads.clear();
+        tutorMessages.clear();
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("success", true);
+        res.put("message", "Toutes les données (matières UEs, cours, révisions et QCMs) ont été réinitialisées.");
+        return res;
+    }
+
+    public Map<String, Object> getSampleDataStatus() {
+        Map<String, Object> status = new HashMap<>();
+        status.put("hasData", !courses.isEmpty() || !subjects.isEmpty());
+        status.put("subjectsCount", subjects.size());
+        status.put("coursesCount", courses.size());
+        status.put("revisionsCount", revisions.size());
+        status.put("qcmsCount", qcms.size());
+        status.put("flashcardsCount", flashcards.size());
+        status.put("illustrationsCount", illustrations.size());
+        return status;
     }
 
     // --- Subject UEs ---
@@ -356,6 +419,16 @@ public class FirestoreService {
     // --- AI Tutor History & Conversation Threads ---
     public List<TutorConversationThread> getAllTutorThreads() {
         return tutorThreads.values().stream()
+            .sorted(Comparator.comparing(TutorConversationThread::updatedAt).reversed())
+            .collect(Collectors.toList());
+    }
+
+    public List<TutorConversationThread> getTutorThreadsForCourse(String courseId) {
+        if (courseId == null || courseId.isBlank()) {
+            return getAllTutorThreads();
+        }
+        return tutorThreads.values().stream()
+            .filter(t -> t.courseId() != null && t.courseId().equalsIgnoreCase(courseId.trim()))
             .sorted(Comparator.comparing(TutorConversationThread::updatedAt).reversed())
             .collect(Collectors.toList());
     }
