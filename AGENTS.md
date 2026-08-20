@@ -1,143 +1,191 @@
-# AGENTS.md — MedJ Codebase Architecture & Operational Guide
+# AGENTS.md — MedJ Codebase Architecture, Technical & Infrastructure Reference
 
-> **Document Version**: 1.0.0  
-> **Last Updated**: 2026-08-18  
+> **Document Version**: 2.0.0  
+> **Last Updated**: 2026-08-20  
 > **Target Audience**: AI Agents (Antigravity, coding assistants) and Software Engineers working on the **MedJ** repository.
 
 ---
 
-## 1. Executive Summary & Purpose
+## 1. Executive Summary & Core Mission
 
-**MedJ** (*Méthode des J & IA Gemini pour Étudiants en Médecine*) is a high-performance, full-stack educational web application and Progressive Web App (PWA) tailored specifically for French medical students preparing for the competitive **PASS** (*Parcours Accès Santé Spécifique*) and **LAS** (*Licence Accès Santé*) university examinations.
+**MedJ** (*Méthode des J & IA Gemini pour Étudiants en Médecine*) is a high-performance, full-stack educational web application and Progressive Web App (PWA) engineered specifically for French medical students preparing for the hyper-competitive **PASS** (*Parcours Accès Santé Spécifique*) and **LAS** (*Licence Accès Santé*) university examinations.
 
-### Core Value Propositions
+### Key Value Propositions
 1. **Automated Spaced Repetition (Méthode des J)**:
-   - Configurable review cycles ($J_0, J_1, J_3, J_7, J_{14}, J_{30}, J_{60}$) calculated dynamically from course dates.
-   - **Pedagogical Workload Smoothing (*Lissage de Charge*)**: Automatic rebalancing of overloaded days into adjacent lighter days, prioritizing adjustments to late-stage cycles ($J_{30}, J_{60}$) while preserving critical early memory consolidation ($J_0, J_1, J_3$).
-   - Granular adjustments: bulk shifting per Teaching Unit (*Unité d'Enseignement - UE*) or single-session shifts.
+   - Configurable repetition cycles ($J_0, J_1, J_3, J_7, J_{14}, J_{30}, J_{60}$) calculated dynamically from initial course lecture dates.
+   - **Pedagogical Workload Smoothing (*Lissage de Charge*)**: Automatic rebalancing of overloaded days into adjacent lighter days, prioritizing adjustments to late-stage consolidation cycles ($J_{30}, J_{60}$) while strictly anchoring critical early memory encoding ($J_0, J_1, J_3$).
+   - Granular scheduling adjustments: interactive HTML5 Drag & Drop planning, bulk shifting per Teaching Unit (*Unité d'Enseignement - UE*), and $+1j / -1j / +3j / +7j$ quick buttons.
 
-2. **Multimodal Google Gemini AI Integration**:
+2. **Comprehensive Flashcards System with SM-2 Spaced Repetition**:
+   - Active recall question-answer cards with LaTeX math and chemical formulas.
+   - Confidence-based self-rating (`AGAIN`, `HARD`, `GOOD`, `EASY`) computing dynamic interval days, repetition streaks, and ease factors.
+   - **LLM-as-Judge Verification**: Automated fact-checking of flashcards against Google Search Grounding with side-by-side correction proposals.
+   - Printable double-sided PASS flashcard sheets (*Planches de fiches imprimables format A4*).
+
+3. **Multimodal Google Gemini AI Engine**:
    - **Official PASS QCM Generator**: Strict 5-proposition format ($A, B, C, D, E$) with independent True/False grading, official scoring heuristics, trap detection (*inversion droite/gauche*, *distal/proximal*, *fausses valeurs numériques*), and mnemonics.
    - **Handwritten Notes & Summary Scanner (*Fiches de Révision*)**: Multimodal OCR and structured extraction of markdown summaries, anatomical terms, key figures, and exam traps from photos or PDFs.
    - **Annale / Exam OCR Scanner**: Converts photos or scanned documents of past exam papers into interactive digital quiz items.
-   - **Grounded AI Medical Tutor**: Conversational PASS tutor using LangChain4j and Google GenAI SDK with autonomous tool-calling (`createAndSaveQcm`, `createAndSaveMedicalIllustration`) and real-time **Google Search Grounding** with clickable source citations.
+   - **Grounded AI Medical Tutor**: Conversational PASS tutor using LangChain4j and Google GenAI SDK with autonomous tool-calling (`createAndSaveQcm`, `createAndSaveFlashcard`, `createAndSaveMedicalIllustration`), conversation thread summarization, and real-time **Google Search Grounding** with clickable source citations.
    - **Medical Illustration & Fill-in-the-Blank Generator**: High-fidelity anatomical diagrams and numbered printable worksheets (*planches d'entraînement à trous*) with French medical nomenclature (*Terminologia Anatomica*), automated multimodal fact-checking, and interactive regeneration.
 
-3. **Google Calendar & iCal Synchronization**:
+4. **Official Paris Cité Curriculum & Zero-Data Mode**:
+   - Built-in curriculum for **Université Paris Cité** covering 9 UEs (UE1 to UE7, Spécialités & Mineure) and 186 foundational medical courses.
+   - Configurable clean startup (`medj.seed-sample-data: false`) allowing users to start with an empty database or seed demo data with 1 click.
+
+5. **Google Calendar & iCal Synchronization**:
    - Direct export and live calendar subscription via standard iCalendar feed (`/api/calendar/feed.ics`).
    - OAuth2 synchronization to a dedicated Google Calendar (*"MedJ - Révisions PASS"*).
 
 ---
 
-## 2. System Architecture
+## 2. System Architecture & Component Diagram
 
 ```mermaid
 flowchart TB
-    subgraph Frontend ["Frontend (SPA / React 19 + TypeScript + Vite)"]
-        UI["Tailwind CSS + Lucide + KaTeX UI"]
-        Views["Dashboard | Calendar | Courses | QCM Bank | AI Tutor"]
-        API_Client["API Service (frontend/src/services/api.ts)"]
-    end
-
-    subgraph Backend ["Backend (Micronaut 5.1 / GraalVM 25 / Netty)"]
-        Controllers["Controllers (/api/gemini, /api/revisions, /api/courses, /api/calendar)"]
-        SpaController["SpaFallbackController (Classpath HTML / Static Assets)"]
+    subgraph ClientLayer ["Frontend (React 19 + TypeScript + Vite + Tailwind)"]
+        UI["UI Layer (Tailwind CSS, Lucide Icons, KaTeX Math)"]
+        Views["Dashboard | Planning J | Cours | QCM Bank | Flashcards | Tuteur IA | Scanner"]
+        StateRouter["State Manager & Deep Link Router (/subjects/:id, /ia/thread/:id)"]
+        APIClient["API Client (frontend/src/services/api.ts)"]
         
-        subgraph Engine ["Business Logic Services"]
-            JEngine["JMethodEngineService (Scheduling & Workload Smoothing)"]
-            CalendarSvc["GoogleCalendarService (iCal Feed & Google Sync)"]
-            StorageSvc["StorageService (Local / GCS Uploads)"]
-        end
-
-        subgraph AIServiceLayer ["Gemini Multimodal AI Layer"]
-            GeminiSvc["GeminiMedicalService"]
-            LangChain["LangChain4j PassTutorAiService (@AiServices)"]
-            QcmTool["MedicalQcmTools (@Tool)"]
-            IllusTool["MedicalIllustrationTools (@Tool)"]
-            GenAIClient["Google GenAI SDK Client (com.google.genai)"]
-        end
-
-        DataLayer["FirestoreService (Concurrent Thread-Safe In-Memory / Cloud Firestore)"]
+        UI --> Views
+        Views --> StateRouter
+        StateRouter --> APIClient
     end
 
-    subgraph External ["External Services & Google Cloud"]
-        GeminiAPI["Google Gemini 3.7 Flash & Imagen/Gemini Image"]
+    subgraph ServerLayer ["Backend Runtime (Micronaut 5.1 / GraalVM 25 / Netty)"]
+        direction TB
+        
+        subgraph RESTControllers ["HTTP Controllers"]
+            CourseCtrl["CourseController (/api/courses, /api/subjects)"]
+            RevCtrl["RevisionController (/api/revisions)"]
+            GeminiCtrl["GeminiAiController (/api/gemini)"]
+            CalCtrl["CalendarController (/api/calendar)"]
+            SpaCtrl["SpaFallbackController (classpath:public/index.html)"]
+        end
+        
+        subgraph CoreServices ["Business Logic Engine"]
+            JEngine["JMethodEngineService (Scheduling, Intervals, Workload Smoothing)"]
+            CalService["GoogleCalendarService (iCal Feed & Google Sync)"]
+            StoreService["StorageService (Local Filesystem & GCS)"]
+            CurriculumSeeder["ParisCiteCurriculumSeeder (186 Courses & 9 UEs)"]
+        end
+        
+        subgraph AIEngine ["Gemini Multimodal AI Layer"]
+            GeminiMedSvc["GeminiMedicalService (Prompts, Schemas, Fact-Checking)"]
+            LangChainTutor["LangChain4j PassTutorAiService (@AiServices)"]
+            GenAIClient["Google GenAI SDK Client (com.google.genai.Client)"]
+            
+            subgraph AgenticTools ["Autonomous LangChain4j @Tools"]
+                QcmTool["MedicalQcmTools (@Tool createAndSaveQcm)"]
+                FcTool["MedicalFlashcardTools (@Tool createAndSaveFlashcard)"]
+                IllusTool["MedicalIllustrationTools (@Tool createAndSaveMedicalIllustration)"]
+            end
+        end
+        
+        subgraph Persistence ["Data Access Layer"]
+            FirestoreSvc["FirestoreService (Thread-Safe In-Memory / Cloud Firestore)"]
+        end
+    end
+
+    subgraph ExternalCloud ["External Google Cloud Services & APIs"]
+        GeminiFlash["Google Gemini 3.7 Flash (Text, Reasoning, OCR, Structured Output)"]
+        GeminiImage["Google Gemini 3 Pro Image / Imagen (Medical Drawings)"]
         GoogleSearch["Google Search Grounding Engine"]
-        GCalendar["Google Calendar API v3"]
-        GCS["Google Cloud Storage / Firestore"]
+        GoogleCalendarAPI["Google Calendar API v3"]
+        GoogleStorage["Google Cloud Storage / Firestore"]
     end
 
-    UI --> API_Client
-    API_Client -->|HTTP REST / JSON| Controllers
-    Controllers --> Engine
-    Controllers --> GeminiSvc
-    Engine --> DataLayer
-    GeminiSvc --> GenAIClient
-    GeminiSvc --> LangChain
-    LangChain --> QcmTool
-    LangChain --> IllusTool
-    QcmTool --> DataLayer
-    IllusTool --> DataLayer
-    GenAIClient --> GeminiAPI
+    APIClient -->|REST / JSON| RESTControllers
+    SpaCtrl -.->|Serves SPA| UI
+    
+    CourseCtrl --> CoreServices
+    RevCtrl --> JEngine
+    GeminiCtrl --> GeminiMedSvc
+    CalCtrl --> CalService
+    
+    CoreServices --> Persistence
+    GeminiMedSvc --> GenAIClient
+    GeminiMedSvc --> LangChainTutor
+    
+    LangChainTutor --> AgenticTools
+    AgenticTools --> Persistence
+    AgenticTools --> StoreService
+    
+    GenAIClient --> GeminiFlash
+    GenAIClient --> GeminiImage
     GenAIClient --> GoogleSearch
-    CalendarSvc --> GCalendar
-    StorageSvc --> GCS
-    SpaController --> UI
+    CalService --> GoogleCalendarAPI
+    StoreService --> GoogleStorage
+    Persistence --> GoogleStorage
 ```
 
 ---
 
-## 3. Technology Stack
+## 3. Technology Stack Breakdown
 
-| Layer | Technology | Version | Purpose / Rationale |
+| Tier | Component | Technology & Version | Architectural Justification |
 | :--- | :--- | :--- | :--- |
-| **Backend Runtime** | GraalVM CE | GraalVM 25 (Java 25) | Ultra-fast execution, minimal memory footprint, and native image ahead-of-time (AOT) readiness. |
-| **Backend Framework** | Micronaut Framework | 5.1.0 | Fast startup (<1s), Netty HTTP server, compile-time dependency injection and reflection-free Serde. |
-| **Serialization** | Micronaut Serde Jackson | 5.1.0 | Compile-time `@Serdeable` DTO code generation, avoiding runtime reflection. |
-| **AI SDK (Direct)** | `com.google.genai:google-genai` | 1.57.0 | Official Google GenAI Java SDK for structured outputs (JSON Schemas) and multimodal input. |
-| **AI Framework (Agentic)** | LangChain4j (`langchain4j-google-genai`) | 1.18.0 / 1.19.0-beta29 | High-level `@AiServices` abstraction for conversational agent with `@Tool` calling and Search Grounding. |
-| **PDF Processing** | Apache PDFBox | 3.0.4 | Parsing scanned documents and course syllabus PDFs. |
-| **Cloud Services** | Google Cloud Firestore & Storage, Google Calendar API | Latest | Cloud persistence, file hosting, and calendar synchronization. |
-| **Frontend Framework** | React | 19.0.0 | Latest React declarative UI with concurrent rendering and hooks. |
-| **Frontend Tooling** | Vite & TypeScript | Vite 6.1.0, TS 5.7.3 | Blazing fast HMR, type safety, and optimized production bundling. |
-| **Frontend Styling** | Tailwind CSS | 3.4.17 | Utility-first, responsive dark-mode palette optimized for medical study ergonomics. |
-| **Math & Markdown** | `react-markdown`, `remark-math`, `rehype-katex`, `KaTeX` | Latest | High-fidelity rendering of LaTeX physiological formulas ($V_d$, $Cl$, $pH$, Michaelis-Menten). |
-| **Build System** | Gradle (Groovy DSL) + `gradle-node-plugin` | Gradle 8.x/9.x, Node Plugin 7.0.2 | Hermetic, zero-external-dependency builds downloading isolated Node.js 22 & npm 10. |
+| **Runtime** | JVM Engine | **GraalVM CE 25 (Java 25)** | Cutting-edge execution performance, virtual threads, low-latency garbage collection, and native image compilation readiness. |
+| **Backend** | Framework | **Micronaut Framework 5.1.0** | Ultra-fast startup (<500ms), low memory footprint (<80MB), Netty non-blocking I/O, compile-time dependency injection and reflection-free serde. |
+| **Serialization** | JSON Parser | **Micronaut Serde Jackson 5.1.0** | Ahead-of-time code generation for `@Serdeable` DTOs, avoiding Java runtime reflection. |
+| **AI SDK (Direct)** | Structured SDK | `com.google.genai:google-genai:1.57.0` | Official Google GenAI Java SDK supporting strict JSON Schema structured output and multimodal uploads. |
+| **AI (Agentic)** | Tool Calling | **LangChain4j 1.18.0 / 1.19.0-beta29** | High-level `@AiServices` abstraction providing autonomous tool execution (`MedicalQcmTools`, `MedicalFlashcardTools`, `MedicalIllustrationTools`) and Google Search Grounding. |
+| **PDF Processing** | Document Parser | **Apache PDFBox 3.0.4** | Extracting textual and graphical elements from uploaded medical handouts and past exams. |
+| **Cloud Services** | Persistence & Sync | **Cloud Firestore, Google Cloud Storage, Google Calendar API** | Serverless document database, object hosting, and bidirectional calendar synchronization. |
+| **Frontend** | UI Library | **React 19.0.0** | Declarative component UI utilizing React 19 hooks and concurrent rendering. |
+| **Build & Dev** | Bundler | **Vite 6.1.0 & TypeScript 5.7.3** | Near-instant HMR, strict type safety matching backend Serde records, and optimized Rollup production bundling. |
+| **Styling** | CSS Engine | **Tailwind CSS 3.4.17 + PostCSS** | Utility-first responsive design supporting full dark-mode palette and high-contrast medical ergonomics. |
+| **Math Engine** | LaTeX Renderer | `KaTeX`, `react-markdown`, `remark-math`, `rehype-katex` | Client-side rendering of biophysics, pharmacokinetics, and chemistry equations. |
+| **Icons** | Iconography | **Lucide React 0.469.0** | Lightweight tree-shakeable icon set. |
+| **Build Orchestration** | Build Tool | **Gradle 8.x / 9.x (Groovy DSL)** + `gradle-node-plugin` | Hermetic, zero-dependency reproducible build downloading isolated Node.js 22 & npm 10. |
 
 ---
 
-## 4. Key Technical Decisions & Architectural Rationale
+## 4. Architectural Patterns & Deep Technical Decisions
 
-### 1. Dual AI Engine Strategy (Google GenAI SDK + LangChain4j)
+### 1. Dual AI Engine Strategy (Direct SDK + Agentic LangChain4j)
 - **Direct Google GenAI SDK (`com.google.genai.Client`)**:
-  - Used for strict, deterministic tasks such as QCM generation (`generatePassQcm`), annale OCR (`scanExistingQcmAnnales`), and handwritten note extraction (`scanHandwrittenNotes`).
-  - Utilizes `com.google.genai.types.Schema` structured output definitions to guarantee 100% valid JSON conforming to medical exam specifications.
+  - Utilized for deterministic, schema-constrained tasks: QCM generation, Flashcard generation, OCR document scans, and LLM-as-Judge fact-checking.
+  - Implements strict `com.google.genai.types.Schema` definitions ensuring 100% valid JSON conforming to medical exam formats without parsing hallucinations.
 - **LangChain4j (`PassTutorAiService`)**:
-  - Used for the interactive conversational tutor.
-  - Equips the tutor with autonomous `@Tool` execution capabilities via `MedicalQcmTools` and `MedicalIllustrationTools`.
-  - Enables the AI to persist QCMs and generate medical diagrams in the background while conversing with the student.
+  - Powers the conversational medical tutor.
+  - Injected with `@Tool` annotated components (`MedicalQcmTools`, `MedicalFlashcardTools`, `MedicalIllustrationTools`).
+  - Allows Gemini 3.7 Flash to autonomously persist QCMs, flashcards, and medical illustrations into the user's database while conversing with the student.
 
-### 2. Google Search Grounding with Transparent Web Citations
-- Responses from Gemini 3.7 Flash use Google Search Grounding (`enableGoogleSearch(true)` or `Tool.builder().googleSearch(...)`).
-- Raw `GroundingMetadata` chunks (`GroundingChunkWeb`) are extracted and parsed into clean `GroundingSource` records with domain filtering.
-- Source badges and markdown references are automatically appended to answers and displayed in the UI, allowing students to verify medical facts against authoritative sources (HAS, ANSM, Collèges Médicaux).
+### 2. LLM-as-Judge Medical Fact-Checking Pipeline
+- Implemented for **QCMs**, **Flashcards**, and **Medical Illustrations**.
+- Sends the item along with real-time Google Search Grounding to Gemini 3.7 Flash.
+- Returns a structured assessment:
+  - **Verdict**: `EXACT`, `CORRECTION_PROPOSEE`, or `INVALIDE`.
+  - **Accuracy Score**: Integer rating from 0 to 100.
+  - **Identified Traps / Anomalies**: Medical inaccuracies, outdated nomenclature, or numerical errors.
+  - **Corrected Payload**: Drop-in corrected QCM or Flashcard ready for 1-click user adoption.
+  - **Web Grounding Citations**: Authoritative references (HAS, ANSM, Collèges Médicaux, PubMed).
 
-### 3. Resilient Offline-First / Zero-Cloud Fallback
-- When `GEMINI_API_KEY` or Google Cloud credentials are not configured, MedJ operates without error in **offline/demo mode**.
-- Fallback engines provide:
-  - Realistic medical datasets for French PASS UEs (Anatomy, Pharmacology, Cell Biology, Biophysics, SSH).
-  - Algorithmic SVG generators for anatomical illustrations.
-  - In-memory mock repositories (`ConcurrentHashMap`) in `FirestoreService`.
+### 3. Automatic Conversation Summarization
+- New conversation threads with the AI Tutor automatically generate a concise, professional title (4 to 7 words in French medical terminology) via Gemini 3.7 Flash.
+- A robust regex-based heuristic cleaner strips conversational greetings (*"Bonjour"*, *"Peux-tu m'expliquer en détail..."*, *"Crée-moi un QCM sur..."*) as a zero-latency fallback.
 
-### 4. Workload Smoothing Algorithm (*Lissage de Charge*)
-- When daily scheduled reviews exceed `dailyOverloadThreshold` (default: 6 sessions/day):
-  - Sessions with higher $J$-steps (e.g. $J_{30}, J_{60}$) are shifted first to the closest subsequent under-capacity day.
-  - Early-stage repetitions ($J_0, J_1, J_3$) remain anchored on their target dates to prevent memory curve degradation.
+### 4. SM-2 & Spaced Repetition Workload Smoothing Algorithm (*Lissage de Charge*)
+- **J-Method Cycles**: Computes target dates for $J_0, J_1, J_3, J_7, J_{14}, J_{30}, J_{60}$.
+- **Workload Smoothing**: When a day's scheduled sessions exceed `dailyOverloadThreshold` (default: 6 sessions/day):
+  - Sessions with higher $J$-steps ($J_{30}, J_{60}$) are shifted to the nearest under-capacity future date.
+  - Early-stage consolidation repetitions ($J_0, J_1, J_3$) remain strictly anchored to protect initial memory encoding.
+- **Flashcards SM-2**: Each card maintains `easeFactor` (initial: 2.5), `intervalDays`, `repetitionCount`, and rating history (`AGAIN` $\rightarrow$ reset to 1 day; `HARD` $\rightarrow \times 1.2$; `GOOD` $\rightarrow \times \text{EF}$; `EASY` $\rightarrow \times \text{EF} \times 1.3$).
 
-### 5. Unified Single-Artifact Packaging
-- Gradle's `buildFrontend` task triggers `npm run build` into `frontend/dist/`.
-- `processResources` copies `frontend/dist/` into `classpath:public/`.
-- `SpaFallbackController` routes non-API, non-asset paths to `index.html`, allowing the entire application (API + UI) to execute from a single standalone jar.
+### 5. Resilient Offline-First Architecture
+- MedJ executes flawlessly with zero external credentials or without `GEMINI_API_KEY`.
+- Fallbacks include:
+  - Synthetic offline QCM and Flashcard generators covering Anatomy, Biochemistry, Biophysics, Pharmacology, and Histology.
+  - Algorithmic vector SVG generators for anatomical diagrams and printable fill-in-the-blank worksheets.
+  - Thread-safe in-memory database (`ConcurrentHashMap`) in `FirestoreService`.
+
+### 6. Unified Single-Artifact Web Packaging
+- Gradle executes `npm run build` via `buildFrontend`.
+- `processResources` bundles `frontend/dist/` into `classpath:public/`.
+- `SpaFallbackController` transparently serves `index.html` for all non-API HTML5 routes (`/today`, `/planning`, `/subjects/*`, `/qcms/*`, `/flashcards/*`, `/ia/*`).
 
 ---
 
@@ -145,26 +193,30 @@ flowchart TB
 
 ```
 medj/
-├── AGENTS.md                                # This document (AI Agent operational handbook)
-├── README.md                                # User & Developer quickstart guide
+├── AGENTS.md                                # This document (Comprehensive system guide)
+├── README.md                                # Developer quickstart & feature overview
 ├── build.gradle                             # Micronaut & Gradle build script + Node packaging
-├── settings.gradle                          # Project name and plugin repositories
+├── settings.gradle                          # Gradle settings & plugin repositories
 ├── gradle.properties                        # JVM arguments & Gradle caching options
 ├── gradlew / gradlew.bat                    # Gradle wrapper executables
-├── uploads/                                 # Local storage fallback directory for files & scans
+├── uploads/                                 # Local storage directory for files, PDFs & scans
 ├── src/
 │   ├── main/
 │   │   ├── java/fr/medj/
 │   │   │   ├── Application.java             # Micronaut Main Entrypoint
 │   │   │   ├── controller/
 │   │   │   │   ├── CalendarController.java   # Calendar sync & iCal (.ics) feed endpoints
-│   │   │   │   ├── CourseController.java     # Courses, Subject UEs & File uploads
-│   │   │   │   ├── GeminiAiController.java   # QCM gen, scans, tutor chat, illustrations
-│   │   │   │   ├── RevisionController.java   # J-Method sessions, completion, workload & smoothing
-│   │   │   │   └── SpaFallbackController.java# Single Page Application HTML5 fallback router
+│   │   │   │   ├── CourseController.java     # Courses, Subject UEs, Documents & Sample Data
+│   │   │   │   ├── GeminiAiController.java   # QCMs, Flashcards, Tutor chat, Scans, Illustrations
+│   │   │   │   ├── RevisionController.java   # J-Method sessions, completion & workload smoothing
+│   │   │   │   └── SpaFallbackController.java# SPA HTML5 fallback router
 │   │   │   ├── model/
-│   │   │   │   ├── AiTutorMessage.java       # Chat messages with tool-created QCMs/illustrations
-│   │   │   │   ├── Course.java               # Medical course definition with custom intervals
+│   │   │   │   ├── AiTutorMessage.java       # Tutor messages with tool-created artifacts & grounding
+│   │   │   │   ├── Course.java               # Medical course definition with custom intervals & docs
+│   │   │   │   ├── DocumentAttachment.java   # Attached PDF / handout document model
+│   │   │   │   ├── Flashcard.java            # Spaced repetition flashcard with SM-2 metrics
+│   │   │   │   ├── FlashcardAttempt.java     # Student flashcard review session history
+│   │   │   │   ├── FlashcardVerification.java# LLM-as-Judge fact-checking report for flashcards
 │   │   │   │   ├── GroundingSource.java      # Google Search Grounding citation (title, uri, domain)
 │   │   │   │   ├── HandwrittenScanResult.java# OCR markdown, anatomical terms, traps & numbers
 │   │   │   │   ├── IllustrationVerification.java # Fact-checking report for generated drawings
@@ -183,8 +235,10 @@ medj/
 │   │   │       ├── GeminiMedicalService.java # Core Gemini SDK client, prompts, OCR & verification
 │   │   │       ├── GoogleCalendarService.java# Google Calendar API & iCalendar generator
 │   │   │       ├── JMethodEngineService.java # Spaced repetition calculator & workload smoothing
+│   │   │       ├── MedicalFlashcardTools.java# LangChain4j @Tool for Flashcard persistence
 │   │   │       ├── MedicalIllustrationTools.java # LangChain4j @Tool for medical diagrams
 │   │   │       ├── MedicalQcmTools.java      # LangChain4j @Tool for QCM persistence
+│   │   │       ├── ParisCiteCurriculumSeeder.java # 186 Courses & 9 UEs PASS Curriculum Seeder
 │   │   │       ├── PassTutorAiService.java   # LangChain4j @AiServices interface & system prompt
 │   │   │       └── StorageService.java       # Local filesystem & GCS file manager
 │   │   └── resources/
@@ -192,12 +246,17 @@ medj/
 │   │       └── logback.xml                  # Logging configuration
 │   └── test/
 │       ├── java/fr/medj/
-│       │   ├── GroundingTutorTest.java      # Google Search Grounding extraction & serialization tests
+│       │   ├── CourseDocumentScanAttachmentTest.java # PDF upload & course document attachment tests
+│       │   ├── FlashcardCrudTest.java       # Flashcard creation, review ratings & filtering tests
+│       │   ├── FlashcardVerificationTest.java # Flashcard LLM-as-Judge verification tests
+│       │   ├── GroundingTutorTest.java      # Google Search Grounding citation tests
 │       │   ├── JMethodEngineServiceTest.java# Workload smoothing & session generation tests
 │       │   ├── MedicalQcmToolsTest.java     # LangChain4j @Tool execution & persistence tests
+│       │   ├── ParisCiteCurriculumSeederTest.java # 186 courses & 9 UEs seeder tests
 │       │   ├── QcmCrudTest.java             # QCM creation, filtering & retrieval tests
 │       │   ├── QcmVerificationTest.java     # QCM fact-checking & correction pipeline tests
-│       │   └── SubjectCrudTest.java         # Subject UE creation & validation tests
+│       │   ├── SubjectCrudTest.java         # Subject UE creation & validation tests
+│       │   └── TutorTitleSummarizationTest.java # AI Tutor thread title summarization tests
 │       └── resources/
 │           └── application-test.yml         # Test environment configuration
 └── frontend/
@@ -219,19 +278,26 @@ medj/
         └── components/
             ├── Navbar.tsx                   # Top navigation with sync button & badge count
             ├── DashboardView.tsx            # Today's due revisions, overdue alerts & stats
-            ├── JCalendarView.tsx            # Interactive monthly/weekly planning & drag-shift
+            ├── JCalendarView.tsx            # Interactive monthly/weekly planning & drag-drop
             ├── CourseListView.tsx           # Course index grouped by UE with filter chips
-            ├── CourseDetailView.tsx         # Full course view with sessions, QCMs & notes
+            ├── CourseDetailView.tsx         # Full course view with sessions, QCMs, flashcards & threads
+            ├── CourseCombobox.tsx           # Searchable autocomplete combobox for medical courses
             ├── QcmBankView.tsx              # Searchable QCM database with verification badges
             ├── QcmTrainerModal.tsx          # Interactive quiz modal with PASS grading scale
             ├── QcmVerificationModal.tsx     # Fact-checking review modal with 1-click apply
+            ├── FlashcardBankView.tsx        # Searchable Flashcard bank with study mode
+            ├── FlashcardPlayerModal.tsx     # Interactive 3D flip card study session modal
+            ├── FlashcardVerificationModal.tsx # Flashcard fact-checking review modal
+            ├── PrintFlashcardsModal.tsx     # Double-sided printable flashcards layout modal
+            ├── EditFlashcardModal.tsx       # Custom flashcard editor with LaTeX preview
             ├── AiTutorChat.tsx              # Interactive tutor chat with tool artifacts
             ├── GeminiScannerModal.tsx       # Multimodal scanner for fiches & exam papers
             ├── MedicalIllustrationModal.tsx # Diagram viewer with maskable legend & zoom
             ├── NewIllustrationModal.tsx     # Direct diagram prompt generation modal
-            ├── NewCourseModal.tsx           # New course creation modal with J0 scheduling
+            ├── NewCourseModal.tsx           # New course creation modal with J0 scheduling & on-the-fly UE
             ├── EditQcmModal.tsx             # QCM editor with 5-item A-E validator
             ├── EditSubjectModal.tsx         # Subject UE customization modal
+            ├── EditCourseNotesModal.tsx     # Course markdown summary & notes editor
             ├── AddRevisionModal.tsx         # Manual revision session scheduler
             ├── SettingsModal.tsx            # Spaced repetition intervals & threshold config
             ├── ProgressionChart.tsx         # Visual progress tracking
@@ -241,7 +307,7 @@ medj/
 
 ---
 
-## 6. Domain Data Models
+## 6. Domain Data Models (UML Class Diagram)
 
 ```mermaid
 classDiagram
@@ -270,6 +336,15 @@ classDiagram
         +String notes
         +List~DocumentAttachment~ documents
         +List~Integer~ customIntervals
+    }
+
+    class DocumentAttachment {
+        +String id
+        +String name
+        +String fileType
+        +String fileUrl
+        +long fileSize
+        +LocalDateTime uploadedAt
     }
 
     class RevisionSession {
@@ -310,6 +385,24 @@ classDiagram
         +String trapDetails
     }
 
+    class Flashcard {
+        +String id
+        +String courseId
+        +String courseTitle
+        +String ueCode
+        +String front
+        +String back
+        +String hint
+        +List~String~ tags
+        +int difficulty
+        +int repetitionCount
+        +double easeFactor
+        +int intervalDays
+        +LocalDate nextReviewDate
+        +LocalDate lastReviewedDate
+        +boolean isFavorite
+    }
+
     class MedicalIllustration {
         +String id
         +String courseId
@@ -324,29 +417,45 @@ classDiagram
         +List~GroundingSource~ groundingSources
     }
 
+    class TutorConversationThread {
+        +String id
+        +String title
+        +String courseId
+        +String courseTitle
+        +String ueCode
+        +List~AiTutorMessage~ messages
+        +LocalDateTime createdAt
+        +LocalDateTime updatedAt
+    }
+
     SubjectUE "1" --> "*" Course
+    Course "1" --> "*" DocumentAttachment
     Course "1" --> "*" RevisionSession
     Course "1" --> "*" QcmQuestion
     QcmQuestion "1" --> "5" QcmItem
+    Course "1" --> "*" Flashcard
     Course "1" --> "*" MedicalIllustration
+    Course "1" --> "*" TutorConversationThread
 ```
 
 ---
 
-## 7. REST API Reference
+## 7. REST API Complete Reference
 
-### 7.1 Subjects & Courses (`/api`)
+### 7.1 Subjects, Courses & Documents (`/api`)
 | Method | Path | Request Body | Description |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/subjects` | — | Retrieves all medical UEs (UE1 to UE7 + Mineure). |
+| `GET` | `/api/subjects` | — | Retrieves all medical Teaching Units (UE1 to UE7 + Mineures). |
 | `POST` | `/api/subjects` | `SubjectUE` | Creates a new UE. |
-| `PUT` | `/api/subjects/{id}` | `SubjectUE` | Updates an existing UE and cascades colors to courses. |
+| `PUT` | `/api/subjects/{id}` | `SubjectUE` | Updates an existing UE and cascades color changes to courses & sessions. |
 | `DELETE` | `/api/subjects/{id}` | — | Deletes a UE. |
 | `GET` | `/api/courses` | Query: `ueId` (opt) | Retrieves all courses, optionally filtered by UE. |
-| `GET` | `/api/courses/{id}` | — | Retrieves a single course. |
-| `POST` | `/api/courses` | `Course` | Creates a course and automatically generates J-Method sessions. |
-| `PUT` | `/api/courses/{id}` | `Course` | Updates course details and propagates color changes to sessions. |
-| `DELETE` | `/api/courses/{id}` | — | Deletes a course and its associated revision sessions. |
+| `GET` | `/api/courses/{id}` | — | Retrieves a single course with attached documents. |
+| `POST` | `/api/courses` | `Course` | Creates a course and automatically generates J-Method sessions ($J_0..J_{60}$). |
+| `PUT` | `/api/courses/{id}` | `Course` | Updates course details and cascades color updates. |
+| `DELETE` | `/api/courses/{id}` | — | Deletes a course and all associated revision sessions, QCMs, and cards. |
+| `POST` | `/api/courses/{id}/documents/upload` | Multipart (`file`) | Uploads and attaches a PDF or image handout directly to a course. |
+| `DELETE` | `/api/courses/{id}/documents/{docId}`| — | Deletes a document attachment from a course. |
 
 ### 7.2 Spaced Repetition & Workload (`/api/revisions`)
 | Method | Path | Request Body | Description |
@@ -356,19 +465,19 @@ classDiagram
 | `GET` | `/api/revisions/workload`| Query: `start`, `end` | Workload distribution map and list of overloaded dates. |
 | `POST` | `/api/revisions/{id}/complete` | `CompleteSessionRequest` | Marks session as completed with grade and time spent. |
 | `POST` | `/api/revisions/{id}/uncomplete` | — | Resets a session back to pending/overdue. |
-| `POST` | `/api/revisions/{id}/shift` | `ShiftSessionRequest` (`daysToAdd`) | Shifts a single session by $+N$ days. |
+| `POST` | `/api/revisions/{id}/shift` | `ShiftSessionRequest` (`daysToAdd`) | Shifts a single session by $+N$ / $-N$ days. |
 | `POST` | `/api/revisions/shift-subject` | `ShiftSubjectRequest` (`ueId`, `daysToAdd`) | Bulk shifts all upcoming sessions for an entire UE. |
 | `POST` | `/api/revisions/smooth-workload` | `SmoothWorkloadRequest` (`dailyLimit`) | Executes intelligent workload smoothing algorithm. |
 | `POST` | `/api/revisions` | `CreateRevisionRequest` | Creates a custom revision session for a course. |
 | `DELETE` | `/api/revisions/{id}` | — | Deletes an individual revision session. |
 
-### 7.3 Gemini AI & Multimodal Endpoints (`/api/gemini`)
+### 7.3 Gemini AI, Tutor, QCMs, Flashcards & Scans (`/api/gemini`)
 | Method | Path | Request Body | Description |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/api/gemini/generate-qcm` | `GenerateQcmRequest` | Generates PASS-compliant QCMs from course text using Gemini 3.7 Flash with JSON Schema. |
+| `POST` | `/api/gemini/generate-qcm` | `GenerateQcmRequest` | Generates 5-item PASS QCMs with JSON Schema. |
 | `POST` | `/api/gemini/scan-annale` | Multipart (`file`) | Multimodal OCR of exam papers/PDFs into interactive QCM questions. |
 | `POST` | `/api/gemini/scan-handwritten` | Multipart (`file`) | Multimodal extraction of handwritten fiches into structured markdown, terms, and traps. |
-| `POST` | `/api/gemini/tutor` | `AskTutorRequest` | Conversational PASS tutor with LangChain4j `@Tool` calls and Google Search Grounding. |
+| `POST` | `/api/gemini/tutor` | `AskTutorRequest` | Conversational PASS tutor with LangChain4j `@Tool` calls, title summarization, and Google Search Grounding. |
 | `GET` | `/api/gemini/tutor/threads` | Query: `courseId` (opt) | Lists all or course-specific tutor conversation threads. |
 | `POST` | `/api/gemini/tutor/threads` | `CreateThreadRequest` | Creates a new tutor conversation thread. |
 | `DELETE` | `/api/gemini/tutor/threads/{id}` | — | Deletes a conversation thread. |
@@ -376,25 +485,25 @@ classDiagram
 | `POST` | `/api/gemini/qcms` | `QcmQuestion` | Saves a custom or AI-generated QCM. |
 | `PUT` | `/api/gemini/qcms/{id}` | `QcmQuestion` | Updates a QCM. |
 | `DELETE` | `/api/gemini/qcms/{id}` | — | Deletes a QCM. |
-| `POST` | `/api/gemini/qcms/{id}/verify` | — | Audits and fact-checks a QCM against Google Search Grounding, producing corrections. |
+| `POST` | `/api/gemini/qcms/{id}/verify` | — | Audits and fact-checks a QCM against Google Search Grounding. |
 | `POST` | `/api/gemini/verify-qcm` | `QcmQuestion` | Fact-checks an arbitrary QCM payload. |
 | `POST` | `/api/gemini/qcm-attempts` | `QcmAttempt` | Records student score and stats for an exam session. |
 | `GET` | `/api/gemini/qcm-attempts` | Query: `courseId` (opt) | Retrieves attempt history. |
+| `GET` | `/api/gemini/flashcards` | Query: `courseId`, `ueId`, `favorite` (opt) | Lists active recall flashcards. |
+| `POST` | `/api/gemini/flashcards` | `Flashcard` | Creates a new flashcard. |
+| `PUT` | `/api/gemini/flashcards/{id}` | `Flashcard` | Updates a flashcard. |
+| `DELETE` | `/api/gemini/flashcards/{id}` | — | Deletes a flashcard. |
+| `POST` | `/api/gemini/flashcards/{id}/favorite` | — | Toggles star favorite status. |
+| `POST` | `/api/gemini/flashcards/{id}/review` | `ReviewFlashcardRequest` | Records spaced repetition review rating (`AGAIN`, `HARD`, `GOOD`, `EASY`) and computes SM-2 metrics. |
+| `POST` | `/api/gemini/flashcards/{id}/verify` | — | Fact-checks a flashcard with LLM-as-Judge & Google Search Grounding. |
+| `POST` | `/api/gemini/verify-flashcard` | `Flashcard` | Fact-checks an arbitrary flashcard payload. |
 | `POST` | `/api/gemini/illustrations/generate` | `GenerateIllustrationRequest` | Generates anatomical diagram or printable fill-in-the-blank drawing via `gemini-3-pro-image`. |
 | `POST` | `/api/gemini/illustrations/{id}/regenerate` | `RegenerateIllustrationRequest` | Re-generates illustration with prompt adjustments. |
 | `POST` | `/api/gemini/illustrations/{id}/verify` | — | Multimodal visual inspection & fact-checking of generated illustrations. |
 | `GET` | `/api/gemini/illustrations` | Query: `courseId` (opt) | Lists generated illustrations. |
 | `DELETE` | `/api/gemini/illustrations/{id}` | — | Deletes an illustration. |
-| `GET` | `/api/gemini/flashcards` | Query: `courseId` (opt) | Lists active recall flashcards. |
-| `POST` | `/api/gemini/flashcards` | `Flashcard` | Creates a new flashcard. |
-| `PUT` | `/api/gemini/flashcards/{id}` | `Flashcard` | Updates a flashcard. |
-| `DELETE` | `/api/gemini/flashcards/{id}` | — | Deletes a flashcard. |
-| `POST` | `/api/gemini/flashcards/{id}/favorite` | — | Toggles star favorite status. |
-| `POST` | `/api/gemini/flashcards/{id}/review` | `ReviewFlashcardRequest` | Records spaced repetition review rating (AGAIN/HARD/GOOD/EASY). |
-| `POST` | `/api/gemini/flashcards/{id}/verify` | — | Fact-checks a flashcard with LLM-as-Judge & Google Search Grounding. |
-| `POST` | `/api/gemini/verify-flashcard` | `Flashcard` | Fact-checks an arbitrary flashcard payload. |
 
-### 7.4 Calendar & Storage (`/api`)
+### 7.4 Calendar, Storage & Sample Data (`/api`)
 | Method | Path | Request Body | Description |
 | :--- | :--- | :--- | :--- |
 | `POST` | `/api/calendar/sync` | `SyncCalendarRequest` | Synchronizes pending revisions to Google Calendar. |
@@ -403,7 +512,7 @@ classDiagram
 | `PUT` | `/api/config` | `JScheduleConfig` | Updates settings (intervals, daily limits, presets). |
 | `GET` | `/api/sample-data/status` | — | Returns data counts & whether demo data is active. |
 | `POST` | `/api/sample-data/seed` | — | Dynamically seeds Paris Cité curriculum (186 courses, QCMs, flashcards). |
-| `POST` | `/api/sample-data/clear` | — | Clears all courses, revisions, QCMs and flashcards. |
+| `POST` | `/api/sample-data/clear` | — | Clears all courses, revisions, QCMs, and flashcards. |
 | `POST` | `/api/storage/upload` | Multipart (`file`) | Uploads a file (PDF, image) to local storage or GCS. |
 | `GET` | `/api/storage/{filename}` | — | Streams stored file bytes with appropriate content-type. |
 
@@ -415,16 +524,15 @@ classDiagram
 - **Java / GraalVM**: **GraalVM 25 (Java 25)** (e.g., via SDKMAN: `25.0.2-graalce`).
   ```bash
   sdk use java 25.0.2-graalce
-  # or export JAVA_HOME
   export JAVA_HOME=~/.sdkman/candidates/java/25.0.2-graalce
   ```
-- **Framework**: **Micronaut 5.1.0** configured with AOT processing and reflection-free Serde.
-- **Node.js / npm**: Automatically provisioned by Gradle (`node-gradle-plugin`), but standard Node 20+ can be used for standalone frontend development.
+- **Framework**: **Micronaut 5.1.0** configured with reflection-free Serde.
+- **Node.js / npm**: Automatically provisioned by Gradle (`node-gradle-plugin`), or isolated Node 22.
 
-### Running the Application
+### Development Commands
 
 #### 1. Full-Stack Development Mode (Single Command)
-Compiles the React frontend, places static resources in classpath, and launches Micronaut on `http://localhost:8080`:
+Compiles React into classpath resources and starts Netty server on `http://localhost:8080`:
 ```bash
 ./gradlew run
 ```
@@ -432,50 +540,68 @@ Compiles the React frontend, places static resources in classpath, and launches 
 #### 2. Fast Frontend Hot-Reloading Mode (Vite Dev Server)
 When iterating heavily on React components:
 ```bash
-# Terminal 1: Backend API
+# Terminal 1: Backend API on :8080
 ./gradlew run
 
-# Terminal 2: Vite Dev Server (port 5173 with proxy to :8080)
+# Terminal 2: Vite Dev Server on :5173 with proxy to :8080
 cd frontend
 npm install
 npm run dev
 ```
 
-### Running Automated Tests
-The repository includes comprehensive unit tests verifying data models, Spaced Repetition algorithms, LangChain4j `@Tool` calls, and Google Search Grounding:
+#### 3. Running Automated Tests
 ```bash
 ./gradlew test
 ```
 
-### Production Build
-Generates a self-contained, optimized JAR file containing backend classes, Netty server, and compiled frontend assets:
+#### 4. Production Build (Fat JAR)
+Generates an optimized standalone executable JAR:
 ```bash
 ./gradlew build
 # Output: build/libs/medj-0.1.0-all.jar
-```
-
-### Environment Variables
-Configure the following environment variables in `.env` or your runtime environment:
-```bash
-# Google Gemini API Key (Required for live AI generation)
-export GEMINI_API_KEY="AIzaSy..."
-
-# Gemini Model Selection (Defaults to gemini-3.7-flash)
-export GEMINI_MODEL="gemini-3.7-flash"
-
-# Gemini Image Generation Model (Defaults to gemini-3-pro-image)
-export GEMINI_IMAGE_MODEL="gemini-3-pro-image"
-
-# Google Cloud Platform Project ID (For Cloud Firestore / GCS)
-export GCP_PROJECT_ID="medj-pass"
-
-# Google Cloud Service Account Credentials
-export GOOGLE_APPLICATION_CREDENTIALS="/path/to/credentials.json"
+java -jar build/libs/medj-0.1.0-all.jar
 ```
 
 ---
 
-## 9. AI Agent Development Rules & Conventions
+## 9. Infrastructure & Deployment Architecture
+
+### 1. Cloud Run Container Deployment
+MedJ is fully containerizable and optimized for **Google Cloud Run**:
+- Fast cold starts (<500ms on Java 25 / Micronaut Netty).
+- Stateless execution with automatic horizontal scaling (0 to $N$).
+- Local storage fallback mounts to Google Cloud Storage (GCS) or persistent Cloud Firestore.
+
+```dockerfile
+# Multi-stage Dockerfile for Cloud Run
+FROM gradle:9.0-jdk25 AS build
+WORKDIR /app
+COPY . .
+RUN ./gradlew build -x test --no-daemon
+
+FROM eclipse-temurin:25-jre-alpine
+WORKDIR /app
+COPY --from=build /app/build/libs/medj-0.1.0-all.jar app.jar
+EXPOSE 8080
+ENTRYPOINT ["java", "-XX:+UseZGC", "-Xmx512m", "-jar", "app.jar"]
+```
+
+### 2. Environment Variables & Secret Configuration
+Configure the following runtime environment variables:
+
+| Variable | Description | Default | Required for |
+| :--- | :--- | :--- | :--- |
+| `GEMINI_API_KEY` | Google Gemini API Key | — | Live AI generation, OCR, Tuteur & Fact-checking |
+| `GEMINI_MODEL` | Primary text & reasoning model | `gemini-3.7-flash` | QCMs, Flashcards, Tutor & OCR |
+| `GEMINI_IMAGE_MODEL`| Image generation model | `gemini-3-pro-image`| Anatomical illustrations & drawings |
+| `GCP_PROJECT_ID` | Google Cloud Project ID | `medj-pass` | Cloud Firestore & GCS persistence |
+| `GOOGLE_APPLICATION_CREDENTIALS`| Service account key path | — | GCP Cloud Firestore & GCS |
+| `MEDJ_STORAGE_DIR`| Local upload folder path | `./uploads` | Local file storage fallback |
+| `MICRONAUT_SERVER_PORT` | HTTP Server port | `8080` | Server binding |
+
+---
+
+## 10. AI Agent Development Rules & Conventions
 
 When modifying, extending, or refactoring the MedJ codebase, all AI agents and developers **must adhere** to the following principles:
 
@@ -494,10 +620,11 @@ When modifying, extending, or refactoring the MedJ codebase, all AI agents and d
 - Maintain bidirectional synchronization between Java backend models (`fr.medj.model.*`) and TypeScript interface definitions (`frontend/src/types.ts`).
 
 ### 4. Thread-Safety & Resilience in Services
-- In-memory collections in `FirestoreService` and `MedicalQcmTools` must remain thread-safe (`ConcurrentHashMap`, `Collections.synchronizedList`).
+- In-memory collections in `FirestoreService`, `MedicalQcmTools`, and `MedicalFlashcardTools` must remain thread-safe (`ConcurrentHashMap`, `Collections.synchronizedList`).
 - Always implement realistic fallback data or graceful error handling in AI service methods so the application remains operable without API keys.
 
-### 5. UI/UX Aesthetics & Accessibility
+### 5. UI/UX Aesthetics, Dark Mode & High-Contrast Typography
 - Maintain the dark-mode aesthetic with high contrast (`slate-950` backgrounds, `sky-500` accents, `emerald-500` validation greens, `rose-500` warnings).
+- For colored backgrounds (such as active blue headers `bg-sky-600`), ensure all text, day labels, badges, and icons remain pure white (`#ffffff`) in both Light and Dark modes.
 - Ensure all interactive modals support keyboard dismissal via `Escape` key (`useEscapeKey`).
 - Preserve KaTeX mathematical formula rendering for pharmacokinetics and biophysics equations.
