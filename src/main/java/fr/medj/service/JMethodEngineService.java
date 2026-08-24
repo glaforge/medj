@@ -7,7 +7,10 @@ import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -30,11 +33,11 @@ public class JMethodEngineService {
         }
     }
 
-    public List<RevisionSession> generateSessionsForCourse(Course course, List<Integer> customIntervals) {
-        List<Integer> intervals = (customIntervals != null && !customIntervals.isEmpty())
-            ? customIntervals
-            : firestoreService.getScheduleConfig().defaultIntervals();
+    private boolean isDefaultIntervals(List<Integer> intervals) {
+        return intervals != null && intervals.equals(List.of(0, 1, 3, 7, 14, 30, 60));
+    }
 
+    public List<RevisionSession> generateSessionsForCourse(Course course, List<Integer> customIntervals) {
         SubjectUE ue = firestoreService.getSubject(course.ueId())
             .orElse(new SubjectUE(course.ueId(), course.ueCode(), "UE Inconnue", "", "#3B82F6", 10, List.of(), "Book"));
 
@@ -43,42 +46,144 @@ public class JMethodEngineService {
 
         List<RevisionSession> sessions = new ArrayList<>();
 
-        String sessionColor = (course.color() != null && !course.color().isBlank())
-            ? course.color()
-            : ue.color();
+        String sessionColor = (ue.color() != null && !ue.color().isBlank())
+            ? ue.color()
+            : (course.color() != null && !course.color().isBlank() ? course.color() : "#0284c7");
 
-        for (int j : intervals) {
-            LocalDate scheduledDate = taughtDate.plusDays(j);
-            String status = scheduledDate.isBefore(today) ? "EN_RETARD" : "A_FAIRE";
-            
-            // J0 is usually marked done if taught in the past
-            LocalDate completedDate = null;
-            String evaluation = null;
-            if (j == 0 && scheduledDate.isBefore(today)) {
-                status = "VALIDE";
-                completedDate = scheduledDate;
-                evaluation = "FACILE";
+        // If explicit custom intervals are provided (and distinct from default [0, 1, 3, 7, 14, 30, 60]), use them
+        if (customIntervals != null && !customIntervals.isEmpty() && !isDefaultIntervals(customIntervals)) {
+            for (int j : customIntervals) {
+                LocalDate scheduledDate = taughtDate.plusDays(j);
+                String status = scheduledDate.isBefore(today) ? "EN_RETARD" : "A_FAIRE";
+                
+                // J0 is usually marked done if taught in the past
+                LocalDate completedDate = null;
+                String evaluation = null;
+                if (j == 0 && scheduledDate.isBefore(today)) {
+                    status = "VALIDE";
+                    completedDate = scheduledDate;
+                    evaluation = "FACILE";
+                }
+
+                String sessionId = "rev-" + course.id() + "-j" + j;
+                RevisionSession session = new RevisionSession(
+                    sessionId,
+                    course.id(),
+                    course.title(),
+                    ue.id(),
+                    ue.code(),
+                    sessionColor,
+                    j,
+                    scheduledDate,
+                    completedDate,
+                    status,
+                    evaluation,
+                    null,
+                    null,
+                    null,
+                    ""
+                );
+                sessions.add(session);
             }
-
-            String sessionId = "rev-" + course.id() + "-j" + j;
-            RevisionSession session = new RevisionSession(
-                sessionId,
+        } else {
+            // Standard Customized PASS Schedule:
+            // 1. J0 : Jour même (taughtDate)
+            LocalDate j0Date = taughtDate;
+            String j0Status = j0Date.isBefore(today) ? "VALIDE" : "A_FAIRE";
+            LocalDate j0Completed = j0Date.isBefore(today) ? j0Date : null;
+            String j0Eval = j0Date.isBefore(today) ? "FACILE" : null;
+            sessions.add(new RevisionSession(
+                "rev-" + course.id() + "-j0",
                 course.id(),
                 course.title(),
                 ue.id(),
                 ue.code(),
                 sessionColor,
-                j,
-                scheduledDate,
-                completedDate,
-                status,
-                evaluation,
+                0,
+                j0Date,
+                j0Completed,
+                j0Status,
+                j0Eval,
                 null,
                 null,
                 null,
                 ""
-            );
-            sessions.add(session);
+            ));
+
+            // 2. J1 : Lendemain (taughtDate + 1)
+            LocalDate j1Date = taughtDate.plusDays(1);
+            String j1Status = j1Date.isBefore(today) ? "EN_RETARD" : "A_FAIRE";
+            sessions.add(new RevisionSession(
+                "rev-" + course.id() + "-j1",
+                course.id(),
+                course.title(),
+                ue.id(),
+                ue.code(),
+                sessionColor,
+                1,
+                j1Date,
+                null,
+                j1Status,
+                null,
+                null,
+                null,
+                null,
+                ""
+            ));
+
+            // 3. Samedi suivant le J1
+            LocalDate saturdayDate = j1Date.with(TemporalAdjusters.next(DayOfWeek.SATURDAY));
+            int satJStep = (int) ChronoUnit.DAYS.between(taughtDate, saturdayDate);
+            String satStatus = saturdayDate.isBefore(today) ? "EN_RETARD" : "A_FAIRE";
+            sessions.add(new RevisionSession(
+                "rev-" + course.id() + "-j" + satJStep,
+                course.id(),
+                course.title(),
+                ue.id(),
+                ue.code(),
+                sessionColor,
+                satJStep,
+                saturdayDate,
+                null,
+                satStatus,
+                null,
+                null,
+                null,
+                null,
+                ""
+            ));
+
+            // 4. Dimanches suivants jusqu'à la fin du semestre (31 mai pour S2 / mois 1-5, sinon 31 décembre pour S1)
+            LocalDate semesterEndDate;
+            if (taughtDate.getMonthValue() >= 1 && taughtDate.getMonthValue() <= 5) {
+                semesterEndDate = LocalDate.of(taughtDate.getYear(), 5, 31);
+            } else {
+                semesterEndDate = LocalDate.of(taughtDate.getYear(), 12, 31);
+            }
+
+            LocalDate currentSunday = saturdayDate.plusDays(1);
+            while (!currentSunday.isAfter(semesterEndDate)) {
+                int sunJStep = (int) ChronoUnit.DAYS.between(taughtDate, currentSunday);
+                String sunStatus = currentSunday.isBefore(today) ? "EN_RETARD" : "A_FAIRE";
+                sessions.add(new RevisionSession(
+                    "rev-" + course.id() + "-j" + sunJStep,
+                    course.id(),
+                    course.title(),
+                    ue.id(),
+                    ue.code(),
+                    sessionColor,
+                    sunJStep,
+                    currentSunday,
+                    null,
+                    sunStatus,
+                    null,
+                    null,
+                    null,
+                    null,
+                    ""
+                ));
+                currentSunday = currentSunday.plusWeeks(1);
+            }
         }
 
         firestoreService.saveRevisions(sessions);
@@ -225,11 +330,11 @@ public class JMethodEngineService {
         return 3; // Valeur par défaut si non spécifié
     }
 
-    public int getUeCoefficient(RevisionSession session, Map<String, SubjectUE> subjectMap) {
+    public double getUeCoefficient(RevisionSession session, Map<String, SubjectUE> subjectMap) {
         if (session.ueId() != null && subjectMap.containsKey(session.ueId())) {
             return subjectMap.get(session.ueId()).coefficient();
         }
-        return 10; // Valeur par défaut
+        return 10.0; // Valeur par défaut
     }
 
     /**
@@ -241,7 +346,7 @@ public class JMethodEngineService {
     public Comparator<RevisionSession> getDailyPriorityComparator(Map<String, Course> courseMap, Map<String, SubjectUE> subjectMap) {
         return Comparator
             .comparingInt((RevisionSession r) -> getCourseDifficulty(r, courseMap)).reversed()
-            .thenComparing(Comparator.comparingInt((RevisionSession r) -> getUeCoefficient(r, subjectMap)).reversed())
+            .thenComparing(Comparator.comparingDouble((RevisionSession r) -> getUeCoefficient(r, subjectMap)).reversed())
             .thenComparingInt(RevisionSession::jStep);
     }
 
@@ -283,7 +388,7 @@ public class JMethodEngineService {
                 // 3. Cycles J les plus élevés déplacés en premier (J60/J30 plus flexibles que J1/J3)
                 Comparator<RevisionSession> toMoveComparator = Comparator
                     .comparingInt((RevisionSession r) -> getCourseDifficulty(r, courseMap))
-                    .thenComparingInt(r -> getUeCoefficient(r, subjectMap))
+                    .thenComparingDouble(r -> getUeCoefficient(r, subjectMap))
                     .thenComparing(Comparator.comparingInt(RevisionSession::jStep).reversed());
 
                 RevisionSession toMove = daySessions.stream()

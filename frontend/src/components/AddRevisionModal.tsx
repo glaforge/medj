@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { CourseCombobox } from './CourseCombobox';
 import { formatDate, getLocalTodayString } from '../utils/dateUtils';
+import { getContrastTextColor } from '../utils/colorUtils';
 import {
   X,
   CalendarPlus,
@@ -284,8 +285,11 @@ export const AddRevisionModal: React.FC<AddRevisionModalProps> = ({
           {/* Dynamic Summary Preview Banner */}
           <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-50 dark:from-sky-950/40 via-indigo-50 dark:via-indigo-950/40 to-slate-50 dark:to-slate-900/40 border border-sky-200 dark:border-sky-800/40 flex items-center gap-3.5">
             <div
-              className="w-12 h-12 rounded-2xl flex flex-col items-center justify-center font-mono font-extrabold text-white shadow-md shrink-0"
-              style={{ backgroundColor: courseColor }}
+              className="w-12 h-12 rounded-2xl flex flex-col items-center justify-center font-mono font-extrabold shadow-md shrink-0"
+              style={{
+                backgroundColor: courseColor,
+                color: getContrastTextColor(courseColor)
+              }}
             >
               <span className="text-[10px] leading-none opacity-80">RÉV</span>
               <span className="text-sm leading-none">J{finalJStep}</span>

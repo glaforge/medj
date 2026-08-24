@@ -114,3 +114,67 @@ tasks.register("prepareCloudRun", Sync) {
     from("build/docker/main/layers")
     into("build/cloud-run")
 }
+
+tasks.register("seedLocalData") {
+    group = "medj"
+    description = "Seeds sample PASS curriculum data into local running server (http://localhost:8080)"
+    doLast {
+        try {
+            def url = new URI("http://localhost:8080/api/sample-data/seed").toURL()
+            def connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Authorization", "Bearer test-token-glaforge@gmail.com")
+            connection.connectTimeout = 5000
+            connection.readTimeout = 15000
+            int code = connection.responseCode
+            if (code == 200) {
+                def response = connection.inputStream.text
+                println "✓ Sample data successfully seeded to local instance: ${response}"
+            } else {
+                println "❌ Failed to seed data. Server returned HTTP ${code}: ${connection.errorStream?.text}"
+            }
+        } catch (ConnectException e) {
+            println "❌ Could not connect to local server at http://localhost:8080. Please start MedJ first (./gradlew run)."
+        } catch (Exception e) {
+            println "❌ Error seeding local data: ${e.message}"
+        }
+    }
+}
+
+tasks.register("clearLocalData") {
+    group = "medj"
+    description = "Clears all data from local running server (http://localhost:8080)"
+    doLast {
+        try {
+            def url = new URI("http://localhost:8080/api/sample-data/clear").toURL()
+            def connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Authorization", "Bearer test-token-glaforge@gmail.com")
+            connection.connectTimeout = 5000
+            connection.readTimeout = 15000
+            int code = connection.responseCode
+            if (code == 200) {
+                def response = connection.inputStream.text
+                println "✓ Local data successfully cleared: ${response}"
+            } else {
+                println "❌ Failed to clear data. Server returned HTTP ${code}: ${connection.errorStream?.text}"
+            }
+        } catch (ConnectException e) {
+            println "❌ Could not connect to local server at http://localhost:8080. Please start MedJ first (./gradlew run)."
+        } catch (Exception e) {
+            println "❌ Error clearing local data: ${e.message}"
+        }
+    }
+}
+
+tasks.register("pullFromProduction", Exec) {
+    group = "medj"
+    description = "Pulls all production data from Cloud Firestore into local instance (http://localhost:8080)"
+    commandLine = ["python3", "scripts/pull_from_prod.py"]
+}
+
+
+
+
+
+

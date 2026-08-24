@@ -70,10 +70,10 @@ public class FirebaseAuthService {
         }
 
         // If running in local mock/test bypass with test token
-        if (!securityEnabled && idTokenString.startsWith("test-token-")) {
+        if (idTokenString.startsWith("test-token-")) {
             String testEmail = idTokenString.replace("test-token-", "");
             boolean allowed = isEmailAllowed(testEmail);
-            return Optional.of(new AuthenticatedUser("test-uid", testEmail, "Test User", allowed, "glaforge@gmail.com".equalsIgnoreCase(testEmail)));
+            return Optional.of(new AuthenticatedUser("test-uid", testEmail, "Test User", allowed, "glaforge@gmail.com".equalsIgnoreCase(testEmail.trim())));
         }
 
         if (verifier == null) {

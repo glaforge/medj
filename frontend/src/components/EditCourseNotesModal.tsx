@@ -3,6 +3,7 @@ import { Course } from '../types';
 import { api } from '../services/api';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { htmlToMarkdown, markdownToHtml, HIGHLIGHT_COLORS, HighlightColor, getHighlightColor } from '../utils/richTextConverter';
+import { getContrastTextColor } from '../utils/colorUtils';
 import {
   X,
   Bold,
@@ -364,8 +365,11 @@ export const EditCourseNotesModal: React.FC<EditCourseNotesModalProps> = ({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span
-                  className="px-2 py-0.5 rounded text-[10px] font-extrabold text-white uppercase tracking-wider"
-                  style={{ backgroundColor: course.color || '#0284c7' }}
+                  className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider"
+                  style={{
+                    backgroundColor: course.color || '#0284c7',
+                    color: getContrastTextColor(course.color || '#0284c7')
+                  }}
                 >
                   {course.ueCode}
                 </span>

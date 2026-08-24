@@ -229,7 +229,9 @@ public class RevisionController {
             return HttpResponse.badRequest();
         }
 
-        String sessionColor = (course.color() != null && !course.color().isBlank()) ? course.color() : ue.color();
+        String sessionColor = (ue.color() != null && !ue.color().isBlank())
+            ? ue.color()
+            : (course.color() != null && !course.color().isBlank() ? course.color() : "#0284c7");
         String sessionId = "rev-" + course.id() + "-j" + jStep + "-" + UUID.randomUUID().toString().substring(0, 6);
         
         LocalDate today = LocalDate.now();
@@ -259,10 +261,20 @@ public class RevisionController {
     }
 
     @Delete("/{id}")
-    public HttpResponse<Void> deleteRevision(@PathVariable String id) {
-        if (firestoreService.deleteRevision(id)) {
-            return HttpResponse.noContent();
+    public HttpResponse<Void> deleteRevision(
+        @PathVariable String id,
+        @QueryValue(defaultValue = "false") boolean deleteFollowing
+    ) {
+        if (deleteFollowing) {
+            if (firestoreService.deleteRevisionAndFollowing(id)) {
+                return HttpResponse.noContent();
+            }
+            return HttpResponse.notFound();
+        } else {
+            if (firestoreService.deleteRevision(id)) {
+                return HttpResponse.noContent();
+            }
+            return HttpResponse.notFound();
         }
-        return HttpResponse.notFound();
     }
 }

@@ -67,10 +67,10 @@ public class CourseController {
             subjectInput.name() != null ? subjectInput.name().trim() : "Nouvelle Matière",
             subjectInput.description() != null ? subjectInput.description().trim() : "",
             subjectInput.color() != null && !subjectInput.color().isBlank() ? subjectInput.color() : "#0284c7",
-            subjectInput.coefficient() > 0 ? subjectInput.coefficient() : 10,
+            subjectInput.coefficient() > 0 ? subjectInput.coefficient() : 10.0,
             subjectInput.customIntervals() != null && !subjectInput.customIntervals().isEmpty()
                 ? subjectInput.customIntervals()
-                : List.of(0, 1, 3, 7, 14, 30, 60),
+                : List.of(),
             subjectInput.icon() != null && !subjectInput.icon().isBlank() ? subjectInput.icon() : "Book"
         );
 
@@ -108,7 +108,7 @@ public class CourseController {
                         c.ueId(),
                         updated.code(),
                         c.title(),
-                        c.color() != null && !c.color().equalsIgnoreCase(existing.color()) ? c.color() : updated.color(),
+                        updated.color(),
                         c.professor(),
                         c.taughtDate(),
                         c.difficulty(),
@@ -121,6 +121,27 @@ public class CourseController {
                         LocalDateTime.now()
                     );
                     firestoreService.saveCourse(updatedCourse);
+
+                    for (RevisionSession s : firestoreService.getRevisionsForCourse(c.id())) {
+                        RevisionSession updatedSession = new RevisionSession(
+                            s.id(),
+                            s.courseId(),
+                            s.courseTitle(),
+                            s.ueId(),
+                            updated.code(),
+                            updated.color(),
+                            s.jStep(),
+                            s.scheduledDate(),
+                            s.completedDate(),
+                            s.status(),
+                            s.evaluation(),
+                            s.scorePercent(),
+                            s.timeSpentMinutes(),
+                            s.calendarEventId(),
+                            s.notes()
+                        );
+                        firestoreService.saveRevision(updatedSession);
+                    }
                 }
             }
         }
@@ -162,12 +183,26 @@ public class CourseController {
             ? courseInput.id()
             : "course-" + UUID.randomUUID();
 
+        String ueColor = courseInput.color();
+        String ueCode = courseInput.ueCode();
+        if (courseInput.ueId() != null && !courseInput.ueId().isBlank()) {
+            Optional<SubjectUE> sub = firestoreService.getSubject(courseInput.ueId());
+            if (sub.isPresent()) {
+                if (sub.get().color() != null && !sub.get().color().isBlank()) {
+                    ueColor = sub.get().color();
+                }
+                if (sub.get().code() != null && !sub.get().code().isBlank()) {
+                    ueCode = sub.get().code();
+                }
+            }
+        }
+
         Course newCourse = new Course(
             id,
             courseInput.ueId(),
-            courseInput.ueCode(),
+            ueCode,
             courseInput.title(),
-            courseInput.color(),
+            ueColor != null ? ueColor : "#0284c7",
             courseInput.professor() != null ? courseInput.professor() : "",
             courseInput.taughtDate(),
             courseInput.difficulty() > 0 ? courseInput.difficulty() : 3,
@@ -175,7 +210,7 @@ public class CourseController {
             courseInput.tags() != null ? courseInput.tags() : List.of(),
             courseInput.notes() != null ? courseInput.notes() : "",
             courseInput.documents() != null ? courseInput.documents() : List.of(),
-            courseInput.customIntervals() != null ? courseInput.customIntervals() : List.of(0, 1, 3, 7, 14, 30, 60),
+            courseInput.customIntervals() != null ? courseInput.customIntervals() : List.of(),
             LocalDateTime.now(),
             LocalDateTime.now()
         );
@@ -194,12 +229,28 @@ public class CourseController {
         if (existing.isEmpty()) return HttpResponse.notFound();
 
         Course current = existing.get();
+        String targetUeId = courseInput.ueId() != null ? courseInput.ueId() : current.ueId();
+        String ueColor = current.color();
+        String ueCode = courseInput.ueCode() != null ? courseInput.ueCode() : current.ueCode();
+
+        if (targetUeId != null && !targetUeId.isBlank()) {
+            Optional<SubjectUE> sub = firestoreService.getSubject(targetUeId);
+            if (sub.isPresent()) {
+                if (sub.get().color() != null && !sub.get().color().isBlank()) {
+                    ueColor = sub.get().color();
+                }
+                if (sub.get().code() != null && !sub.get().code().isBlank()) {
+                    ueCode = sub.get().code();
+                }
+            }
+        }
+
         Course updated = new Course(
             id,
-            courseInput.ueId() != null ? courseInput.ueId() : current.ueId(),
-            courseInput.ueCode() != null ? courseInput.ueCode() : current.ueCode(),
+            targetUeId,
+            ueCode,
             courseInput.title() != null ? courseInput.title() : current.title(),
-            courseInput.color() != null ? courseInput.color() : current.color(),
+            ueColor,
             courseInput.professor() != null ? courseInput.professor() : current.professor(),
             courseInput.taughtDate() != null ? courseInput.taughtDate() : current.taughtDate(),
             courseInput.difficulty() > 0 ? courseInput.difficulty() : current.difficulty(),
@@ -214,8 +265,8 @@ public class CourseController {
 
         firestoreService.saveCourse(updated);
 
-        // If color was changed, propagate to existing revision sessions
-        if (courseInput.color() != null && !courseInput.color().isBlank() && !courseInput.color().equalsIgnoreCase(current.color())) {
+        // Propagate UE color/code change to existing revision sessions if needed
+        if (ueColor != null && !ueColor.equalsIgnoreCase(current.color())) {
             for (RevisionSession s : firestoreService.getRevisionsForCourse(id)) {
                 RevisionSession updatedSession = new RevisionSession(
                     s.id(),
@@ -223,7 +274,7 @@ public class CourseController {
                     s.courseTitle(),
                     s.ueId(),
                     s.ueCode(),
-                    courseInput.color(),
+                    ueColor,
                     s.jStep(),
                     s.scheduledDate(),
                     s.completedDate(),

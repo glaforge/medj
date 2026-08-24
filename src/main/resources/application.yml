@@ -56,7 +56,7 @@ medj:
       firestore-collection-prefix: ${FIRESTORE_PREFIX:medj_}
       storage-bucket: ${GCS_BUCKET:medj-505807-assets}
   scheduling:
-    default-intervals: [0, 1, 3, 7, 14, 30, 60]
+    default-intervals: []
     daily-overload-threshold: 6
 
 jackson:

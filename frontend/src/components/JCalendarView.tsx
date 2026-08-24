@@ -5,6 +5,9 @@ import {
   Course
 } from '../types';
 import { formatDate, getLocalTodayString } from '../utils/dateUtils';
+import { getContrastTextColor } from '../utils/colorUtils';
+import { DeleteRevisionModal } from './DeleteRevisionModal';
+import { api } from '../services/api';
 import {
   ChevronLeft,
   ChevronRight,
@@ -21,7 +24,8 @@ import {
   Check,
   Zap,
   CalendarRange,
-  GripVertical
+  GripVertical,
+  Trash2
 } from 'lucide-react';
 
 interface JCalendarViewProps {
@@ -32,6 +36,7 @@ interface JCalendarViewProps {
   onShiftSubject: (ueId: string, days: number) => void;
   onCompleteRevision: (sessionId: string, evaluation: string) => void;
   onUncompleteRevision?: (sessionId: string) => void;
+  onDeleteRevision?: (sessionId: string, deleteFollowing: boolean) => Promise<void>;
   onTriggerSmoothing: () => void;
   onSelectCourse: (course: Course) => void;
   onOpenAddRevisionModal: (initialDate?: string, courseId?: string) => void;
@@ -45,6 +50,7 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
   onShiftSubject,
   onCompleteRevision,
   onUncompleteRevision,
+  onDeleteRevision,
   onTriggerSmoothing,
   onSelectCourse,
   onOpenAddRevisionModal
@@ -56,6 +62,9 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
   const [selectedUeFilter, setSelectedUeFilter] = useState<string>('ALL');
   const [selectedBulkUeId, setSelectedBulkUeId] = useState<string>('');
 
+  // Delete modal state
+  const [sessionToDelete, setSessionToDelete] = useState<RevisionSession | null>(null);
+
   // Drag & Drop State
   const [draggedSessionId, setDraggedSessionId] = useState<string | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
@@ -66,10 +75,12 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
   };
 
   const getCourseOrUeColor = (session: RevisionSession) => {
+    const s = getSubjectColor(session.ueId);
+    if (s && s !== '#0284c7') return s;
+    if (session.ueColor) return session.ueColor;
     const course = courses.find(c => c.id === session.courseId);
     if (course && course.color) return course.color;
-    if (session.ueColor) return session.ueColor;
-    return getSubjectColor(session.ueId);
+    return s;
   };
 
   // Helper for date formatting
@@ -155,6 +166,18 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
       }
     } catch (err) {
       console.error('Failed to handle drop', err);
+    }
+  };
+
+  const handleDeleteRevisionConfirmed = async (sessionId: string, deleteFollowing: boolean) => {
+    try {
+      if (onDeleteRevision) {
+        await onDeleteRevision(sessionId, deleteFollowing);
+      } else {
+        await api.deleteRevision(sessionId, deleteFollowing);
+      }
+    } catch (err) {
+      console.error('Failed to delete revision', err);
     }
   };
 
@@ -331,24 +354,29 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
         >
           Toutes les UE
         </button>
-        {subjects.map(sub => (
-          <button
-            key={sub.id}
-            onClick={() => setSelectedUeFilter(sub.id)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-              selectedUeFilter === sub.id
-                ? 'text-white shadow-sm'
-                : 'bg-slate-100 dark:bg-slate-900/80 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
-            }`}
-            style={{
-              backgroundColor: selectedUeFilter === sub.id ? sub.color : undefined,
-              borderColor: selectedUeFilter === sub.id ? sub.color : undefined
-            }}
-          >
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: sub.color }}></span>
-            <span>{sub.code}</span>
-          </button>
-        ))}
+        {subjects.map(sub => {
+          const isSelected = selectedUeFilter === sub.id;
+          const contrastColor = isSelected ? getContrastTextColor(sub.color) : undefined;
+          return (
+            <button
+              key={sub.id}
+              onClick={() => setSelectedUeFilter(sub.id)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                isSelected
+                  ? 'shadow-sm'
+                  : 'bg-slate-100 dark:bg-slate-900/80 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
+              }`}
+              style={{
+                backgroundColor: isSelected ? sub.color : undefined,
+                borderColor: isSelected ? sub.color : undefined,
+                color: contrastColor
+              }}
+            >
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: isSelected ? contrastColor : sub.color }}></span>
+              <span>{sub.code}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* VIEW 1: MONTHLY CALENDAR VIEW */}
@@ -383,6 +411,7 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
                     onDragOver={(e) => {
                       e.preventDefault();
                       e.dataTransfer.dropEffect = 'move';
+                      setDragOverDate(dayItem.dateStr);
                     }}
                     onDragEnter={(e) => {
                       e.preventDefault();
@@ -447,10 +476,13 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
                             setDraggedSessionId(null);
                             setDragOverDate(null);
                           }}
-                          className={`text-[9px] font-semibold px-1 py-0.5 rounded truncate text-white shadow-2xs cursor-grab active:cursor-grabbing transition-opacity ${
+                          className={`text-[9px] font-semibold px-1 py-0.5 rounded truncate shadow-2xs cursor-grab active:cursor-grabbing transition-opacity ${
                             draggedSessionId === r.id ? 'opacity-30' : ''
                           }`}
-                          style={{ backgroundColor: getCourseOrUeColor(r) }}
+                          style={{
+                            backgroundColor: getCourseOrUeColor(r),
+                            color: getContrastTextColor(getCourseOrUeColor(r))
+                          }}
                         >
                           J{r.jStep} {r.courseTitle}
                         </div>
@@ -547,8 +579,11 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
                               J{s.jStep}
                             </span>
                             <span
-                              className="font-bold text-white px-1.5 py-0.5 rounded text-[9px]"
-                              style={{ backgroundColor: getCourseOrUeColor(s) }}
+                              className="font-bold px-1.5 py-0.5 rounded text-[9px]"
+                              style={{
+                                backgroundColor: getCourseOrUeColor(s),
+                                color: getContrastTextColor(getCourseOrUeColor(s))
+                              }}
                             >
                               {s.ueCode}
                             </span>
@@ -617,6 +652,13 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
                             >
                               +1 sem
                             </button>
+                            <button
+                              onClick={() => setSessionToDelete(s)}
+                              title="Supprimer cette séance (ou les suivantes)"
+                              className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-rose-100 dark:hover:bg-rose-950/60 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 text-[10px] font-semibold cursor-pointer"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
                           </div>
 
                           {!isDone ? (
@@ -656,8 +698,11 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
                   if (!currentUe) return null;
                   return (
                     <span
-                      className="px-1.5 py-0.5 rounded text-[10px] font-extrabold text-white uppercase tracking-wider shadow-2xs"
-                      style={{ backgroundColor: currentUe.color || '#0284c7' }}
+                      className="px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider shadow-2xs"
+                      style={{
+                        backgroundColor: currentUe.color || '#0284c7',
+                        color: getContrastTextColor(currentUe.color || '#0284c7')
+                      }}
                     >
                       {currentUe.code}
                     </span>
@@ -939,8 +984,11 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
                                   J{s.jStep}
                                 </span>
                                 <span
-                                  className="font-bold text-white px-1.5 py-0.2 rounded text-[9px] shadow-2xs"
-                                  style={{ backgroundColor: ueColor }}
+                                  className="font-bold px-1.5 py-0.2 rounded text-[9px] shadow-2xs"
+                                  style={{
+                                    backgroundColor: ueColor,
+                                    color: getContrastTextColor(ueColor)
+                                  }}
                                 >
                                   {s.ueCode}
                                 </span>
@@ -1036,6 +1084,16 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
                                 >
                                   +7j
                                 </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSessionToDelete(s);
+                                  }}
+                                  title="Supprimer cette séance (ou les suivantes)"
+                                  className="p-1 rounded hover:bg-rose-100 dark:hover:bg-rose-950/60 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -1121,6 +1179,14 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Delete Revision Modal */}
+      <DeleteRevisionModal
+        isOpen={sessionToDelete !== null}
+        onClose={() => setSessionToDelete(null)}
+        session={sessionToDelete}
+        onConfirmDelete={handleDeleteRevisionConfirmed}
+      />
 
     </div>
   );

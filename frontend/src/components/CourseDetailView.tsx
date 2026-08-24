@@ -21,7 +21,10 @@ import { MedicalIllustrationModal } from './MedicalIllustrationModal';
 import { NewIllustrationModal } from './NewIllustrationModal';
 import { EditCourseNotesModal } from './EditCourseNotesModal';
 import { PrintFlashcardsModal } from './PrintFlashcardsModal';
-import { getLocalTodayString } from '../utils/dateUtils';
+import { DeleteRevisionModal } from './DeleteRevisionModal';
+import { DeleteCourseModal } from './DeleteCourseModal';
+import { getLocalTodayString, parseDate } from '../utils/dateUtils';
+import { getContrastTextColor } from '../utils/colorUtils';
 import {
   ArrowLeft,
   Calendar,
@@ -39,7 +42,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   Lightbulb,
-  Palette,
   Check,
   Eye,
   EyeOff,
@@ -70,6 +72,7 @@ interface CourseDetailViewProps {
   onShiftRevision: (sessionId: string, days: number) => void;
   onCompleteRevision: (sessionId: string, evaluation: string) => void;
   onUncompleteRevision?: (sessionId: string) => void;
+  onDeleteCourse?: (courseId: string) => Promise<void> | void;
   onCourseUpdated?: (course: Course) => void;
   onOpenAddRevisionModal?: (initialDate?: string, courseId?: string) => void;
   onOpenEditQcmModal?: (qcm?: QcmQuestion, courseId?: string) => void;
@@ -90,6 +93,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
   onShiftRevision,
   onCompleteRevision,
   onUncompleteRevision,
+  onDeleteCourse,
   onCourseUpdated,
   onOpenAddRevisionModal,
   onOpenEditQcmModal,
@@ -135,48 +139,17 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
   const [flashcardVerificationResult, setFlashcardVerificationResult] = useState<FlashcardVerification | null>(null);
   const [isVerifyingFlashcard, setIsVerifyingFlashcard] = useState(false);
 
-  const subject = subjects.find(s => s.id.toLowerCase() === currentCourse.ueId.toLowerCase() || s.code.toLowerCase() === currentCourse.ueId.toLowerCase());
-  const [currentColor, setCurrentColor] = useState<string>(currentCourse.color || (subject ? subject.color : '#0284c7'));
-  const [showColorPicker, setShowColorPicker] = useState(false);
+  // Deletion Modals
+  const [sessionToDelete, setSessionToDelete] = useState<RevisionSession | null>(null);
+  const [isDeleteCourseModalOpen, setIsDeleteCourseModalOpen] = useState(false);
 
-  const COLOR_PALETTE = [
-    '#0284c7', // Bleu Médical
-    '#10b981', // Vert Émeraude
-    '#ec4899', // Rose Fuchsia
-    '#8b5cf6', // Violet
-    '#f59e0b', // Ambre
-    '#14b8a6', // Turquoise
-    '#6366f1', // Indigo
-    '#f43f5e', // Rouge Rubis
-    '#06b6d4', // Cyan
-    '#84cc16', // Vert Lime
-    '#d97706', // Ocre
-    '#64748b'  // Ardoise
-  ];
+  const subject = subjects.find(s => s.id.toLowerCase() === currentCourse.ueId.toLowerCase() || s.code.toLowerCase() === currentCourse.ueId.toLowerCase());
+  const currentColor = subject?.color || currentCourse.color || '#0284c7';
 
   useEffect(() => {
     setCurrentCourse(course);
-    setCurrentColor(course.color || (subject ? subject.color : '#0284c7'));
     loadCourseData();
-  }, [course.id, course.color, course.documents?.length, course.updatedAt, revisionUpdateTrigger]);
-
-  const handleColorChange = async (newColor: string) => {
-    setCurrentColor(newColor);
-    setShowColorPicker(false);
-    try {
-      const updated = await api.updateCourse(currentCourse.id, {
-        ...currentCourse,
-        color: newColor
-      });
-      setCurrentCourse(updated);
-      if (onCourseUpdated) {
-        onCourseUpdated(updated);
-      }
-      loadCourseData();
-    } catch (err) {
-      console.error('Failed to update course color', err);
-    }
-  };
+  }, [course.id, course.documents?.length, course.updatedAt, revisionUpdateTrigger]);
 
   const loadCourseData = async () => {
     try {
@@ -324,6 +297,34 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
     }
   };
 
+  const handleDeleteRevisionConfirmed = async (sessionId: string, deleteFollowing: boolean) => {
+    try {
+      await api.deleteRevision(sessionId, deleteFollowing);
+      if (onShowToast) {
+        onShowToast(deleteFollowing ? '✓ Séances futures supprimées jusqu\'à la fin du semestre' : '✓ Séance de révision supprimée');
+      }
+      await loadCourseData();
+    } catch (err) {
+      console.error('Failed to delete revision', err);
+      if (onShowToast) onShowToast('❌ Erreur lors de la suppression');
+    }
+  };
+
+  const handleDeleteCourseConfirmed = async (courseId: string) => {
+    try {
+      if (onDeleteCourse) {
+        await onDeleteCourse(courseId);
+      } else {
+        await api.deleteCourse(courseId);
+        if (onShowToast) onShowToast('✓ Cours et révisions supprimés');
+        onBack();
+      }
+    } catch (err) {
+      console.error('Failed to delete course', err);
+      if (onShowToast) onShowToast('❌ Erreur lors de la suppression du cours');
+    }
+  };
+
   const handleGenerateQcms = async () => {
     setIsGeneratingQcm(true);
     setQcmGenerationSuccess(false);
@@ -461,10 +462,10 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
     <div className="space-y-6 animate-fadeIn">
       
       {/* Top Back & Header Bar */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-semibold transition-all"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-semibold transition-all cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Retour aux cours</span>
@@ -473,10 +474,20 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={() => onOpenAiTutor(course)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-sky-950/40 transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-sky-950/40 transition-all cursor-pointer"
           >
             <Bot className="w-4 h-4" />
             <span>Tuteur IA sur ce cours</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsDeleteCourseModalOpen(true)}
+            title="Supprimer définitivement ce cours et ses révisions"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-950/30 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-800/40 text-xs font-semibold transition-all cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Supprimer le cours</span>
           </button>
         </div>
       </div>
@@ -487,56 +498,11 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
           <div className="space-y-2">
             <div className="flex items-center gap-2.5 flex-wrap">
               <span
-                className="px-2.5 py-0.5 rounded text-[10px] font-extrabold text-white uppercase tracking-wider shadow-sm"
-                style={{ backgroundColor: currentColor }}
+                className="px-2.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider shadow-sm"
+                style={{ backgroundColor: currentColor, color: getContrastTextColor(currentColor) }}
               >
                 {course.ueCode || subject?.code || 'UE'} • {subject?.name || 'Matière'}
               </span>
-
-              {/* Color Code Picker trigger */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowColorPicker(!showColorPicker)}
-                  title="Changer la couleur du cours"
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[10px] font-semibold text-slate-300 hover:text-white transition-all"
-                >
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: currentColor }}></span>
-                  <Palette className="w-3 h-3 text-slate-400" />
-                  <span>Couleur</span>
-                </button>
-
-                {showColorPicker && (
-                  <div className="absolute top-8 left-0 z-30 p-3 rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl space-y-2 w-64 animate-fadeIn">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      Code couleur du cours
-                    </div>
-                    <div className="grid grid-cols-6 gap-1.5">
-                      {COLOR_PALETTE.map(c => (
-                        <button
-                          key={c}
-                          type="button"
-                          onClick={() => handleColorChange(c)}
-                          className="w-7 h-7 rounded-full flex items-center justify-center transition-transform hover:scale-110"
-                          style={{ backgroundColor: c }}
-                        >
-                          {currentColor.toLowerCase() === c.toLowerCase() && (
-                            <Check className="w-4 h-4 text-white drop-shadow stroke-[3]" />
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
-                      <span className="text-[10px] text-slate-400">Personnalisée :</span>
-                      <input
-                        type="color"
-                        value={currentColor}
-                        onChange={(e) => handleColorChange(e.target.value)}
-                        className="w-6 h-6 rounded bg-transparent border-0 cursor-pointer p-0"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
 
               <span className="text-xs text-slate-400">
                 Cours du {course.taughtDate} (J0)
@@ -631,7 +597,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
               <Clock className="w-4 h-4 text-sky-400" />
-              Calendrier des Séances de Répétition (Méthode des J)
+              Planning des Révisions (J0, J1, Samedi & Dimanches)
             </h2>
             <span className="text-xs text-slate-400">
               ({sessions.filter(s => s.status === 'VALIDE').length} / {sessions.length} validées)
@@ -644,7 +610,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/30 text-xs font-bold transition-all self-start sm:self-center shadow-xs"
             >
               <CalendarPlus className="w-3.5 h-3.5" />
-              <span>+ Ajouter un J (ex: J90)</span>
+              <span>+ Ajouter une séance</span>
             </button>
           )}
         </div>
@@ -653,6 +619,14 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
           {sessions.map(session => {
             const isDone = session.status === 'VALIDE';
             const isOverdue = session.status === 'EN_RETARD';
+            const dateObj = parseDate(session.scheduledDate);
+            const dayName = dateObj.toLocaleDateString('fr-FR', { weekday: 'short' });
+
+            const sessionBadgeLabel = session.jStep === 0
+              ? 'J0'
+              : session.jStep === 1
+              ? 'J1'
+              : `J${session.jStep} • ${dayName.charAt(0).toUpperCase() + dayName.slice(1)}`;
 
             return (
               <div
@@ -667,8 +641,8 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
               >
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-mono font-extrabold text-sm px-2 py-0.5 rounded bg-slate-950/80 border border-slate-800">
-                      J{session.jStep}
+                    <span className="font-mono font-extrabold text-xs px-2 py-0.5 rounded bg-slate-950/80 border border-slate-800">
+                      {sessionBadgeLabel}
                     </span>
                     <span className="text-[10px] font-bold">
                       {isDone ? '✓ Fait' : isOverdue ? '⚠️ Retard' : 'Prévu'}
@@ -694,6 +668,13 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                       className="p-1 rounded hover:bg-slate-800 text-amber-300 hover:text-amber-200 flex items-center gap-0.5 transition-all text-[10px] font-bold font-mono"
                     >
                       +1j
+                    </button>
+                    <button
+                      onClick={() => setSessionToDelete(session)}
+                      title="Supprimer cette séance (ou les suivantes)"
+                      className="p-1 rounded hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 flex items-center transition-all text-[10px]"
+                    >
+                      <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
 
@@ -899,7 +880,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                           className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-sky-100 hover:bg-sky-200 dark:bg-sky-950/60 dark:hover:bg-sky-600 text-sky-800 dark:text-sky-300 hover:text-sky-950 dark:hover:text-white border border-sky-300 dark:border-sky-500/30 text-xs font-semibold transition-all shadow-2xs"
                         >
                           <Edit3 className="w-3.5 h-3.5 text-sky-700 dark:text-sky-300" />
-                          <span>Modifier</span>
+                          <span className="text-sky-800 dark:text-sky-300 font-semibold">Modifier</span>
                         </button>
                       )}
 
@@ -1805,6 +1786,23 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
         subjects={subjects}
         contextTitle={`Flashcards • [${currentCourse.ueCode}] ${currentCourse.title}`}
         onShowToast={onShowToast}
+      />
+
+      {/* Delete Revision Modal */}
+      <DeleteRevisionModal
+        isOpen={sessionToDelete !== null}
+        onClose={() => setSessionToDelete(null)}
+        session={sessionToDelete}
+        onConfirmDelete={handleDeleteRevisionConfirmed}
+      />
+
+      {/* Delete Course Modal */}
+      <DeleteCourseModal
+        isOpen={isDeleteCourseModalOpen}
+        onClose={() => setIsDeleteCourseModalOpen(false)}
+        course={currentCourse}
+        subject={subject}
+        onConfirmDelete={handleDeleteCourseConfirmed}
       />
 
     </div>

@@ -6,6 +6,7 @@ import { MedicalIllustrationModal } from './MedicalIllustrationModal';
 import { CourseCombobox } from './CourseCombobox';
 import { printMedicalWorksheet } from '../utils/printWorksheet';
 import { formatDate, formatTime } from '../utils/dateUtils';
+import { getContrastTextColor } from '../utils/colorUtils';
 import {
   Bot,
   Send,
@@ -359,8 +360,11 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
                       <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 pt-1">
                         {t.ueCode ? (
                           <span
-                            className="px-1.5 py-0.2 rounded text-[9px] font-bold text-white uppercase tracking-wider shadow-2xs"
-                            style={{ backgroundColor: color }}
+                            className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider shadow-2xs"
+                            style={{
+                              backgroundColor: color,
+                              color: getContrastTextColor(color)
+                            }}
                           >
                             {t.ueCode}
                           </span>

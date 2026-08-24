@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { SubjectUE } from '../types';
 import { api } from '../services/api';
 import { useEscapeKey } from '../hooks/useEscapeKey';
+import { getContrastTextColor } from '../utils/colorUtils';
+import { DeleteSubjectModal } from './DeleteSubjectModal';
 import {
   X,
   BookOpen,
@@ -10,6 +12,7 @@ import {
   Clock,
   Layers,
   Save,
+  Trash2,
   AlertTriangle,
   Atom,
   Dna,
@@ -32,7 +35,9 @@ interface EditSubjectModalProps {
   isOpen: boolean;
   onClose: () => void;
   subject?: SubjectUE | null;
+  coursesCount?: number;
   onSubjectSaved: (savedSubject: SubjectUE) => void;
+  onDeleteSubject?: (subjectId: string) => Promise<void> | void;
 }
 
 const AVAILABLE_ICONS = [
@@ -72,7 +77,9 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
   isOpen,
   onClose,
   subject,
-  onSubjectSaved
+  coursesCount = 0,
+  onSubjectSaved,
+  onDeleteSubject
 }) => {
   useEscapeKey(isOpen, onClose);
 
@@ -82,11 +89,11 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState('#0284c7');
-  const [ects, setEcts] = useState(10);
-  const [intervalsStr, setIntervalsStr] = useState('0, 1, 3, 7, 14, 30, 60');
+  const [ects, setEcts] = useState<number | string>(10);
   const [selectedIcon, setSelectedIcon] = useState('Book');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -97,7 +104,6 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
         setDescription(subject.description || '');
         setColor(subject.color || '#0284c7');
         setEcts(subject.coefficient ?? subject.ects ?? 10);
-        setIntervalsStr((subject.customIntervals ?? subject.defaultIntervals ?? [0, 1, 3, 7, 14, 30, 60]).join(', '));
         setSelectedIcon(subject.icon || 'Book');
       } else {
         // Create mode
@@ -106,7 +112,6 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
         setDescription('');
         setColor('#0284c7');
         setEcts(10);
-        setIntervalsStr('0, 1, 3, 7, 14, 30, 60');
         setSelectedIcon('Book');
       }
     }
@@ -127,21 +132,11 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
       return;
     }
 
-    const parsedIntervals = intervalsStr
-      .split(',')
-      .map(s => parseInt(s.trim(), 10))
-      .filter(n => !isNaN(n) && n >= 0);
-
-    if (parsedIntervals.length === 0) {
-      setErrorMessage("Veuillez renseigner au moins un intervalle de révision valide (ex: 0, 1, 3, 7, 14).");
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
-      const intervals = Array.from(new Set(parsedIntervals)).sort((a, b) => a - b);
-      const coeff = ects > 0 ? ects : 10;
+      const parsedCoeff = typeof ects === 'number' ? ects : parseFloat(String(ects).replace(',', '.'));
+      const coeff = !isNaN(parsedCoeff) && parsedCoeff > 0 ? parsedCoeff : 10;
       const payload: Partial<SubjectUE> = {
         code: code.trim().toUpperCase(),
         name: name.trim(),
@@ -149,8 +144,8 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
         color,
         coefficient: coeff,
         ects: coeff,
-        customIntervals: intervals,
-        defaultIntervals: intervals,
+        customIntervals: [],
+        defaultIntervals: [],
         icon: selectedIcon
       };
 
@@ -179,8 +174,11 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
         <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-slate-900/60">
           <div className="flex items-center gap-3">
             <div
-              className="w-10 h-10 rounded-2xl p-0.5 shadow-lg shadow-sky-950/40 flex items-center justify-center text-white"
-              style={{ backgroundColor: color }}
+              className="w-10 h-10 rounded-2xl p-0.5 shadow-lg shadow-sky-950/40 flex items-center justify-center"
+              style={{
+                backgroundColor: color,
+                color: getContrastTextColor(color)
+              }}
             >
               <Layers className="w-5 h-5" />
             </div>
@@ -288,33 +286,30 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
             </div>
           </div>
 
-          {/* Row 4: ECTS & Default Intervals */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-300">Crédits ECTS</label>
-              <input
-                type="number"
-                min={1}
-                max={30}
-                value={ects}
-                onChange={(e) => setEcts(parseInt(e.target.value, 10) || 10)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
-              />
-            </div>
+          {/* Row 4: Coefficient ECTS */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-300">Coefficient / ECTS</label>
+            <input
+              type="number"
+              step="any"
+              min={0.1}
+              max={100}
+              value={ects}
+              onChange={(e) => setEcts(e.target.value)}
+              placeholder="Ex: 4.5"
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
+            />
+          </div>
 
-            <div className="sm:col-span-2 space-y-1.5">
-              <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-amber-400" />
-                <span>Intervalles des J par défaut</span>
-              </label>
-              <input
-                type="text"
-                value={intervalsStr}
-                onChange={(e) => setIntervalsStr(e.target.value)}
-                placeholder="0, 1, 3, 7, 14, 30, 60"
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500 font-mono"
-              />
+          {/* Programme de révision automatique pour l'UE */}
+          <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400 space-y-1">
+            <div className="flex items-center gap-1.5 font-bold text-slate-200 text-xs">
+              <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+              <span>Méthode des J pour cette UE</span>
             </div>
+            <p className="text-[10px] text-slate-400 leading-relaxed">
+              Tous les cours créés dans cette UE suivront le cycle : <strong>J0</strong>, <strong>J1</strong>, <strong>samedi suivant</strong>, puis chaque <strong>dimanche</strong> jusqu'à la fin du semestre.
+            </p>
           </div>
 
           {/* Row 5: Icon Selector */}
@@ -344,26 +339,57 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold transition-all"
-            >
-              Annuler
-            </button>
+          <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-800">
+            <div>
+              {isEditing && onDeleteSubject && (
+                <button
+                  type="button"
+                  onClick={() => setIsDeleteModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-950/30 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-800/40 text-xs font-semibold transition-all cursor-pointer"
+                  title="Supprimer définitivement cette UE"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Supprimer cette UE</span>
+                </button>
+              )}
+            </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg shadow-sky-950/40 active:scale-95 transition-all disabled:opacity-50"
-            >
-              <Save className="w-4 h-4" />
-              <span>{isSubmitting ? 'Enregistrement...' : isEditing ? 'Mettre à jour l\'UE' : 'Créer l\'UE'}</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold transition-all cursor-pointer"
+              >
+                Annuler
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg shadow-sky-950/40 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isSubmitting ? 'Enregistrement...' : isEditing ? 'Mettre à jour l\'UE' : 'Créer l\'UE'}</span>
+              </button>
+            </div>
           </div>
 
         </form>
+
+        {/* Delete Subject Modal */}
+        <DeleteSubjectModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          subject={subject || null}
+          coursesCount={coursesCount}
+          onConfirmDelete={async (id) => {
+            if (onDeleteSubject) {
+              await onDeleteSubject(id);
+              setIsDeleteModalOpen(false);
+              onClose();
+            }
+          }}
+        />
 
       </div>
     </div>

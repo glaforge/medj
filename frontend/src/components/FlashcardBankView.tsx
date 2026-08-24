@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { PrintFlashcardsModal } from './PrintFlashcardsModal';
 import { FlashcardVerificationModal } from './FlashcardVerificationModal';
+import { getContrastTextColor } from '../utils/colorUtils';
 import {
   Layers,
   Plus,
@@ -449,8 +450,11 @@ export const FlashcardBankView: React.FC<FlashcardBankViewProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span
-                      className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase text-white shadow-2xs"
-                      style={{ backgroundColor: sub?.color || '#d97706' }}
+                      className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase shadow-2xs"
+                      style={{
+                        backgroundColor: sub?.color || '#d97706',
+                        color: getContrastTextColor(sub?.color || '#d97706')
+                      }}
                     >
                       {card.ueCode}
                     </span>

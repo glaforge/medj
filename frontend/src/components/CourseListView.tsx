@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { Course, SubjectUE } from '../types';
+import { getContrastTextColor } from '../utils/colorUtils';
+import { DeleteCourseModal } from './DeleteCourseModal';
+import { DeleteSubjectModal } from './DeleteSubjectModal';
 import {
   BookOpen,
   Plus,
@@ -22,7 +25,7 @@ interface CourseListViewProps {
   courses: Course[];
   subjects: SubjectUE[];
   onSelectCourse: (course: Course) => void;
-  onOpenNewCourseModal: () => void;
+  onOpenNewCourseModal: (initialUeId?: string) => void;
   onDeleteCourse: (courseId: string) => void;
   onOpenEditSubjectModal?: (subject?: SubjectUE) => void;
   onDeleteSubject?: (subjectId: string) => void;
@@ -41,6 +44,8 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUe, setSelectedUe] = useState('ALL');
   const [difficultyFilter, setDifficultyFilter] = useState<number | 'ALL'>('ALL');
+  const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
+  const [subjectToDelete, setSubjectToDelete] = useState<SubjectUE | null>(null);
 
   const getSubject = (ueId: string) => {
     if (!ueId) return undefined;
@@ -135,7 +140,7 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                 </button>
               )}
               <button
-                onClick={onOpenNewCourseModal}
+                onClick={() => onOpenNewCourseModal(selectedUe !== 'ALL' ? selectedUe : undefined)}
                 className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 active:scale-95 transition-all cursor-pointer"
               >
                 <Plus className="w-4 h-4 text-sky-400" />
@@ -144,7 +149,7 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
             </div>
           ) : (
             <button
-              onClick={onOpenNewCourseModal}
+              onClick={() => onOpenNewCourseModal(selectedUe !== 'ALL' ? selectedUe : undefined)}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white shadow-lg shadow-sky-900/30 active:scale-95 transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
@@ -192,8 +197,8 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                     {/* Top line: Code badge + ECTS */}
                     <div className="flex items-center justify-between">
                       <span
-                        className="px-2.5 py-1 rounded-lg text-xs font-extrabold text-white uppercase tracking-wider shadow-sm"
-                        style={{ backgroundColor: color }}
+                        className="px-2.5 py-1 rounded-lg text-xs font-extrabold uppercase tracking-wider shadow-sm"
+                        style={{ backgroundColor: color, color: getContrastTextColor(color) }}
                       >
                         {subject.code}
                       </span>
@@ -255,6 +260,19 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenNewCourseModal(subject.id);
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-950/50 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-800/40 text-xs font-semibold transition-all cursor-pointer"
+                        title={`Ajouter un cours pour ${subject.code}`}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ Cours</span>
+                      </button>
+
                       {onOpenEditSubjectModal && (
                         <button
                           onClick={(e) => {
@@ -270,18 +288,10 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
 
                       {onDeleteSubject && (
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (count > 0) {
-                              if (!window.confirm(`Attention : ${count} cours sont rattachés à cette UE (${subject.code}). Voulez-vous vraiment la supprimer ?`)) {
-                                return;
-                              }
-                            } else {
-                              if (!window.confirm(`Supprimer définitivement l'UE ${subject.code} (${subject.name}) ?`)) {
-                                return;
-                              }
-                            }
-                            onDeleteSubject(subject.id);
+                            setSubjectToDelete(subject);
                           }}
                           className="p-1.5 rounded-xl bg-rose-950/20 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/20 transition-all cursor-pointer"
                           title="Supprimer cette UE"
@@ -353,13 +363,16 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
               <div className="flex items-center gap-2 pt-1 text-xs">
                 <span className="text-slate-400">UE sélectionnée :</span>
                 <span
-                  className="px-2.5 py-1 rounded-lg text-white font-extrabold flex items-center gap-1.5 shadow-xs"
-                  style={{ backgroundColor: getSubject(selectedUe)?.color || '#0284c7' }}
+                  className="px-2.5 py-1 rounded-lg font-extrabold flex items-center gap-1.5 shadow-xs"
+                  style={{
+                    backgroundColor: getSubject(selectedUe)?.color || '#0284c7',
+                    color: getContrastTextColor(getSubject(selectedUe)?.color || '#0284c7')
+                  }}
                 >
                   <span>{getSubject(selectedUe)?.code} - {getSubject(selectedUe)?.name}</span>
                   <button
                     onClick={() => setSelectedUe('ALL')}
-                    className="hover:bg-black/30 rounded-full w-4 h-4 flex items-center justify-center text-[10px] ml-1 cursor-pointer transition-colors"
+                    className="hover:bg-black/20 rounded-full w-4 h-4 flex items-center justify-center text-[10px] ml-1 cursor-pointer transition-colors"
                     title="Effacer le filtre UE"
                   >
                     ✕
@@ -384,7 +397,7 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                 Essayez de modifier vos filtres ou ajoutez votre premier cours $J_0$.
               </p>
               <button
-                onClick={onOpenNewCourseModal}
+                onClick={() => onOpenNewCourseModal(selectedUe !== 'ALL' ? selectedUe : undefined)}
                 className="mt-4 px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white cursor-pointer"
               >
                 + Ajouter un cours
@@ -406,8 +419,8 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                       {/* UE tag & Difficulty badge */}
                       <div className="flex items-center justify-between mb-3">
                         <span
-                          className="px-2 py-0.5 rounded text-[10px] font-extrabold text-white uppercase tracking-wider shadow-xs"
-                          style={{ backgroundColor: color }}
+                          className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider shadow-xs"
+                          style={{ backgroundColor: color, color: getContrastTextColor(color) }}
                         >
                           {course.ueCode || subject?.code || 'UE'}
                         </span>
@@ -470,9 +483,22 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                         </span>
                       </div>
 
-                      <span className="text-sky-400 font-semibold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
-                        Voir la fiche →
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCourseToDelete(course);
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 transition-colors cursor-pointer"
+                          title="Supprimer ce cours"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="text-sky-400 font-semibold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+                          Voir la fiche →
+                        </span>
+                      </div>
                     </div>
                   </div>
                 );
@@ -481,6 +507,28 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
           )}
         </div>
       )}
+
+      {/* Delete Course Modal */}
+      <DeleteCourseModal
+        isOpen={courseToDelete !== null}
+        onClose={() => setCourseToDelete(null)}
+        course={courseToDelete}
+        subject={courseToDelete ? getSubject(courseToDelete.ueId) : undefined}
+        onConfirmDelete={(id) => onDeleteCourse(id)}
+      />
+
+      {/* Delete Subject Modal */}
+      <DeleteSubjectModal
+        isOpen={subjectToDelete !== null}
+        onClose={() => setSubjectToDelete(null)}
+        subject={subjectToDelete}
+        coursesCount={subjectToDelete ? getCoursesCountForUe(subjectToDelete) : 0}
+        onConfirmDelete={async (id) => {
+          if (onDeleteSubject) {
+            await onDeleteSubject(id);
+          }
+        }}
+      />
 
     </div>
   );

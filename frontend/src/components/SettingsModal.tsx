@@ -95,14 +95,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const parsedIntervals = intervalsStr
-        .split(',')
-        .map(n => parseInt(n.trim(), 10))
-        .filter(n => !isNaN(n));
-
       const updated = await api.updateConfig({
         ...config,
-        defaultIntervals: parsedIntervals.length > 0 ? parsedIntervals : [0, 1, 3, 7, 14, 30, 60]
+        defaultIntervals: []
       });
 
       setConfig(updated);
@@ -237,21 +232,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
             <h3 className="font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-[11px] flex items-center gap-2">
               <Sliders className="w-4 h-4 text-sky-500" />
-              Méthode des J : Intervalles & Seuils
+              Méthode des J : Rythme & Seuils
             </h3>
 
-            <div>
-              <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                Intervalles de révision par défaut (en jours après J0) :
-              </label>
-              <input
-                type="text"
-                value={intervalsStr}
-                onChange={(e) => setIntervalsStr(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2.5 text-sky-600 dark:text-sky-400 font-mono text-xs focus:outline-none focus:border-sky-500 font-bold"
-              />
-              <p className="text-[10px] text-slate-500 mt-1">
-                Standard PASS : 0, 1, 3, 7, 14, 30, 60 (modifiez selon vos préférences).
+            {/* Rythme personnalisé card */}
+            <div className="p-3.5 rounded-2xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800/60 space-y-2">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
+                <span className="font-bold text-xs text-sky-900 dark:text-sky-200">
+                  Méthode PASS Personnalisée
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px]">
+                <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-sky-100 dark:border-sky-900/40 text-center shadow-2xs">
+                  <span className="font-mono font-extrabold text-sky-600 dark:text-sky-400 block text-xs">J0</span>
+                  <span className="text-[10px] text-slate-500">Jour même</span>
+                </div>
+                <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-sky-100 dark:border-sky-900/40 text-center shadow-2xs">
+                  <span className="font-mono font-extrabold text-sky-600 dark:text-sky-400 block text-xs">J1</span>
+                  <span className="text-[10px] text-slate-500">Lendemain</span>
+                </div>
+                <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-sky-100 dark:border-sky-900/40 text-center shadow-2xs">
+                  <span className="font-bold text-amber-600 dark:text-amber-400 block text-xs">Samedi</span>
+                  <span className="text-[10px] text-slate-500">Suivant J1</span>
+                </div>
+                <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-sky-100 dark:border-sky-900/40 text-center shadow-2xs">
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400 block text-xs">Dimanches</span>
+                  <span className="text-[10px] text-slate-500">Jusqu'à fin sem.</span>
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                Chaque nouveau cours génère automatiquement ses révisions le jour même, le lendemain, le samedi suivant et chaque dimanche jusqu'au 31 décembre (S1) ou 31 mai (S2).
               </p>
             </div>
 

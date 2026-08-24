@@ -231,6 +231,40 @@ npm run dev
 ```
 Accédez à l'application via **`http://localhost:5173`**.
 
+### 3. Gestion des Données d'Exemple & de Test (Local & Production)
+Les données d'exemple (186 cours Paris Cité, 8 QCMs, 5 Flashcards, 9 UEs) sont externalisées au format JSON dans `src/main/resources/sample-data/paris-cite-curriculum.json`.
+
+- **Charger les données de test en local (programme d'exemple)** :
+  ```bash
+  # Via le script dédié sécurisé
+  ./scripts/seed-local.sh
+
+  # Ou via Gradle
+  ./gradlew seedLocalData
+  ```
+
+- **Rapatrier les données réelles de Production vers le Local** :
+  ```bash
+  # Synchronise en local les matières, cours et révisions créés en prod
+  ./scripts/pull-from-production.sh
+
+  # Ou via Gradle
+  ./gradlew pullFromProduction
+  ```
+
+- **Effacer les données locales (espace 100% vierge)** :
+  ```bash
+  ./scripts/seed-local.sh --clear
+  # Ou : ./gradlew clearLocalData
+  ```
+
+
+- **Purger l'intégralité des données de test en Production (Google Cloud)** :
+  ```bash
+  ./scripts/clear-production-data.sh
+  ```
+
+
 ---
 
 ## 5. Configuration & Variables d'Environnement

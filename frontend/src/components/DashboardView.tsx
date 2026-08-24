@@ -8,6 +8,8 @@ import {
 } from '../types';
 import { api } from '../services/api';
 import { ProgressionChart } from './ProgressionChart';
+import { getContrastTextColor } from '../utils/colorUtils';
+import { DeleteRevisionModal } from './DeleteRevisionModal';
 import {
   CheckCircle2,
   Clock,
@@ -25,7 +27,8 @@ import {
   RotateCcw,
   Star,
   Plus,
-  Database
+  Database,
+  Trash2
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -35,6 +38,7 @@ interface DashboardViewProps {
   onCompleteRevision: (sessionId: string, evaluation: string) => void;
   onUncompleteRevision?: (sessionId: string) => void;
   onShiftRevision: (sessionId: string, days: number) => void;
+  onDeleteRevision?: (sessionId: string, deleteFollowing: boolean) => Promise<void>;
   onStartQcmQuiz: (course: Course) => void;
   onSelectCourse: (course: Course) => void;
   onTriggerSmoothing: () => void;
@@ -50,6 +54,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onCompleteRevision,
   onUncompleteRevision,
   onShiftRevision,
+  onDeleteRevision,
   onStartQcmQuiz,
   onSelectCourse,
   onTriggerSmoothing,
@@ -60,10 +65,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [selectedEvaluation, setSelectedEvaluation] = useState<Record<string, string>>({});
   const [shiftingId, setShiftingId] = useState<string | null>(null);
   const [allAttempts, setAllAttempts] = useState<QcmAttempt[]>([]);
+  const [sessionToDelete, setSessionToDelete] = useState<RevisionSession | null>(null);
 
   useEffect(() => {
     loadAttempts();
   }, [revisionUpdateTrigger]);
+
+  const handleDeleteRevisionConfirmed = async (sessionId: string, deleteFollowing: boolean) => {
+    try {
+      if (onDeleteRevision) {
+        await onDeleteRevision(sessionId, deleteFollowing);
+      } else {
+        await api.deleteRevision(sessionId, deleteFollowing);
+      }
+    } catch (err) {
+      console.error('Failed to delete revision', err);
+    }
+  };
 
   const loadAttempts = async () => {
     try {
@@ -88,10 +106,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   const getSessionColor = (session: RevisionSession) => {
+    const s = getSubjectForSession(session.ueId);
+    if (s && s.color) return s.color;
+    if (session.ueColor) return session.ueColor;
     const c = getCourseForSession(session.courseId);
     if (c && c.color) return c.color;
-    if (session.ueColor) return session.ueColor;
-    return getSubjectColor(session.ueId);
+    return '#0284c7';
   };
 
   // Sort sessions: Highest course difficulty first (5 -> 1), then UE weight, then lowest J-step
@@ -312,8 +332,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           J{session.jStep}
                         </span>
                         <span
-                          className="font-bold px-2 py-0.5 rounded text-[10px] text-white shrink-0 shadow-2xs"
-                          style={{ backgroundColor: getSessionColor(session) }}
+                          className="font-bold px-2 py-0.5 rounded text-[10px] shrink-0 shadow-2xs"
+                          style={{
+                            backgroundColor: getSessionColor(session),
+                            color: getContrastTextColor(getSessionColor(session))
+                          }}
                         >
                           {session.ueCode}
                         </span>
@@ -361,6 +384,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         >
                           <CheckCircle2 className="w-3 h-3" />
                           <span>Fait</span>
+                        </button>
+                        <button
+                          onClick={() => setSessionToDelete(session)}
+                          title="Supprimer cette séance (ou les suivantes)"
+                          className="p-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-950/60 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 border border-rose-200 dark:border-slate-700/60 transition-all cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
@@ -427,8 +457,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           J{session.jStep}
                         </span>
                         <span
-                          className="px-2 py-0.5 rounded text-[10px] font-bold text-white uppercase tracking-wider shadow-xs"
-                          style={{ backgroundColor: color }}
+                          className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shadow-xs"
+                          style={{ backgroundColor: color, color: getContrastTextColor(color) }}
                         >
                           {session.ueCode}
                         </span>
@@ -526,6 +556,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <CalendarPlus className="w-4 h-4 text-amber-400" />
                         <span className="text-[10px] font-bold">+1j</span>
                       </button>
+
+                      <button
+                        onClick={() => setSessionToDelete(session)}
+                        title="Supprimer cette séance (ou les suivantes)"
+                        className="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 border border-slate-700/50 active:scale-95 transition-all flex items-center"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -578,6 +616,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           subtitle="Vue d'ensemble de votre dynamique de réussite et de mémorisation"
         />
       </div>
+
+      {/* Delete Revision Modal */}
+      <DeleteRevisionModal
+        isOpen={sessionToDelete !== null}
+        onClose={() => setSessionToDelete(null)}
+        session={sessionToDelete}
+        onConfirmDelete={handleDeleteRevisionConfirmed}
+      />
 
     </div>
   );

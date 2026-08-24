@@ -3,6 +3,7 @@ import { Course, SubjectUE, QcmQuestion, QcmVerificationResult } from '../types'
 import { api } from '../services/api';
 import { QcmVerificationModal } from './QcmVerificationModal';
 import { getLocalTodayString } from '../utils/dateUtils';
+import { getContrastTextColor } from '../utils/colorUtils';
 import {
   Award,
   Plus,
@@ -418,8 +419,8 @@ export const QcmBankView: React.FC<QcmBankViewProps> = ({
                     <div className="flex flex-wrap items-center gap-2">
                       {/* UE Badge with dynamic course color */}
                       <span
-                        className="px-2 py-0.5 rounded text-[10px] font-extrabold text-white uppercase tracking-wider shadow-xs"
-                        style={{ backgroundColor: color }}
+                        className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider shadow-xs"
+                        style={{ backgroundColor: color, color: getContrastTextColor(color) }}
                       >
                         {qcm.ueCode || 'UE'}
                       </span>
@@ -518,7 +519,7 @@ export const QcmBankView: React.FC<QcmBankViewProps> = ({
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-100 hover:bg-sky-200 dark:bg-sky-600/20 dark:hover:bg-sky-600 text-sky-800 dark:text-sky-300 hover:text-sky-950 dark:hover:text-white border border-sky-300 dark:border-sky-500/30 text-xs font-bold transition-all active:scale-95 shadow-2xs"
                     >
                       <Edit3 className="w-3.5 h-3.5 text-sky-700 dark:text-sky-300" />
-                      <span>Éditer</span>
+                      <span className="text-sky-800 dark:text-sky-300 font-bold">Modifier</span>
                     </button>
 
                     <button

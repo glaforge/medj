@@ -57,6 +57,7 @@ export const App: React.FC = () => {
   const [activeCustomQcms, setActiveCustomQcms] = useState<QcmQuestion[] | undefined>(undefined);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isNewCourseOpen, setIsNewCourseOpen] = useState(false);
+  const [newCourseInitialUeId, setNewCourseInitialUeId] = useState<string | undefined>(undefined);
   const [isAddRevisionOpen, setIsAddRevisionOpen] = useState(false);
   const [addRevisionInitialDate, setAddRevisionInitialDate] = useState<string | undefined>(undefined);
   const [addRevisionInitialCourseId, setAddRevisionInitialCourseId] = useState<string | undefined>(undefined);
@@ -368,6 +369,18 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleDeleteRevision = async (sessionId: string, deleteFollowing: boolean = false) => {
+    try {
+      await api.deleteRevision(sessionId, deleteFollowing);
+      showToast(deleteFollowing ? '✓ Séances futures supprimées jusqu\'à la fin du semestre' : '✓ Séance de révision supprimée');
+      await loadAllData();
+      setRevisionUpdateTrigger(prev => prev + 1);
+    } catch (e) {
+      console.error('Failed to delete revision', e);
+      showToast('❌ Erreur lors de la suppression de la révision');
+    }
+  };
+
   const handleShiftSubject = async (ueId: string, days: number) => {
     try {
       const updated = await api.shiftSubject(ueId, days);
@@ -524,6 +537,18 @@ export const App: React.FC = () => {
             onShiftRevision={handleShiftRevision}
             onCompleteRevision={handleCompleteRevision}
             onUncompleteRevision={handleUncompleteRevision}
+            onDeleteCourse={async (id) => {
+              try {
+                await api.deleteCourse(id);
+                setSelectedCourseForDetail(null);
+                showToast('✓ Cours et révisions supprimés');
+                await loadAllData();
+                navigate('/subjects');
+              } catch (e) {
+                console.error(e);
+                showToast('❌ Erreur lors de la suppression du cours');
+              }
+            }}
             revisionUpdateTrigger={revisionUpdateTrigger}
             onCourseUpdated={(updated) => {
               setSelectedCourseForDetail(updated);
@@ -550,6 +575,7 @@ export const App: React.FC = () => {
                 onCompleteRevision={handleCompleteRevision}
                 onUncompleteRevision={handleUncompleteRevision}
                 onShiftRevision={handleShiftRevision}
+                onDeleteRevision={handleDeleteRevision}
                 onStartQcmQuiz={handleStartQuiz}
                 onSelectCourse={(c) => {
                   setSelectedCourseForDetail(c);
@@ -571,6 +597,7 @@ export const App: React.FC = () => {
                 onShiftSubject={handleShiftSubject}
                 onCompleteRevision={handleCompleteRevision}
                 onUncompleteRevision={handleUncompleteRevision}
+                onDeleteRevision={handleDeleteRevision}
                 onTriggerSmoothing={handleTriggerSmoothing}
                 onSelectCourse={(c) => {
                   setSelectedCourseForDetail(c);
@@ -588,10 +615,19 @@ export const App: React.FC = () => {
                   setSelectedCourseForDetail(c);
                   navigate(`/subjects/${c.id}`);
                 }}
-                onOpenNewCourseModal={() => setIsNewCourseOpen(true)}
+                onOpenNewCourseModal={(ueId) => {
+                  setNewCourseInitialUeId(ueId);
+                  setIsNewCourseOpen(true);
+                }}
                 onDeleteCourse={async (id) => {
-                  await api.deleteCourse(id);
-                  loadAllData();
+                  try {
+                    await api.deleteCourse(id);
+                    showToast('✓ Cours et révisions supprimés');
+                    await loadAllData();
+                  } catch (e) {
+                    console.error(e);
+                    showToast('❌ Erreur lors de la suppression du cours');
+                  }
                 }}
                 onOpenEditSubjectModal={(subj) => {
                   setEditingSubject(subj || null);
@@ -701,10 +737,14 @@ export const App: React.FC = () => {
 
       <NewCourseModal
         isOpen={isNewCourseOpen}
-        onClose={() => setIsNewCourseOpen(false)}
+        onClose={() => {
+          setIsNewCourseOpen(false);
+          setNewCourseInitialUeId(undefined);
+        }}
         subjects={subjects}
+        initialUeId={newCourseInitialUeId}
         onCourseCreated={(c) => {
-          showToast(`Cours '${c.title}' créé à J0 !`);
+          showToast(`✓ Cours « ${c.title} » créé à J0 !`);
           setRevisionUpdateTrigger(prev => prev + 1);
           loadAllData();
         }}
@@ -767,9 +807,21 @@ export const App: React.FC = () => {
           setEditingSubject(null);
         }}
         subject={editingSubject}
+        coursesCount={editingSubject ? courses.filter(c => c.ueId.toLowerCase() === editingSubject.id.toLowerCase() || c.ueCode?.toLowerCase() === editingSubject.code.toLowerCase()).length : 0}
         onSubjectSaved={(saved) => {
           showToast(editingSubject ? `✓ UE ${saved.code} mise à jour !` : `✓ Nouvelle UE ${saved.code} créée !`);
           loadAllData();
+        }}
+        onDeleteSubject={async (subjId) => {
+          try {
+            await api.deleteSubject(subjId);
+            showToast('✓ UE et cours associés supprimés');
+            await loadAllData();
+            navigate('/subjects');
+          } catch (e) {
+            console.error('Failed to delete subject', e);
+            showToast('❌ Erreur lors de la suppression de l\'UE');
+          }
         }}
       />
 

@@ -256,8 +256,9 @@ export const api = {
     return res.json();
   },
 
-  async deleteRevision(id: string): Promise<void> {
-    const res = await authFetch(`${API_BASE}/revisions/${id}`, { method: 'DELETE' });
+  async deleteRevision(id: string, deleteFollowing: boolean = false): Promise<void> {
+    const qs = deleteFollowing ? '?deleteFollowing=true' : '';
+    const res = await authFetch(`${API_BASE}/revisions/${encodeURIComponent(id)}${qs}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Failed to delete revision');
   },
 

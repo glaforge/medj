@@ -328,20 +328,14 @@ html.light p.text-white:not([class*="bg-"]):not([class*="from-"]) {
   color: #0f172a !important;
 }
 
-/* Ensure text inside colored backgrounds, headers and badges remains pure white */
-html.light [class*="bg-sky-600"] .text-white,
-html.light [class*="bg-sky-600"] span.text-white,
-html.light [class*="bg-sky-600"] div.text-sky-100,
-html.light [class*="bg-sky-600"] span,
-html.light [class*="bg-sky-700"] .text-white,
-html.light [class*="bg-indigo-600"] .text-white,
-html.light [class*="bg-emerald-600"] .text-white,
-html.light [class*="bg-rose-600"] .text-white,
-html.light [class*="bg-amber-600"] .text-white,
-html.light [class*="bg-purple-600"] .text-white,
-html.light button[class*="bg-sky"] .text-white,
-html.light button[class*="bg-indigo"] .text-white,
-html.light button[class*="bg-emerald"] .text-white,
+/* Ensure text inside explicitly solid-colored dark backgrounds remains pure white */
+html.light .bg-sky-600 .text-white,
+html.light .bg-sky-700 .text-white,
+html.light .bg-indigo-600 .text-white,
+html.light .bg-emerald-600 .text-white,
+html.light .bg-rose-600 .text-white,
+html.light .bg-amber-600 .text-white,
+html.light .bg-purple-600 .text-white,
 html.light .bg-white\/20.text-white,
 html.light .bg-white\/25.text-white,
 html.light .bg-white\/30.text-white {

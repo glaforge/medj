@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Course } from '../types';
+import { getContrastTextColor } from '../utils/colorUtils';
 import {
   Search,
   Check,
@@ -201,8 +202,11 @@ export const CourseCombobox: React.FC<CourseComboboxProps> = ({
             <div className="flex items-center gap-1.5 min-w-0 truncate">
               {selectedCourse.ueCode && (
                 <span
-                  className="px-1.5 py-0.2 rounded text-[9px] font-extrabold text-white shrink-0 uppercase tracking-wider"
-                  style={{ backgroundColor: selectedCourse.color || '#0284c7' }}
+                  className="px-1.5 py-0.2 rounded text-[9px] font-extrabold shrink-0 uppercase tracking-wider"
+                  style={{
+                    backgroundColor: selectedCourse.color || '#0284c7',
+                    color: getContrastTextColor(selectedCourse.color || '#0284c7')
+                  }}
                 >
                   {selectedCourse.ueCode}
                 </span>
@@ -374,8 +378,11 @@ export const CourseCombobox: React.FC<CourseComboboxProps> = ({
                   <div className="flex items-center gap-2 min-w-0 flex-1">
                     {c.ueCode ? (
                       <span
-                        className="px-1.5 py-0.5 rounded text-[9px] font-extrabold text-white shrink-0 uppercase tracking-wider shadow-2xs"
-                        style={{ backgroundColor: c.color || '#0284c7' }}
+                        className="px-1.5 py-0.5 rounded text-[9px] font-extrabold shrink-0 uppercase tracking-wider shadow-2xs"
+                        style={{
+                          backgroundColor: c.color || '#0284c7',
+                          color: getContrastTextColor(c.color || '#0284c7')
+                        }}
                       >
                         {c.ueCode}
                       </span>

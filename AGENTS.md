@@ -238,12 +238,14 @@ medj/
 │   │   │       ├── MedicalFlashcardTools.java# LangChain4j @Tool for Flashcard persistence
 │   │   │       ├── MedicalIllustrationTools.java # LangChain4j @Tool for medical diagrams
 │   │   │       ├── MedicalQcmTools.java      # LangChain4j @Tool for QCM persistence
-│   │   │       ├── ParisCiteCurriculumSeeder.java # 186 Courses & 9 UEs PASS Curriculum Seeder
+│   │   │       ├── ParisCiteCurriculumSeeder.java # 186 Courses, QCMs & Flashcards PASS JSON Loader
 │   │   │       ├── PassTutorAiService.java   # LangChain4j @AiServices interface & system prompt
 │   │   │       └── StorageService.java       # Local filesystem & GCS file manager
 │   │   └── resources/
 │   │       ├── application.yml              # Server, Security, Gemini & GCP configuration
-│   │       └── logback.xml                  # Logging configuration
+│   │       ├── logback.xml                  # Logging configuration
+│   │       └── sample-data/
+│   │           └── paris-cite-curriculum.json # Externalized JSON PASS dataset (186 courses, QCMs, Flashcards, 9 UEs)
 │   └── test/
 │       ├── java/fr/medj/
 │       │   ├── CourseDocumentScanAttachmentTest.java # PDF upload & course document attachment tests
@@ -317,7 +319,7 @@ classDiagram
         +String name
         +String description
         +String color
-        +int coefficient
+        +double coefficient
         +List~Integer~ customIntervals
         +String icon
     }

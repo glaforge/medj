@@ -14,10 +14,10 @@ public record JScheduleConfig(
 ) {
     public static JScheduleConfig defaultConfiguration() {
         return new JScheduleConfig(
-            List.of(0, 1, 3, 7, 14, 30, 60),
+            List.of(),
             6,
             true,
-            "PASS Standard (Toutes Facultés)",
+            "Méthode PASS Personnalisée (J0, J1, Samedi, Dimanches)",
             "",
             true
         );

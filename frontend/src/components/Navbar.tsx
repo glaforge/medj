@@ -9,13 +9,10 @@ import {
   CalendarSync,
   HelpCircle,
   Award,
-  Sun,
-  Moon,
   Layers,
   LogOut,
   User as UserIcon
 } from 'lucide-react';
-import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 
 interface NavbarProps {
@@ -37,12 +34,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   isSyncingCalendar,
   totalDueCount
 }) => {
-  const { resolvedTheme, setTheme } = useTheme();
   const { user, logout } = useAuth();
-
-  const toggleTheme = () => {
-    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
-  };
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -150,19 +142,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Camera className="w-4 h-4" />
               <span className="hidden sm:inline">Scanner</span>
-            </button>
-
-            {/* Theme Toggle Button */}
-            <button
-              onClick={toggleTheme}
-              title={resolvedTheme === 'dark' ? 'Passer en Mode Clair' : 'Passer en Mode Sombre'}
-              className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-amber-300 border border-slate-800 transition-all"
-            >
-              {resolvedTheme === 'dark' ? (
-                <Sun className="w-4 h-4 text-amber-300" />
-              ) : (
-                <Moon className="w-4 h-4 text-indigo-500" />
-              )}
             </button>
 
             {/* Google Calendar Sync Button */}
