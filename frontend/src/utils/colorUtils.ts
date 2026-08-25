@@ -80,11 +80,14 @@ export function getContrastTextColor(backgroundColor?: string | null): '#000000'
 
   const luminance = 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
 
-  // Threshold for optimal contrast between #000000 and #ffffff:
-  // Contrast with white: (1.05) / (L + 0.05)
-  // Contrast with black: (L + 0.05) / 0.05
-  // Equal contrast occurs at L = sqrt(1.05 * 0.05) - 0.05 ≈ 0.179
-  return luminance > 0.179 ? '#000000' : '#ffffff';
+  // Perceptual contrast threshold for medical badges and pills:
+  // The mathematical WCAG 2.1 threshold (0.179) chooses black text for saturated medium colors
+  // (such as blue #0284c7, purple #8b5cf6, fuchsia #ec4899, emerald #10b981), where white text is visually
+  // much sharper and more readable.
+  // Using a calibrated perceptual threshold of 0.48 ensures that all saturated and dark colors
+  // (blues, purples, fuchsias, indigos, emeralds, teals, slates, rubies) display crisp white (#ffffff) text,
+  // while bright/light backgrounds (yellows, bright limes, pastels, creams) display black (#000000) text.
+  return luminance > 0.48 ? '#000000' : '#ffffff';
 }
 
 /**

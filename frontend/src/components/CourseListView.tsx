@@ -141,9 +141,9 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
               )}
               <button
                 onClick={() => onOpenNewCourseModal(selectedUe !== 'ALL' ? selectedUe : undefined)}
-                className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 active:scale-95 transition-all cursor-pointer"
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-white hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-800 active:scale-95 transition-all cursor-pointer shadow-xs"
               >
-                <Plus className="w-4 h-4 text-sky-400" />
+                <Plus className="w-4 h-4 text-sky-600 dark:text-sky-400" />
                 <span>+ Cours (J0)</span>
               </button>
             </div>
@@ -204,10 +204,10 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                       </span>
 
                       <div className="flex items-center gap-1.5">
-                        <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-800 text-[10px] font-bold text-slate-300">
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300">
                           {subject.coefficient ?? subject.ects ?? 10} ECTS
                         </span>
-                        <span className="px-2 py-0.5 rounded-md bg-sky-950/60 border border-sky-800/30 text-[10px] font-bold text-sky-400">
+                        <span className="px-2 py-0.5 rounded-md bg-sky-100 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800/30 text-[10px] font-bold text-sky-700 dark:text-sky-400">
                           {count} cours
                         </span>
                       </div>
@@ -215,11 +215,11 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
 
                     {/* Subject Name */}
                     <div>
-                      <h3 className="text-base font-extrabold text-white group-hover:text-sky-300 transition-colors">
+                      <h3 className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-sky-600 dark:group-hover:text-sky-300 transition-colors">
                         {subject.name}
                       </h3>
                       {subject.description && (
-                        <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
                           {subject.description}
                         </p>
                       )}
@@ -236,7 +236,7 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                           {(subject.customIntervals || subject.defaultIntervals)!.map((j) => (
                             <span
                               key={j}
-                              className="px-1.5 py-0.2 rounded bg-slate-950 border border-slate-800 text-[10px] font-mono text-slate-300"
+                              className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] font-mono text-slate-700 dark:text-slate-300"
                             >
                               J{j}
                             </span>
@@ -246,15 +246,15 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                     )}
 
                     {/* Action link */}
-                    <div className="pt-2 flex items-center justify-between text-xs text-sky-400 font-bold group-hover:translate-x-0.5 transition-all">
+                    <div className="pt-2 flex items-center justify-between text-xs text-sky-600 dark:text-sky-400 font-bold group-hover:translate-x-0.5 transition-all">
                       <span>Voir les {count} cours de {subject.code}</span>
                       <span className="text-sm font-bold">→</span>
                     </div>
                   </div>
 
                   {/* Actions Footer */}
-                  <div className="pt-3 border-t border-slate-800/60 flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                  <div className="pt-3 border-t border-slate-200 dark:border-slate-800/60 flex items-center justify-between">
+                    <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
                       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
                       <span className="font-mono">{color}</span>
                     </div>
@@ -266,11 +266,11 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                           e.stopPropagation();
                           onOpenNewCourseModal(subject.id);
                         }}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-950/50 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-800/40 text-xs font-semibold transition-all cursor-pointer"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-100 hover:bg-sky-200 dark:bg-sky-950/60 dark:hover:bg-sky-600 text-sky-800 dark:text-sky-300 hover:text-sky-950 dark:hover:text-white border border-sky-300 dark:border-sky-500/30 text-xs font-semibold transition-all cursor-pointer shadow-2xs"
                         title={`Ajouter un cours pour ${subject.code}`}
                       >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>+ Cours</span>
+                        <Plus className="w-3.5 h-3.5 text-sky-700 dark:text-sky-400" />
+                        <span className="text-sky-800 dark:text-sky-300 font-semibold">+ Cours</span>
                       </button>
 
                       {onOpenEditSubjectModal && (
@@ -279,9 +279,9 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                             e.stopPropagation();
                             onOpenEditSubjectModal(subject);
                           }}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-sky-300 hover:text-white border border-slate-800 text-xs font-semibold transition-all cursor-pointer"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-sky-300 hover:text-slate-900 dark:hover:text-white border border-slate-300 dark:border-slate-800 text-xs font-semibold transition-all cursor-pointer shadow-2xs"
                         >
-                          <Edit3 className="w-3.5 h-3.5" />
+                          <Edit3 className="w-3.5 h-3.5 text-slate-500 dark:text-sky-400" />
                           <span>Modifier</span>
                         </button>
                       )}
@@ -293,10 +293,10 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                             e.stopPropagation();
                             setSubjectToDelete(subject);
                           }}
-                          className="p-1.5 rounded-xl bg-rose-950/20 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/20 transition-all cursor-pointer"
+                          className="p-1.5 rounded-xl bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/30 dark:hover:bg-rose-600 text-rose-800 dark:text-rose-400 hover:text-rose-950 dark:hover:text-white border border-rose-300 dark:border-rose-500/20 transition-all cursor-pointer shadow-2xs"
                           title="Supprimer cette UE"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-3.5 h-3.5 text-rose-700 dark:text-rose-400" />
                         </button>
                       )}
                     </div>

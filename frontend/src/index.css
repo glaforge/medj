@@ -261,10 +261,15 @@ html.light .bg-rose-500\/20 {
 
 /* Sky / Info / Primary Badges & Accents */
 html.light .bg-sky-950,
+html.light .bg-sky-950\/90,
 html.light .bg-sky-950\/80,
+html.light .bg-sky-950\/70,
 html.light .bg-sky-950\/60,
+html.light .bg-sky-950\/50,
 html.light .bg-sky-950\/40,
-html.light .bg-sky-950\/30 {
+html.light .bg-sky-950\/30,
+html.light .bg-sky-950\/20,
+html.light .bg-sky-950\/10 {
   background-color: #f0f9ff !important; /* Sky 50 */
 }
 html.light .border-sky-800\/50,
