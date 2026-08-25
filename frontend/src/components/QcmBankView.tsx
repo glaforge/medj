@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Course, SubjectUE, QcmQuestion, QcmVerificationResult } from '../types';
 import { api } from '../services/api';
+import { MarkdownRenderer } from './MarkdownRenderer';
 import { QcmVerificationModal } from './QcmVerificationModal';
 import { getLocalTodayString } from '../utils/dateUtils';
 import { getContrastTextColor } from '../utils/colorUtils';
@@ -451,9 +452,9 @@ export const QcmBankView: React.FC<QcmBankViewProps> = ({
                     </div>
 
                     {/* Question Stem */}
-                    <h3 className="text-sm font-bold text-white leading-snug">
-                      QCM #{index + 1} : {qcm.questionStem}
-                    </h3>
+                    <div className="text-sm font-bold text-white leading-snug">
+                      QCM #{index + 1} : <MarkdownRenderer content={qcm.questionStem} inline />
+                    </div>
                   </div>
 
                   {/* Actions & Chevron */}
@@ -504,7 +505,7 @@ export const QcmBankView: React.FC<QcmBankViewProps> = ({
                         handleVerifyQcm(qcm);
                       }}
                       title="Vérifier la conformité et l'exactitude avec Gemini (Google Search)"
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-950/70 dark:hover:bg-indigo-600 text-indigo-900 dark:text-indigo-200 hover:text-indigo-950 dark:hover:text-white border border-indigo-300 dark:border-indigo-500/40 text-xs font-bold transition-all active:scale-95 shadow-2xs group"
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-950/70 dark:hover:bg-indigo-600 text-indigo-900 dark:text-indigo-200 hover:text-indigo-950 dark:hover:text-white border border-indigo-300 dark:border-indigo-500/40 text-xs font-bold transition-all active:scale-95 shadow-2xs group"
                     >
                       <ShieldCheck className="w-3.5 h-3.5 text-indigo-700 dark:text-sky-400 group-hover:text-indigo-950 dark:group-hover:text-white" />
                       <span>Vérifier</span>
@@ -579,7 +580,9 @@ export const QcmBankView: React.FC<QcmBankViewProps> = ({
                               <span className="font-mono font-extrabold text-sky-700 dark:text-sky-400 bg-white dark:bg-slate-950 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800 shrink-0 shadow-2xs">
                                 {item.itemLetter}
                               </span>
-                              <span className="leading-snug">{item.text}</span>
+                              <div className="leading-snug flex-1 min-w-0">
+                                <MarkdownRenderer content={item.text} inline />
+                              </div>
                             </div>
 
                             {answersVisible && (
@@ -601,7 +604,7 @@ export const QcmBankView: React.FC<QcmBankViewProps> = ({
                                 ? 'text-emerald-900/85 dark:text-slate-300 border-emerald-300 dark:border-emerald-800'
                                 : 'text-rose-900/85 dark:text-slate-300 border-rose-300 dark:border-rose-800'
                             }`}>
-                              <span>{item.explanation}</span>
+                              <MarkdownRenderer content={item.explanation} inline />
                               {item.isTrap && (
                                 <span className="ml-2 text-amber-800 dark:text-amber-300 font-bold bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800/40 px-1.5 py-0.2 rounded inline-flex items-center gap-1">
                                   <AlertTriangle className="w-3 h-3 inline" /> Piège de concours
@@ -627,7 +630,7 @@ export const QcmBankView: React.FC<QcmBankViewProps> = ({
                             <strong className="font-extrabold text-amber-900 dark:text-amber-300 mr-1.5">
                               💡 Moyen mnémotechnique :
                             </strong>
-                            <span className="font-semibold text-slate-800 dark:text-slate-100">{cleanedMne}</span>
+                            <MarkdownRenderer content={cleanedMne} inline />
                           </div>
                         </div>
                       );

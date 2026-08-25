@@ -9,13 +9,25 @@ import 'katex/dist/katex.min.css';
 import { HIGHLIGHT_COLORS, getHighlightColor } from '../utils/richTextConverter';
 
 interface MarkdownRendererProps {
-  content: string;
+  content?: string | null;
   className?: string;
+  inline?: boolean;
 }
 
-export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className = '' }) => {
+export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
+  content = '',
+  className = '',
+  inline = false
+}) => {
+  if (!content) return null;
+
+  const RootComponent = inline ? 'span' : 'div';
+  const rootClasses = inline
+    ? `markdown-content inline-markdown text-inherit leading-relaxed ${className}`
+    : `markdown-content text-xs text-slate-800 dark:text-slate-200 leading-relaxed space-y-3 ${className}`;
+
   return (
-    <div className={`markdown-content text-xs leading-relaxed space-y-3 ${className}`}>
+    <RootComponent className={rootClasses}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeRaw, rehypeKatex]}
@@ -42,17 +54,20 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
           h4: ({ node, ...props }) => (
             <h4 className="text-xs font-semibold text-slate-800 dark:text-slate-200 mt-2 mb-1" {...props} />
           ),
-          p: ({ node, ...props }) => (
-            <p className="text-slate-800 dark:text-slate-200 leading-relaxed mb-2 last:mb-0" {...props} />
-          ),
+          p: ({ node, ...props }) =>
+            inline ? (
+              <span className="text-inherit leading-relaxed inline" {...props} />
+            ) : (
+              <p className="text-inherit leading-relaxed mb-2 last:mb-0" {...props} />
+            ),
           ul: ({ node, ...props }) => (
-            <ul className="list-disc list-outside pl-4 space-y-1 text-slate-800 dark:text-slate-200 my-2" {...props} />
+            <ul className="list-disc list-outside pl-4 space-y-1 text-inherit my-2" {...props} />
           ),
           ol: ({ node, ...props }) => (
-            <ol className="list-decimal list-outside pl-4 space-y-1 text-slate-800 dark:text-slate-200 my-2" {...props} />
+            <ol className="list-decimal list-outside pl-4 space-y-1 text-inherit my-2" {...props} />
           ),
           li: ({ node, ...props }) => (
-            <li className="text-slate-800 dark:text-slate-200 leading-normal pl-0.5" {...props} />
+            <li className="text-inherit leading-normal pl-0.5" {...props} />
           ),
           blockquote: ({ node, ...props }) => (
             <blockquote className="border-l-4 border-sky-500 bg-sky-50 dark:bg-sky-950/30 px-3 py-2 rounded-r-xl my-2 text-sky-900 dark:text-sky-200 italic" {...props} />
@@ -80,13 +95,13 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
           pre: ({ node, ...props }) => (
             <pre className="my-2.5 rounded-xl bg-slate-900 dark:bg-slate-950 p-3 border border-slate-200 dark:border-slate-800 overflow-x-auto font-mono text-[11px] text-slate-100 dark:text-slate-200 leading-relaxed scrollbar-thin shadow-2xs" {...props} />
           ),
-          code: ({ node, className, children, ...props }: any) => {
-            const hasLang = /language-(\w+)/.test(className || '');
+          code: ({ node, className: codeClassName, children, ...props }: any) => {
+            const hasLang = /language-(\w+)/.test(codeClassName || '');
             const isMultiLine = typeof children === 'string' ? children.includes('\n') : Array.isArray(children) ? children.some(c => typeof c === 'string' && c.includes('\n')) : false;
 
             if (hasLang || isMultiLine) {
               return (
-                <code className={`${className || ''} font-mono block`} {...props}>
+                <code className={`${codeClassName || ''} font-mono block`} {...props}>
                   {children}
                 </code>
               );
@@ -99,10 +114,10 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
             );
           },
           strong: ({ node, ...props }) => (
-            <strong className="font-extrabold text-slate-950 dark:text-white" {...props} />
+            <strong className="font-extrabold text-inherit" {...props} />
           ),
           em: ({ node, ...props }) => (
-            <em className="italic text-slate-900 dark:text-slate-200" {...props} />
+            <em className="italic text-inherit" {...props} />
           ),
           hr: ({ node, ...props }) => (
             <hr className="my-3 border-slate-200 dark:border-slate-800" {...props} />
@@ -114,6 +129,6 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
       >
         {content}
       </ReactMarkdown>
-    </div>
+    </RootComponent>
   );
 };

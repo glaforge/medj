@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { QcmQuestion, QcmVerificationResult } from '../types';
 import { useEscapeKey } from '../hooks/useEscapeKey';
+import { MarkdownRenderer } from './MarkdownRenderer';
 import {
   X,
   Sparkles,
@@ -93,9 +94,9 @@ export const QcmVerificationModal: React.FC<QcmVerificationModalProps> = ({
               <BookOpen className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
               <span>Énoncé du QCM analysé :</span>
             </div>
-            <p className="text-xs font-bold text-slate-900 dark:text-slate-200 leading-snug">
-              {qcm.questionStem}
-            </p>
+            <div className="text-xs font-bold text-slate-900 dark:text-slate-200 leading-snug">
+              <MarkdownRenderer content={qcm.questionStem} inline />
+            </div>
           </div>
 
           {/* Loading state */}
@@ -129,9 +130,9 @@ export const QcmVerificationModal: React.FC<QcmVerificationModalProps> = ({
                       ✓ QCM 100% Vérifié & Scientifiquement Conforme
                     </h3>
                   </div>
-                  <p className="text-xs text-emerald-800 dark:text-emerald-200/90 leading-relaxed pl-7">
-                    {verificationResult.summary}
-                  </p>
+                  <div className="text-xs text-emerald-800 dark:text-emerald-200/90 leading-relaxed pl-7">
+                    <MarkdownRenderer content={verificationResult.summary} inline />
+                  </div>
                 </div>
               ) : (
                 <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-500/40 space-y-1.5 shadow-xs">
@@ -146,9 +147,9 @@ export const QcmVerificationModal: React.FC<QcmVerificationModalProps> = ({
                       Mise à jour disponible
                     </span>
                   </div>
-                  <p className="text-xs text-amber-800 dark:text-amber-200/90 leading-relaxed pl-7">
-                    {verificationResult.summary}
-                  </p>
+                  <div className="text-xs text-amber-800 dark:text-amber-200/90 leading-relaxed pl-7">
+                    <MarkdownRenderer content={verificationResult.summary} inline />
+                  </div>
                 </div>
               )}
 
@@ -169,13 +170,13 @@ export const QcmVerificationModal: React.FC<QcmVerificationModalProps> = ({
                   >
                     {/* Item Letter, current truth value, proposed truth value */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
                         <span className="font-mono font-extrabold text-sky-800 dark:text-sky-400 bg-white dark:bg-slate-950 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800 shrink-0">
                           Item {item.itemLetter}
                         </span>
-                        <span className="font-semibold text-slate-900 dark:text-slate-100">
-                          {item.correctedText || qcm.items?.find(i => i.itemLetter === item.itemLetter)?.text}
-                        </span>
+                        <div className="font-semibold text-slate-900 dark:text-slate-100 flex-1 min-w-0">
+                          <MarkdownRenderer content={item.correctedText || qcm.items?.find(i => i.itemLetter === item.itemLetter)?.text} inline />
+                        </div>
                       </div>
 
                       <div className="shrink-0 flex items-center gap-1.5 self-end sm:self-center">
@@ -207,7 +208,7 @@ export const QcmVerificationModal: React.FC<QcmVerificationModalProps> = ({
                         <div className="font-semibold mb-0.5 flex items-center gap-1 text-slate-900 dark:text-slate-200">
                           <span>💡 Analyse médicale :</span>
                         </div>
-                        <span>{item.explanation}</span>
+                        <MarkdownRenderer content={item.explanation} inline />
                       </div>
                     )}
                   </div>

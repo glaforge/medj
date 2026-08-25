@@ -604,7 +604,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
                       </div>
 
                       <div className="font-bold text-slate-900 dark:text-white text-xs">
-                        {msg.createdQcm.questionStem}
+                        <MarkdownRenderer content={msg.createdQcm.questionStem} inline />
                       </div>
 
                       {/* Items List */}
@@ -621,11 +621,13 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
                             }`}
                           >
                             <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-slate-200">
-                                <span className="font-mono font-bold text-sky-700 dark:text-sky-400 bg-white dark:bg-slate-950 px-1.5 py-0.2 rounded border border-slate-200 dark:border-slate-800 shadow-2xs">
+                              <div className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-slate-200 flex-1 min-w-0">
+                                <span className="font-mono font-bold text-sky-700 dark:text-sky-400 bg-white dark:bg-slate-950 px-1.5 py-0.2 rounded border border-slate-200 dark:border-slate-800 shadow-2xs shrink-0">
                                   {item.itemLetter}
                                 </span>
-                                <span>{item.text}</span>
+                                <div className="flex-1 min-w-0">
+                                  <MarkdownRenderer content={item.text} inline />
+                                </div>
                               </div>
 
                               {isRevealed && (
@@ -647,7 +649,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
                                   ? 'text-emerald-900/85 dark:text-slate-300 border-emerald-300 dark:border-emerald-800'
                                   : 'text-rose-900/85 dark:text-slate-300 border-rose-300 dark:border-rose-800'
                               }`}>
-                                <span>{item.explanation}</span>
+                                <MarkdownRenderer content={item.explanation} inline />
                                 {item.isTrap && (
                                   <span className="ml-1.5 text-amber-800 dark:text-amber-300 font-bold bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800/40 px-1 py-0.2 rounded inline-flex items-center gap-1">
                                     ⚠️ Piège de concours
@@ -671,7 +673,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
                             <Lightbulb className="w-3.5 h-3.5 text-amber-600 dark:text-amber-300 shrink-0" />
                             <div className="leading-snug">
                               <strong className="font-extrabold text-amber-900 dark:text-amber-300 mr-1">💡 Moyen mnémotechnique :</strong>
-                              <span className="font-semibold text-slate-800 dark:text-slate-100">{cleanedMne}</span>
+                              <MarkdownRenderer content={cleanedMne} inline />
                             </div>
                           </div>
                         );

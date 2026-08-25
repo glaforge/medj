@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Course, QcmQuestion } from '../types';
 import { api } from '../services/api';
+import { MarkdownRenderer } from './MarkdownRenderer';
 import confetti from 'canvas-confetti';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { formatPoints } from '../utils/dateUtils';
@@ -385,7 +386,7 @@ export const QcmTrainerModal: React.FC<QcmTrainerModalProps> = ({
               
               {/* Question Stem (Énoncé) */}
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 text-sm font-extrabold text-slate-900 dark:text-slate-100 leading-relaxed shadow-2xs">
-                {currentQcm.questionStem}
+                <MarkdownRenderer content={currentQcm.questionStem} inline />
               </div>
 
               {/* Items A to E */}
@@ -412,9 +413,9 @@ export const QcmTrainerModal: React.FC<QcmTrainerModalProps> = ({
                           <span className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-950 flex items-center justify-center font-bold text-xs text-sky-700 dark:text-sky-400 border border-slate-200 dark:border-slate-800 shrink-0 shadow-2xs">
                             {item.itemLetter}
                           </span>
-                          <p className="text-xs leading-relaxed font-semibold pt-0.5 text-slate-900 dark:text-slate-100">
-                            {item.text}
-                          </p>
+                          <div className="text-xs leading-relaxed font-semibold pt-0.5 text-slate-900 dark:text-slate-100 flex-1 min-w-0">
+                            <MarkdownRenderer content={item.text} inline />
+                          </div>
                         </div>
 
                         {/* True / False Buttons */}
@@ -458,13 +459,13 @@ export const QcmTrainerModal: React.FC<QcmTrainerModalProps> = ({
                               </span>
                             )}
                           </div>
-                          <p className="text-slate-700 dark:text-slate-300 text-[11px] leading-relaxed font-medium">
-                            {item.explanation}
-                          </p>
+                          <div className="text-slate-700 dark:text-slate-300 text-[11px] leading-relaxed font-medium">
+                            <MarkdownRenderer content={item.explanation} inline />
+                          </div>
                           {item.trapDetails && (
-                            <p className="text-amber-800 dark:text-amber-300/90 text-[10px] italic">
-                              Détail piège : {item.trapDetails}
-                            </p>
+                            <div className="text-amber-800 dark:text-amber-300/90 text-[10px] italic">
+                              Détail piège : <MarkdownRenderer content={item.trapDetails} inline />
+                            </div>
                           )}
                         </div>
                       )}
@@ -490,7 +491,9 @@ export const QcmTrainerModal: React.FC<QcmTrainerModalProps> = ({
                     return (
                       <div className="text-[11px] text-slate-800 dark:text-slate-200 leading-relaxed pt-1 flex items-start gap-1.5">
                         <span className="font-extrabold text-amber-800 dark:text-amber-300 shrink-0">💡 Astuce mnémotechnique :</span>
-                        <span className="font-medium text-slate-700 dark:text-slate-300">{cleanedMnemonics.join(' • ')}</span>
+                        <div className="font-medium text-slate-700 dark:text-slate-300 flex-1 min-w-0">
+                          <MarkdownRenderer content={cleanedMnemonics.join(' • ')} inline />
+                        </div>
                       </div>
                     );
                   })()}
