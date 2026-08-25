@@ -74,14 +74,14 @@ export const LoginView: React.FC = () => {
         <button
           onClick={handleLogin}
           disabled={loading || signingIn}
-          className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-2xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-bold transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-2xl bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white border border-slate-300 dark:border-slate-700 font-bold transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
           {signingIn || loading ? (
-            <div className="w-5 h-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-sky-600 dark:border-sky-400 border-t-transparent rounded-full animate-spin" />
           ) : (
             <>
               {/* Google G Logo SVG */}
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
                 <path
                   fill="#4285F4"
                   d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
@@ -99,7 +99,7 @@ export const LoginView: React.FC = () => {
                   d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
                 />
               </svg>
-              <span>Se connecter avec Google</span>
+              <span className="text-slate-800 dark:text-white font-bold">Se connecter avec Google</span>
             </>
           )}
         </button>
