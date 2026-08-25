@@ -1,8 +1,8 @@
 plugins {
     id("groovy")
-    id("io.micronaut.application") version "4.4.4"
-    id("io.micronaut.aot") version "4.4.4"
-    id("com.github.node-gradle.node") version "7.0.2"
+    id("io.micronaut.application") version "5.0.2"
+    id("io.micronaut.aot") version "5.0.2"
+    id("com.github.node-gradle.node") version "7.1.0"
 }
 
 version = "0.1.0"
@@ -21,14 +21,14 @@ dependencies {
     implementation("io.micronaut:micronaut-http-client")
     
     // Google Gen AI SDK & LangChain4j
-    implementation("com.google.genai:google-genai:1.57.0")
-    implementation("dev.langchain4j:langchain4j:1.18.0")
-    implementation("dev.langchain4j:langchain4j-google-ai-gemini:1.18.0")
+    implementation("com.google.genai:google-genai:1.67.0")
+    implementation("dev.langchain4j:langchain4j:1.19.0")
+    implementation("dev.langchain4j:langchain4j-google-ai-gemini:1.19.0")
     implementation("dev.langchain4j:langchain4j-google-genai:1.19.0-beta29")
     
     // Google Cloud Firestore & Storage
-    implementation("com.google.cloud:google-cloud-firestore:3.27.0")
-    implementation("com.google.cloud:google-cloud-storage:2.43.0")
+    implementation("com.google.cloud:google-cloud-firestore:3.45.0")
+    implementation("com.google.cloud:google-cloud-storage:2.71.0")
     
     // Google Calendar & Auth
     implementation("com.google.apis:google-api-services-calendar:v3-rev20220715-2.0.0")
@@ -40,7 +40,7 @@ dependencies {
     implementation("io.micronaut.security:micronaut-security-oauth2")
 
     // PDF processing for course documents
-    implementation("org.apache.pdfbox:pdfbox:3.0.4")
+    implementation("org.apache.pdfbox:pdfbox:3.0.8")
     
     // Logging & Config
     runtimeOnly("org.yaml:snakeyaml")
@@ -49,7 +49,7 @@ dependencies {
     // Testing
     testImplementation("io.micronaut.test:micronaut-test-junit5")
     testImplementation("org.junit.jupiter:junit-jupiter-api")
-    testImplementation("org.mockito:mockito-core:5.14.2")
+    testImplementation("org.mockito:mockito-core:5.23.0")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
 }
 
@@ -65,7 +65,7 @@ java {
 graalvmNative.toolchainDetection = false
 
 micronaut {
-    version("5.1.0")
+    version("5.1.2")
     runtime("netty")
     testRuntime("junit5")
     processing {

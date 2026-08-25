@@ -128,11 +128,11 @@ flowchart TB
 | Tier | Component | Technology & Version | Architectural Justification |
 | :--- | :--- | :--- | :--- |
 | **Runtime** | JVM Engine | **GraalVM CE 25 (Java 25)** | Cutting-edge execution performance, virtual threads, low-latency garbage collection, and native image compilation readiness. |
-| **Backend** | Framework | **Micronaut Framework 5.1.0** | Ultra-fast startup (<500ms), low memory footprint (<80MB), Netty non-blocking I/O, compile-time dependency injection and reflection-free serde. |
-| **Serialization** | JSON Parser | **Micronaut Serde Jackson 5.1.0** | Ahead-of-time code generation for `@Serdeable` DTOs, avoiding Java runtime reflection. |
-| **AI SDK (Direct)** | Structured SDK | `com.google.genai:google-genai:1.57.0` | Official Google GenAI Java SDK supporting strict JSON Schema structured output and multimodal uploads. |
-| **AI (Agentic)** | Tool Calling | **LangChain4j 1.18.0 / 1.19.0-beta29** | High-level `@AiServices` abstraction providing autonomous tool execution (`MedicalQcmTools`, `MedicalFlashcardTools`, `MedicalIllustrationTools`) and Google Search Grounding. |
-| **PDF Processing** | Document Parser | **Apache PDFBox 3.0.4** | Extracting textual and graphical elements from uploaded medical handouts and past exams. |
+| **Backend** | Framework | **Micronaut Framework 5.1.2** | Ultra-fast startup (<500ms), low memory footprint (<80MB), Netty non-blocking I/O, compile-time dependency injection and reflection-free serde. |
+| **Serialization** | JSON Parser | **Micronaut Serde Jackson 5.1.2** | Ahead-of-time code generation for `@Serdeable` DTOs, avoiding Java runtime reflection. |
+| **AI SDK (Direct)** | Structured SDK | `com.google.genai:google-genai:1.67.0` | Official Google GenAI Java SDK supporting strict JSON Schema structured output and multimodal uploads. |
+| **AI (Agentic)** | Tool Calling | **LangChain4j 1.19.0 / 1.19.0-beta29** | High-level `@AiServices` abstraction providing autonomous tool execution (`MedicalQcmTools`, `MedicalFlashcardTools`, `MedicalIllustrationTools`) and Google Search Grounding. |
+| **PDF Processing** | Document Parser | **Apache PDFBox 3.0.8** | Extracting textual and graphical elements from uploaded medical handouts and past exams. |
 | **Cloud Services** | Persistence & Sync | **Cloud Firestore, Google Cloud Storage, Google Calendar API** | Serverless document database, object hosting, and bidirectional calendar synchronization. |
 | **Frontend** | UI Library | **React 19.0.0** | Declarative component UI utilizing React 19 hooks and concurrent rendering. |
 | **Build & Dev** | Bundler | **Vite 6.1.0 & TypeScript 5.7.3** | Near-instant HMR, strict type safety matching backend Serde records, and optimized Rollup production bundling. |
@@ -528,7 +528,7 @@ classDiagram
   sdk use java 25.0.2-graalce
   export JAVA_HOME=~/.sdkman/candidates/java/25.0.2-graalce
   ```
-- **Framework**: **Micronaut 5.1.0** configured with reflection-free Serde.
+- **Framework**: **Micronaut 5.1.2** configured with reflection-free Serde.
 - **Node.js / npm**: Automatically provisioned by Gradle (`node-gradle-plugin`), or isolated Node 22.
 
 ### Development Commands
@@ -604,6 +604,20 @@ Configure the following runtime environment variables:
 | `MEDJ_ALLOWED_EMAILS`| Whitelisted user email list | `glaforge@gmail.com,...` | Access control & student auth |
 | `MEDJ_SEED_SAMPLE_DATA`| Seed demo curriculum on startup | `false` | Zero-data vs Demo mode |
 
+### 3. Production Data Safety & Zero Data Loss Policy
+> [!CAUTION]
+> **CRITICAL RULE FOR ALL AI AGENTS & DEVELOPERS**:
+> The production database (**Cloud Firestore**) contains **real, active student data** (Teaching Units / UEs, courses, custom notes, spaced repetition revision history, scanned documents, flashcards, and QCM attempts).
+>
+> 1. **NEVER OVERWRITE OR WIPE PRODUCTION DATA**:
+>    - Never execute data clearing commands (`scripts/clear-production-data.sh` or `/api/sample-data/clear`) against production.
+>    - `MEDJ_SEED_SAMPLE_DATA` MUST always be set to `false` in production environments (`deploy-production.sh` and Cloud Run configuration) so sample data is never seeded over real student data.
+>
+> 2. **NON-DESTRUCTIVE SCHEMA MIGRATIONS**:
+>    - Any evolution of domain models (adding fields, changing primitive types, restructuring relationships) must be **strictly backward- and forward-compatible**.
+>    - Deserialization methods in `FirestoreService` (`docToSubject`, `docToCourse`, `docToRevision`, `docToQcm`, `docToFlashcard`, etc.) must always support legacy field shapes, provide sensible default values, and use type-resilient parsers (e.g., `instanceof Number` for numeric conversions like `int` to `double`).
+>    - Never perform "drop-and-recreate" migrations. Schema updates must happen incrementally and seamlessly upon document read/write.
+
 ---
 
 ## 10. AI Agent Development Rules & Conventions
@@ -624,11 +638,16 @@ When modifying, extending, or refactoring the MedJ codebase, all AI agents and d
 - Avoid Java runtime reflection; prefer record classes or immutable POJOs with constructor mapping.
 - Maintain bidirectional synchronization between Java backend models (`fr.medj.model.*`) and TypeScript interface definitions (`frontend/src/types.ts`).
 
-### 4. Thread-Safety & Resilience in Services
+### 4. Strict Production Data Preservation & Non-Destructive Migrations
+- **Zero Data Overwrite**: Never wipe, reset, or overwrite production data during deployments or code updates. Real student data is actively stored in production Firestore.
+- **Backward-Compatible Deserializers**: All Firestore deserializers (`docToSubject`, `docToCourse`, etc.) must tolerate missing fields, legacy types, and nulls with safe fallback defaults.
+- **Safe Schema Evolution**: When altering fields (such as converting `int coefficient` to `double coefficient`), write robust deserializers that parse both legacy formats (`Long`) and new formats (`Double`) seamlessly.
+
+### 5. Thread-Safety & Resilience in Services
 - In-memory collections in `FirestoreService`, `MedicalQcmTools`, and `MedicalFlashcardTools` must remain thread-safe (`ConcurrentHashMap`, `Collections.synchronizedList`).
 - Always implement realistic fallback data or graceful error handling in AI service methods so the application remains operable without API keys.
 
-### 5. UI/UX Aesthetics, Dark Mode & High-Contrast Typography
+### 6. UI/UX Aesthetics, Dark Mode & High-Contrast Typography
 - Maintain the dark-mode aesthetic with high contrast (`slate-950` backgrounds, `sky-500` accents, `emerald-500` validation greens, `rose-500` warnings).
 - For colored backgrounds (such as active blue headers `bg-sky-600`), ensure all text, day labels, badges, and icons remain pure white (`#ffffff`) in both Light and Dark modes.
 - Ensure all interactive modals support keyboard dismissal via `Escape` key (`useEscapeKey`).

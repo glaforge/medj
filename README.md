@@ -2,12 +2,12 @@
 
 <div align="center">
 
-[![Micronaut](https://img.shields.io/badge/Micronaut-5.1.0-blue.svg)](https://micronaut.io/)
+[![Micronaut](https://img.shields.io/badge/Micronaut-5.1.2-blue.svg)](https://micronaut.io/)
 [![Java](https://img.shields.io/badge/GraalVM-Java%2025-orange.svg)](https://www.graalvm.org/)
 [![React](https://img.shields.io/badge/React-19.0.0-61dafb.svg)](https://react.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4.17-38bdf8.svg)](https://tailwindcss.com/)
 [![Google Gemini](https://img.shields.io/badge/Google%20Gemini-3.7%20Flash-4285f4.svg)](https://ai.google.dev/)
-[![LangChain4j](https://img.shields.io/badge/LangChain4j-1.18.0-green.svg)](https://github.com/langchain4j/langchain4j)
+[![LangChain4j](https://img.shields.io/badge/LangChain4j-1.19.0-green.svg)](https://github.com/langchain4j/langchain4j)
 [![License](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 
 **MedJ** est une plateforme web et Progressive Web App (PWA) d'apprentissage haute performance conçue sur-mesure pour les étudiants en santé préparant les concours sélectifs **PASS** (*Parcours Accès Santé Spécifique*) et **LAS** (*Licence Accès Santé*).
@@ -190,13 +190,13 @@ flowchart LR
 | Composant | Technologie | Rôle & Justification |
 | :--- | :--- | :--- |
 | **Runtime** | **GraalVM CE 25 (Java 25)** | Performance maximale, threads virtuels, garbage collection ZGC à ultra-faible latence. |
-| **Backend** | **Micronaut Framework 5.1.0** | Démarrage en <500ms, empreinte mémoire <80Mo, injection compile-time et sérialisation sans réflexion. |
-| **IA SDK (Direct)** | `com.google.genai:google-genai:1.57.0` | SDK officiel Google pour les sorties structurées (JSON Schema) et le multimodal. |
-| **IA Agentique** | **LangChain4j 1.18.0** | Orchestration du Tuteur IA avec appels d'outils autonomes (`@Tool`) et Search Grounding. |
+| **Backend** | **Micronaut Framework 5.1.2** | Démarrage en <500ms, empreinte mémoire <80Mo, injection compile-time et sérialisation sans réflexion. |
+| **IA SDK (Direct)** | `com.google.genai:google-genai:1.67.0` | SDK officiel Google pour les sorties structurées (JSON Schema) et le multimodal. |
+| **IA Agentique** | **LangChain4j 1.19.0** | Orchestration du Tuteur IA avec appels d'outils autonomes (`@Tool`) et Search Grounding. |
 | **Frontend** | **React 19.0.0 & TypeScript 5.7** | Interface déclarative ultra-réactive avec typage strict synchronisé avec le backend. |
 | **Styling & UI** | **Tailwind CSS 3.4.17** | Thème sombre/clair haute ergonomie médicale et contrastes optimisés. |
 | **Moteur Math/LaTeX**| `KaTeX`, `react-markdown` | Rendu instantané des équations biophysiques et biochimiques côté client. |
-| **PDF Processing** | **Apache PDFBox 3.0.4** | Extraction de texte et analyse des polycopiés de cours. |
+| **PDF Processing** | **Apache PDFBox 3.0.8** | Extraction de texte et analyse des polycopiés de cours. |
 | **Build & Tooling** | **Gradle 8/9 + Node Plugin** | Compilation hermétique sans prérequis Node.js externe. |
 
 ---
