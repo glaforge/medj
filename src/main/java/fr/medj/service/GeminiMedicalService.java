@@ -269,16 +269,18 @@ public class GeminiMedicalService {
     }
 
     /**
-     * Multimodal OCR and interactive quiz extraction from scanned exam/annales images or PDFs.
+     * Multimodal OCR and interactive quiz extraction from scanned exam/annales images or PDFs (single or multiple pages).
      */
-    public List<QcmQuestion> scanExistingQcmAnnales(byte[] fileBytes, String mimeType, String courseId, String courseTitle, String ueCode) {
-        if (genAiClient != null && fileBytes != null && fileBytes.length > 0) {
+    public List<QcmQuestion> scanExistingQcmAnnales(List<byte[]> fileBytesList, List<String> mimeTypes, String courseId, String courseTitle, String ueCode) {
+        if (genAiClient != null && fileBytesList != null && !fileBytesList.isEmpty()) {
             try {
+                int pageCount = fileBytesList.size();
                 String prompt = """
                     Tu es un professeur de médecine et tuteur expert du concours PASS / LAS en France.
-                    Analyse attentivement cette photo/image ou ce document contenant des QCMs d'annales ou de concours de médecine.
+                    Analyse attentivement ce document composé de %d page(s) / support(s) contenant des QCMs d'annales ou de concours de médecine.
+                    Toutes les pages fournies appartiennent au même sujet d'annale ou à la même série d'épreuves.
                     
-                    Pour chaque QCM identifié dans le document :
+                    Pour CHAQUE QCM identifié à travers l'ensemble des pages :
                     1. Extrais l'énoncé complet de la question (questionStem).
                     2. Extrais les 5 propositions (items A, B, C, D, E).
                     3. Détermine pour chaque proposition si elle est VRAIE ou FAUSSE (isTrue) et fournis une justification médicale claire (explanation).
@@ -286,14 +288,19 @@ public class GeminiMedicalService {
                     5. Fournis un niveau de difficulté (1 à 5) et si utile un moyen mnémotechnique (mnemonics).
                     
                     Réponds STRICTEMENT au format JSON (liste de QCMs).
-                    """;
+                    """.formatted(pageCount);
 
-                Content content = Content.builder()
-                    .parts(List.of(
-                        Part.fromText(prompt),
-                        Part.fromBytes(fileBytes, mimeType)
-                    ))
-                    .build();
+                List<Part> parts = new ArrayList<>();
+                parts.add(Part.fromText(prompt));
+                for (int i = 0; i < fileBytesList.size(); i++) {
+                    byte[] bytes = fileBytesList.get(i);
+                    String mime = (mimeTypes != null && i < mimeTypes.size() && mimeTypes.get(i) != null) ? mimeTypes.get(i) : "image/png";
+                    if (bytes != null && bytes.length > 0) {
+                        parts.add(Part.fromBytes(bytes, mime));
+                    }
+                }
+
+                Content content = Content.builder().parts(parts).build();
 
                 GenerateContentResponse response = genAiClient.models.generateContent(
                     modelName,
@@ -306,14 +313,14 @@ public class GeminiMedicalService {
                 );
 
                 String jsonText = response.text();
-                LOG.info("Gemini Annale OCR scan response received (length: {})", jsonText != null ? jsonText.length() : 0);
+                LOG.info("Gemini Annale OCR scan response received (length: {}, pages: {})", jsonText != null ? jsonText.length() : 0, pageCount);
                 if (jsonText != null && !jsonText.isBlank()) {
                     List<QcmQuestion> scannedList = parseQcmJson(jsonText, courseId, courseTitle, ueCode, 0);
                     if (!scannedList.isEmpty()) {
                         for (QcmQuestion q : scannedList) {
                             firestoreService.saveQcm(q);
                         }
-                        LOG.info("Saved {} scanned QCMs to Firestore", scannedList.size());
+                        LOG.info("Saved {} scanned QCMs from {} pages to Firestore", scannedList.size(), pageCount);
                         return scannedList;
                     }
                 }
@@ -330,26 +337,49 @@ public class GeminiMedicalService {
         return fallbacks;
     }
 
+    public List<QcmQuestion> scanExistingQcmAnnales(byte[] fileBytes, String mimeType, String courseId, String courseTitle, String ueCode) {
+        return scanExistingQcmAnnales(
+            fileBytes != null ? List.of(fileBytes) : List.of(),
+            mimeType != null ? List.of(mimeType) : List.of(),
+            courseId,
+            courseTitle,
+            ueCode
+        );
+    }
+
     /**
-     * Multimodal transcription and structured synthesis of handwritten revision sheets (fiches manuscrites).
+     * Multimodal transcription and structured synthesis of handwritten revision sheets (single or multiple pages).
      */
-    public HandwrittenScanResult scanHandwrittenNotes(byte[] imageBytes, String mimeType, String courseId, String courseTitle, String ueCode) {
+    public HandwrittenScanResult scanHandwrittenNotes(List<byte[]> fileBytesList, List<String> mimeTypes, String courseId, String courseTitle, String ueCode) {
         String scanId = "scan-" + UUID.randomUUID();
 
-        if (genAiClient != null && imageBytes != null && imageBytes.length > 0) {
+        if (genAiClient != null && fileBytesList != null && !fileBytesList.isEmpty()) {
             try {
+                int pageCount = fileBytesList.size();
                 String prompt = """
                     Tu es un tuteur médical d'élite pour le concours PASS (Première Année Accès Santé).
-                    Analyse cette fiche de révision manuscrite / schéma de cours de médecine.
-                    Extrais la transcription fidèle en Markdown, les points clés, termes anatomiques, chiffres et pièges.
-                    """;
+                    Analyse cette fiche de révision manuscrite / ce support de cours de médecine composé de %d page(s) / image(s).
+                    Toutes les pages fournies appartiennent au MÊME document ou à la même série de notes.
+                    Analyse l'intégralité des pages dans leur ordre chronologique/logique et produis une synthèse globale unifiée :
+                    1. Transcription fidèle et ordonnée en Markdown structuré (regroupant toutes les pages).
+                    2. Points clés incontournables pour le concours issus de toutes les pages.
+                    3. Termes anatomiques et médicaux essentiels (nomenclature officielle).
+                    4. Chiffres, valeurs numériques et constantes clés.
+                    5. Pièges classiques de concours identifiés dans le cours.
+                    6. Moyens mnémotechniques recommandés pour retenir l'ensemble.
+                    """.formatted(pageCount);
 
-                Content content = Content.builder()
-                    .parts(List.of(
-                        Part.fromText(prompt),
-                        Part.fromBytes(imageBytes, mimeType)
-                    ))
-                    .build();
+                List<Part> parts = new ArrayList<>();
+                parts.add(Part.fromText(prompt));
+                for (int i = 0; i < fileBytesList.size(); i++) {
+                    byte[] bytes = fileBytesList.get(i);
+                    String mime = (mimeTypes != null && i < mimeTypes.size() && mimeTypes.get(i) != null) ? mimeTypes.get(i) : "image/png";
+                    if (bytes != null && bytes.length > 0) {
+                        parts.add(Part.fromBytes(bytes, mime));
+                    }
+                }
+
+                Content content = Content.builder().parts(parts).build();
 
                 GenerateContentResponse response = genAiClient.models.generateContent(
                     modelName,
@@ -378,6 +408,7 @@ public class GeminiMedicalService {
             courseId != null ? courseId : "course-demo",
             courseTitle != null ? courseTitle : "Fiche de Révision Anatomie",
             "/api/storage/sample_fiche.png",
+            List.of("/api/storage/sample_fiche.png"),
             """
             # Fiche Synthétique : Innervation et Loges du Bras
             
@@ -408,6 +439,16 @@ public class GeminiMedicalService {
         );
         firestoreService.saveScan(fallback);
         return fallback;
+    }
+
+    public HandwrittenScanResult scanHandwrittenNotes(byte[] imageBytes, String mimeType, String courseId, String courseTitle, String ueCode) {
+        return scanHandwrittenNotes(
+            imageBytes != null ? List.of(imageBytes) : List.of(),
+            mimeType != null ? List.of(mimeType) : List.of(),
+            courseId,
+            courseTitle,
+            ueCode
+        );
     }
 
     /**

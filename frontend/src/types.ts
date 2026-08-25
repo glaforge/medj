@@ -107,6 +107,7 @@ export interface HandwrittenScanResult {
   courseId: string;
   courseTitle: string;
   imageUrl: string;
+  imageUrls?: string[];
   transcriptionMarkdown: string;
   keyPoints: string[];
   anatomicalTerms: string[];

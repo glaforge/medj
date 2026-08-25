@@ -3,6 +3,7 @@ package fr.medj.controller;
 import fr.medj.model.*;
 import fr.medj.service.FirestoreService;
 import fr.medj.service.GeminiMedicalService;
+import io.micronaut.core.annotation.Nullable;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.*;
@@ -65,51 +66,82 @@ public class GeminiAiController {
 
     @Post(value = "/scan-annale", consumes = MediaType.MULTIPART_FORM_DATA)
     public HttpResponse<List<QcmQuestion>> scanAnnale(
-        CompletedFileUpload file,
+        @Nullable CompletedFileUpload file,
+        @Nullable List<CompletedFileUpload> files,
         @QueryValue Optional<String> courseId,
         @QueryValue Optional<String> courseTitle,
         @QueryValue Optional<String> ueCode
     ) {
         try {
-            if (file == null) {
+            List<CompletedFileUpload> allUploads = new ArrayList<>();
+            if (files != null && !files.isEmpty()) {
+                allUploads.addAll(files);
+            }
+            if (file != null && !allUploads.contains(file)) {
+                allUploads.add(file);
+            }
+
+            if (allUploads.isEmpty()) {
                 return HttpResponse.badRequest();
             }
-            byte[] bytes = file.getBytes();
-            String mimeType = detectMimeType(file, bytes);
-            String filename = (file.getFilename() != null && !file.getFilename().isBlank()) ? file.getFilename() : "scan_annale.pdf";
 
-            String storageUrl = storageService.storeFile(filename, mimeType, new java.io.ByteArrayInputStream(bytes));
-            LOG.info("Received and stored annale file upload: name='{}', size={} bytes, storageUrl='{}'",
-                filename, bytes.length, storageUrl);
+            List<byte[]> fileBytesList = new ArrayList<>();
+            List<String> mimeTypes = new ArrayList<>();
+            List<String> storageUrls = new ArrayList<>();
+            List<String> filenames = new ArrayList<>();
+
+            for (CompletedFileUpload upload : allUploads) {
+                byte[] bytes = upload.getBytes();
+                String mimeType = detectMimeType(upload, bytes);
+                String filename = (upload.getFilename() != null && !upload.getFilename().isBlank())
+                    ? upload.getFilename()
+                    : ("scan_annale_page_" + (fileBytesList.size() + 1) + ".pdf");
+                String storageUrl = storageService.storeFile(filename, mimeType, new java.io.ByteArrayInputStream(bytes));
+
+                fileBytesList.add(bytes);
+                mimeTypes.add(mimeType);
+                storageUrls.add(storageUrl);
+                filenames.add(filename);
+
+                LOG.info("Received and stored annale file upload: name='{}', size={} bytes, storageUrl='{}'",
+                    filename, bytes.length, storageUrl);
+            }
 
             Optional<Course> matchedCourse = courseId.flatMap(firestoreService::getCourse);
             String effectiveCourseId = matchedCourse.map(Course::id).or(() -> courseId).orElse("course-annale");
             String effectiveCourseTitle = matchedCourse.map(Course::title).or(() -> courseTitle).orElse("Annale Concours Blanc");
             String effectiveUeCode = matchedCourse.map(Course::ueCode).or(() -> ueCode).orElse("UE5");
 
-            // Attach document to course if targetCourseId is specified
+            // Attach all documents to course if targetCourseId is specified
             matchedCourse.ifPresent(c -> {
                 List<Course.DocumentAttachment> docs = new ArrayList<>(c.documents() != null ? c.documents() : List.of());
-                docs.add(new Course.DocumentAttachment(
-                    "doc-" + UUID.randomUUID(),
-                    filename,
-                    mimeType.contains("pdf") ? "PDF" : "QCM_SCAN",
-                    storageUrl,
-                    bytes.length,
-                    LocalDateTime.now()
-                ));
+                for (int i = 0; i < filenames.size(); i++) {
+                    String fn = filenames.get(i);
+                    String mime = mimeTypes.get(i);
+                    String url = storageUrls.get(i);
+                    long sz = fileBytesList.get(i).length;
+
+                    docs.add(new Course.DocumentAttachment(
+                        "doc-" + UUID.randomUUID(),
+                        fn,
+                        mime.contains("pdf") ? "PDF" : "QCM_SCAN",
+                        url,
+                        sz,
+                        LocalDateTime.now()
+                    ));
+                }
                 Course updated = new Course(
                     c.id(), c.ueId(), c.ueCode(), c.title(), c.color(), c.professor(),
                     c.taughtDate(), c.difficulty(), c.status(), c.tags(), c.notes(),
                     docs, c.customIntervals(), c.createdAt(), LocalDateTime.now()
                 );
                 firestoreService.saveCourse(updated);
-                LOG.info("Attached annale document '{}' to course '{}' ([{}])", filename, c.id(), c.title());
+                LOG.info("Attached {} annale document(s) to course '{}' ([{}])", filenames.size(), c.id(), c.title());
             });
 
             List<QcmQuestion> scanned = geminiMedicalService.scanExistingQcmAnnales(
-                bytes,
-                mimeType,
+                fileBytesList,
+                mimeTypes,
                 effectiveCourseId,
                 effectiveCourseTitle,
                 effectiveUeCode
@@ -124,63 +156,96 @@ public class GeminiAiController {
 
     @Post(value = "/scan-handwritten", consumes = MediaType.MULTIPART_FORM_DATA)
     public HttpResponse<HandwrittenScanResult> scanHandwritten(
-        CompletedFileUpload file,
+        @Nullable CompletedFileUpload file,
+        @Nullable List<CompletedFileUpload> files,
         @QueryValue Optional<String> courseId,
         @QueryValue Optional<String> courseTitle,
         @QueryValue Optional<String> ueCode
     ) {
         try {
-            if (file == null) {
+            List<CompletedFileUpload> allUploads = new ArrayList<>();
+            if (files != null && !files.isEmpty()) {
+                allUploads.addAll(files);
+            }
+            if (file != null && !allUploads.contains(file)) {
+                allUploads.add(file);
+            }
+
+            if (allUploads.isEmpty()) {
                 return HttpResponse.badRequest();
             }
-            byte[] bytes = file.getBytes();
-            String mimeType = detectMimeType(file, bytes);
-            String filename = (file.getFilename() != null && !file.getFilename().isBlank()) ? file.getFilename() : "fiche_scan.pdf";
 
-            String storageUrl = storageService.storeFile(filename, mimeType, new java.io.ByteArrayInputStream(bytes));
-            LOG.info("Received and stored handwritten scan upload: name='{}', size={} bytes, storageUrl='{}'",
-                filename, bytes.length, storageUrl);
+            List<byte[]> fileBytesList = new ArrayList<>();
+            List<String> mimeTypes = new ArrayList<>();
+            List<String> storageUrls = new ArrayList<>();
+            List<String> filenames = new ArrayList<>();
+
+            for (CompletedFileUpload upload : allUploads) {
+                byte[] bytes = upload.getBytes();
+                String mimeType = detectMimeType(upload, bytes);
+                String filename = (upload.getFilename() != null && !upload.getFilename().isBlank())
+                    ? upload.getFilename()
+                    : ("fiche_scan_page_" + (fileBytesList.size() + 1) + ".png");
+                String storageUrl = storageService.storeFile(filename, mimeType, new java.io.ByteArrayInputStream(bytes));
+
+                fileBytesList.add(bytes);
+                mimeTypes.add(mimeType);
+                storageUrls.add(storageUrl);
+                filenames.add(filename);
+
+                LOG.info("Received and stored handwritten scan upload: name='{}', size={} bytes, storageUrl='{}'",
+                    filename, bytes.length, storageUrl);
+            }
 
             Optional<Course> matchedCourse = courseId.flatMap(firestoreService::getCourse);
             String effectiveCourseId = matchedCourse.map(Course::id).or(() -> courseId).orElse("course-scan");
             String effectiveCourseTitle = matchedCourse.map(Course::title).or(() -> courseTitle).orElse("Fiche de Révision Manuscrite");
             String effectiveUeCode = matchedCourse.map(Course::ueCode).or(() -> ueCode).orElse("UE");
 
-            // Attach document to course if targetCourseId is specified
+            // Attach all documents to course if targetCourseId is specified
             matchedCourse.ifPresent(c -> {
                 List<Course.DocumentAttachment> docs = new ArrayList<>(c.documents() != null ? c.documents() : List.of());
-                docs.add(new Course.DocumentAttachment(
-                    "doc-" + UUID.randomUUID(),
-                    filename,
-                    mimeType.contains("pdf") ? "PDF" : "FICHES_MANUSCRITE",
-                    storageUrl,
-                    bytes.length,
-                    LocalDateTime.now()
-                ));
+                for (int i = 0; i < filenames.size(); i++) {
+                    String fn = filenames.get(i);
+                    String mime = mimeTypes.get(i);
+                    String url = storageUrls.get(i);
+                    long sz = fileBytesList.get(i).length;
+
+                    docs.add(new Course.DocumentAttachment(
+                        "doc-" + UUID.randomUUID(),
+                        fn,
+                        mime.contains("pdf") ? "PDF" : "FICHES_MANUSCRITE",
+                        url,
+                        sz,
+                        LocalDateTime.now()
+                    ));
+                }
                 Course updated = new Course(
                     c.id(), c.ueId(), c.ueCode(), c.title(), c.color(), c.professor(),
                     c.taughtDate(), c.difficulty(), c.status(), c.tags(), c.notes(),
                     docs, c.customIntervals(), c.createdAt(), LocalDateTime.now()
                 );
                 firestoreService.saveCourse(updated);
-                LOG.info("Attached handwritten document '{}' to course '{}' ([{}])", filename, c.id(), c.title());
+                LOG.info("Attached {} handwritten document(s) to course '{}' ([{}])", filenames.size(), c.id(), c.title());
             });
 
             HandwrittenScanResult result = geminiMedicalService.scanHandwrittenNotes(
-                bytes,
-                mimeType,
+                fileBytesList,
+                mimeTypes,
                 effectiveCourseId,
                 effectiveCourseTitle,
                 effectiveUeCode
             );
 
-            // Ensure scan result contains the real storage URL and effective course information
+            // Ensure scan result contains the real storage URLs and effective course information
             if (result != null) {
+                String primaryUrl = !storageUrls.isEmpty() ? storageUrls.get(0) : result.imageUrl();
                 HandwrittenScanResult withUrl = new HandwrittenScanResult(
                     result.id(),
                     effectiveCourseId,
                     effectiveCourseTitle,
-                    storageUrl,
+                    primaryUrl,
+                    storageUrls,
                     result.transcriptionMarkdown(),
                     result.keyPoints(),
                     result.anatomicalTerms(),
@@ -199,6 +264,24 @@ public class GeminiAiController {
             LOG.error("Failed to read file for handwritten scan: {}", e.getMessage(), e);
             return HttpResponse.serverError();
         }
+    }
+
+    public HttpResponse<List<QcmQuestion>> scanAnnale(
+        CompletedFileUpload file,
+        Optional<String> courseId,
+        Optional<String> courseTitle,
+        Optional<String> ueCode
+    ) {
+        return scanAnnale(file, null, courseId, courseTitle, ueCode);
+    }
+
+    public HttpResponse<HandwrittenScanResult> scanHandwritten(
+        CompletedFileUpload file,
+        Optional<String> courseId,
+        Optional<String> courseTitle,
+        Optional<String> ueCode
+    ) {
+        return scanHandwritten(file, null, courseId, courseTitle, ueCode);
     }
 
     private static String detectMimeType(CompletedFileUpload file, byte[] bytes) {

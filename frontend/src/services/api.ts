@@ -283,9 +283,16 @@ export const api = {
     return res.json();
   },
 
-  async scanAnnale(file: File, courseId?: string, courseTitle?: string, ueCode?: string): Promise<QcmQuestion[]> {
+  async scanAnnale(fileOrFiles: File | File[], courseId?: string, courseTitle?: string, ueCode?: string): Promise<QcmQuestion[]> {
     const formData = new FormData();
-    formData.append('file', file);
+    const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
+    files.forEach(f => {
+      formData.append('files', f);
+    });
+    if (files.length > 0) {
+      formData.append('file', files[0]);
+    }
+
     const params = new URLSearchParams();
     if (courseId) params.append('courseId', courseId);
     if (courseTitle) params.append('courseTitle', courseTitle);
@@ -299,9 +306,16 @@ export const api = {
     return res.json();
   },
 
-  async scanHandwritten(file: File, courseId?: string, courseTitle?: string, ueCode?: string): Promise<HandwrittenScanResult> {
+  async scanHandwritten(fileOrFiles: File | File[], courseId?: string, courseTitle?: string, ueCode?: string): Promise<HandwrittenScanResult> {
     const formData = new FormData();
-    formData.append('file', file);
+    const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
+    files.forEach(f => {
+      formData.append('files', f);
+    });
+    if (files.length > 0) {
+      formData.append('file', files[0]);
+    }
+
     const params = new URLSearchParams();
     if (courseId) params.append('courseId', courseId);
     if (courseTitle) params.append('courseTitle', courseTitle);

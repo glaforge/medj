@@ -194,6 +194,63 @@ public class CourseDocumentScanAttachmentTest {
     }
 
     @Test
+    void testMultiPageHandwrittenScan() throws IOException {
+        String courseId = "course-ue5-07";
+        Course targetCourse = firestoreService.getCourse(courseId).orElseThrow();
+        int initialDocCount = targetCourse.documents() != null ? targetCourse.documents().size() : 0;
+
+        CompletedFileUpload page1 = createCompletedFileUpload("fiche_nerfs_page1.png", "image_data_p1", "image/png");
+        CompletedFileUpload page2 = createCompletedFileUpload("fiche_nerfs_page2.png", "image_data_p2", "image/png");
+        CompletedFileUpload page3 = createCompletedFileUpload("fiche_nerfs_page3.png", "image_data_p3", "image/png");
+
+        HttpResponse<HandwrittenScanResult> response = geminiAiController.scanHandwritten(
+            null,
+            List.of(page1, page2, page3),
+            Optional.of(courseId),
+            Optional.of(targetCourse.title()),
+            Optional.of(targetCourse.ueCode())
+        );
+
+        assertEquals(200, response.status().getCode());
+        HandwrittenScanResult result = response.body();
+        assertNotNull(result);
+        assertNotNull(result.imageUrls());
+        assertEquals(3, result.imageUrls().size());
+        assertEquals(result.imageUrl(), result.imageUrls().get(0));
+
+        // Verify all 3 pages are attached to the course
+        Course refreshedCourse = firestoreService.getCourse(courseId).orElseThrow();
+        assertEquals(initialDocCount + 3, refreshedCourse.documents().size());
+    }
+
+    @Test
+    void testMultiPageAnnaleScan() throws IOException {
+        String courseId = "course-ue5-07";
+        Course targetCourse = firestoreService.getCourse(courseId).orElseThrow();
+        int initialDocCount = targetCourse.documents() != null ? targetCourse.documents().size() : 0;
+
+        CompletedFileUpload page1 = createCompletedFileUpload("annale_2024_page1.jpg", "image_annale_1", "image/jpeg");
+        CompletedFileUpload page2 = createCompletedFileUpload("annale_2024_page2.jpg", "image_annale_2", "image/jpeg");
+
+        HttpResponse<List<QcmQuestion>> response = geminiAiController.scanAnnale(
+            null,
+            List.of(page1, page2),
+            Optional.of(courseId),
+            Optional.of(targetCourse.title()),
+            Optional.of(targetCourse.ueCode())
+        );
+
+        assertEquals(200, response.status().getCode());
+        List<QcmQuestion> qcms = response.body();
+        assertNotNull(qcms);
+        assertFalse(qcms.isEmpty());
+
+        // Verify 2 documents attached to course
+        Course refreshedCourse = firestoreService.getCourse(courseId).orElseThrow();
+        assertEquals(initialDocCount + 2, refreshedCourse.documents().size());
+    }
+
+    @Test
     void testCaseInsensitiveAndTrimmedCourseLookup() {
         Optional<Course> courseUpper = firestoreService.getCourse("COURSE-UE5-07");
         assertTrue(courseUpper.isPresent(), "Case-insensitive lookup should succeed");

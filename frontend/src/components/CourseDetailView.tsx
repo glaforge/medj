@@ -825,9 +825,9 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                         </span>
                       </div>
 
-                      <p className="font-bold text-slate-900 dark:text-white leading-snug">
-                        {qcm.questionStem}
-                      </p>
+                      <div className="font-bold text-slate-900 dark:text-white leading-snug">
+                        <MarkdownRenderer content={qcm.questionStem} inline />
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
@@ -926,7 +926,9 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                               <span className="font-mono font-extrabold text-sky-700 dark:text-sky-400 bg-white dark:bg-slate-950 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800 shrink-0 shadow-2xs">
                                 {item.itemLetter}
                               </span>
-                              <span className="leading-snug">{item.text}</span>
+                              <div className="leading-snug flex-1 min-w-0">
+                                <MarkdownRenderer content={item.text} inline />
+                              </div>
                             </div>
 
                             {answersVisible && (
@@ -948,7 +950,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                                 ? 'text-emerald-900/85 dark:text-slate-300 border-emerald-300 dark:border-emerald-800'
                                 : 'text-rose-900/85 dark:text-slate-300 border-rose-300 dark:border-rose-800'
                             }`}>
-                              <span>{item.explanation}</span>
+                              <MarkdownRenderer content={item.explanation} inline />
                               {item.isTrap && (
                                 <span className="ml-2 text-amber-800 dark:text-amber-300 font-bold bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800/40 px-1.5 py-0.2 rounded inline-flex items-center gap-1">
                                   ⚠️ Piège de concours
@@ -972,7 +974,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                               <strong className="font-extrabold text-amber-900 dark:text-amber-300 mr-1.5">
                                 💡 Moyen mnémotechnique :
                               </strong>
-                              <span className="font-semibold text-slate-800 dark:text-slate-100">{cleanedMne}</span>
+                              <MarkdownRenderer content={cleanedMne} inline />
                             </div>
                           </div>
                         );
@@ -1416,7 +1418,23 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        {scan.imageUrl && (
+                        {scan.imageUrls && scan.imageUrls.length > 1 ? (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {scan.imageUrls.map((url, pIdx) => (
+                              <a
+                                key={pIdx}
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-semibold flex items-center gap-1 transition-all border border-slate-200 dark:border-slate-700"
+                                title={`Voir la page ${pIdx + 1} du document source`}
+                              >
+                                <ExternalLink className="w-2.5 h-2.5" />
+                                <span>Page {pIdx + 1}</span>
+                              </a>
+                            ))}
+                          </div>
+                        ) : scan.imageUrl ? (
                           <a
                             href={scan.imageUrl}
                             target="_blank"
@@ -1427,7 +1445,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                             <ExternalLink className="w-3 h-3" />
                             <span>Document source</span>
                           </a>
-                        )}
+                        ) : null}
 
                         <button
                           onClick={() => toggleScanExpanded(scan.id)}
@@ -1498,10 +1516,29 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                                   <span className="w-5 h-5 rounded-full bg-emerald-600 dark:bg-emerald-500/20 text-white dark:text-emerald-300 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5 shadow-xs">
                                     {idx + 1}
                                   </span>
-                                  <span className="leading-relaxed">{kp}</span>
+                                  <div className="leading-relaxed flex-1 min-w-0">
+                                    <MarkdownRenderer content={kp} inline />
+                                  </div>
                                 </li>
                               ))}
                             </ul>
+                          </div>
+                        )}
+
+                        {/* Key Figures & Values */}
+                        {scan.keyFiguresAndValues && scan.keyFiguresAndValues.length > 0 && (
+                          <div className="space-y-2">
+                            <h5 className="text-xs font-extrabold uppercase tracking-wider text-sky-800 dark:text-sky-400 flex items-center gap-1.5">
+                              <BookOpen className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                              <span>Chiffres & Constantes Clés</span>
+                            </h5>
+                            <div className="flex flex-wrap gap-2">
+                              {scan.keyFiguresAndValues.map((fig, idx) => (
+                                <span key={idx} className="px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800/50 text-xs font-mono font-bold">
+                                  <MarkdownRenderer content={fig} inline />
+                                </span>
+                              ))}
+                            </div>
                           </div>
                         )}
 
@@ -1516,7 +1553,29 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                               {scan.potentialExamTraps.map((trap, idx) => (
                                 <div key={idx} className="p-3 rounded-xl bg-amber-50/90 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-500/30 text-xs font-medium text-amber-950 dark:text-amber-200 flex items-start gap-2.5 shadow-2xs">
                                   <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                                  <span className="leading-relaxed">{trap}</span>
+                                  <div className="leading-relaxed flex-1 min-w-0">
+                                    <MarkdownRenderer content={trap} inline />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Mnemonics */}
+                        {scan.mnemonics && scan.mnemonics.length > 0 && (
+                          <div className="space-y-2">
+                            <h5 className="text-xs font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
+                              <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                              <span>Moyens Mnémotechniques Recommandés</span>
+                            </h5>
+                            <div className="space-y-1.5">
+                              {scan.mnemonics.map((mne, idx) => (
+                                <div key={idx} className="p-3 rounded-xl bg-amber-50/90 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-500/30 text-xs font-medium text-amber-950 dark:text-amber-200 flex items-start gap-2.5 shadow-2xs">
+                                  <span className="shrink-0 mt-0.5">💡</span>
+                                  <div className="leading-relaxed flex-1 min-w-0">
+                                    <MarkdownRenderer content={mne} inline />
+                                  </div>
                                 </div>
                               ))}
                             </div>

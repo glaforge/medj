@@ -10,6 +10,7 @@ public record HandwrittenScanResult(
     String courseId,
     String courseTitle,
     String imageUrl,
+    List<String> imageUrls,
     String transcriptionMarkdown,
     List<String> keyPoints,
     List<String> anatomicalTerms,
@@ -18,4 +19,35 @@ public record HandwrittenScanResult(
     List<String> mnemonics,
     List<QcmQuestion> generatedQcms,
     LocalDateTime scannedAt
-) {}
+) {
+    public HandwrittenScanResult(
+        String id,
+        String courseId,
+        String courseTitle,
+        String imageUrl,
+        String transcriptionMarkdown,
+        List<String> keyPoints,
+        List<String> anatomicalTerms,
+        List<String> keyFiguresAndValues,
+        List<String> potentialExamTraps,
+        List<String> mnemonics,
+        List<QcmQuestion> generatedQcms,
+        LocalDateTime scannedAt
+    ) {
+        this(
+            id,
+            courseId,
+            courseTitle,
+            imageUrl,
+            imageUrl != null && !imageUrl.isBlank() ? List.of(imageUrl) : List.of(),
+            transcriptionMarkdown,
+            keyPoints,
+            anatomicalTerms,
+            keyFiguresAndValues,
+            potentialExamTraps,
+            mnemonics,
+            generatedQcms,
+            scannedAt
+        );
+    }
+}
