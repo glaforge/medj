@@ -1,7 +1,7 @@
 # AGENTS.md — MedJ Codebase Architecture, Technical & Infrastructure Reference
 
-> **Document Version**: 2.0.0  
-> **Last Updated**: 2026-08-20  
+> **Document Version**: 2.1.0  
+> **Last Updated**: 2026-08-26  
 > **Target Audience**: AI Agents (Antigravity, coding assistants) and Software Engineers working on the **MedJ** repository.
 
 ---
@@ -187,6 +187,17 @@ flowchart TB
 - `processResources` bundles `frontend/dist/` into `classpath:public/`.
 - `SpaFallbackController` transparently serves `index.html` for all non-API HTML5 routes (`/today`, `/planning`, `/subjects/*`, `/qcms/*`, `/flashcards/*`, `/ia/*`).
 
+### 7. Perceptual Color Contrast & Dual-Theme Ergonomics Engine
+- **Mission-Critical Readability**: PASS/LAS medical students spend 10 to 14 hours daily reviewing complex terminology, biochemical cycles, and exam questions. High foreground/background contrast is essential to eliminate eye strain and prevent cognitive errors.
+- **Dynamic Text Contrast for User-Configured UE Colors**:
+  - Medical Teaching Units (UEs) allow students and curricula to configure custom background colors (hex, rgb, rgba, hsl).
+  - Rather than hardcoding text color or relying on basic naive math, MedJ uses a dedicated contrast calculation engine in [`frontend/src/utils/colorUtils.ts`](file:///Users/glaforge/Projects/medj/frontend/src/utils/colorUtils.ts) (`getContrastTextColor` and `getContrastBadgeStyle`).
+  - **Calibrated Perceptual Luminance ($L > 0.48$)**:
+    - Calculates WCAG 2.1 relative luminance: $L = 0.2126 \cdot R_{\text{lin}} + 0.7152 \cdot G_{\text{lin}} + 0.0722 \cdot B_{\text{lin}}$.
+    - Standard mathematical thresholds ($L = 0.179$) incorrectly assign black text to medium-saturated vibrant colors (medical blue `#0284c7`, purple `#8b5cf6`, fuchsia `#ec4899`, emerald `#10b981`), making text appear muddy and difficult to read.
+    - MedJ's calibrated $0.48$ threshold ensures **pure white text (`#ffffff`)** on all saturated, medium, and dark backgrounds, while strictly reserving **pure black text (`#000000`)** for genuinely light/bright colors (yellow `#facc15` / `#f4f740`, lime `#84cc16`, pastels, and creams).
+- **UE-Level Single Source of Truth**: Courses inherit their background color directly from their parent UE, preventing visual inconsistency across cards, badges, and planning views.
+
 ---
 
 ## 5. Repository Structure & Map
@@ -274,8 +285,10 @@ medj/
         ├── context/ThemeContext.tsx         # Dark/Light theme state
         ├── services/api.ts                  # Typed Axios/Fetch wrapper for all backend endpoints
         ├── utils/
+        │   ├── colorUtils.ts                # WCAG relative luminance & perceptual text contrast engine
         │   ├── dateUtils.ts                 # Date formatting & timezone-safe helpers
-        │   └── printWorksheet.ts            # Print stylesheet generator for blank worksheets
+        │   ├── printWorksheet.ts            # Print stylesheet generator for blank worksheets
+        │   └── richTextConverter.ts         # WYSIWYG HTML to Markdown converter & formatting helper
         ├── hooks/useEscapeKey.ts            # Keyboard shortcut helper for closing modals
         └── components/
             ├── Navbar.tsx                   # Top navigation with sync button & badge count
@@ -294,6 +307,7 @@ medj/
             ├── EditFlashcardModal.tsx       # Custom flashcard editor with LaTeX preview
             ├── AiTutorChat.tsx              # Interactive tutor chat with tool artifacts
             ├── GeminiScannerModal.tsx       # Multimodal scanner for fiches & exam papers
+            ├── ScanDiagramModal.tsx         # Hand-drawn pastel synthesis diagram generator (Nano Banana Pro) with iterative regeneration
             ├── MedicalIllustrationModal.tsx # Diagram viewer with maskable legend & zoom
             ├── NewIllustrationModal.tsx     # Direct diagram prompt generation modal
             ├── NewCourseModal.tsx           # New course creation modal with J0 scheduling & on-the-fly UE
@@ -647,8 +661,30 @@ When modifying, extending, or refactoring the MedJ codebase, all AI agents and d
 - In-memory collections in `FirestoreService`, `MedicalQcmTools`, and `MedicalFlashcardTools` must remain thread-safe (`ConcurrentHashMap`, `Collections.synchronizedList`).
 - Always implement realistic fallback data or graceful error handling in AI service methods so the application remains operable without API keys.
 
-### 6. UI/UX Aesthetics, Dark Mode & High-Contrast Typography
-- Maintain the dark-mode aesthetic with high contrast (`slate-950` backgrounds, `sky-500` accents, `emerald-500` validation greens, `rose-500` warnings).
-- For colored backgrounds (such as active blue headers `bg-sky-600`), ensure all text, day labels, badges, and icons remain pure white (`#ffffff`) in both Light and Dark modes.
-- Ensure all interactive modals support keyboard dismissal via `Escape` key (`useEscapeKey`).
-- Preserve KaTeX mathematical formula rendering for pharmacokinetics and biophysics equations.
+### 6. UI/UX Aesthetics, Mandatory Dual-Theme (Light/Dark) Contrast & Typography Rules
+- **Crucial Importance of Contrast**: Medical students revising for PASS/LAS undergo intensive study sessions (10–14h daily). Insufficient foreground/background contrast leads to severe eye fatigue, reading errors, and cognitive strain on small badges (UE codes, ECTS, J-Method chips) and exam questions. All text, numbers, badges, buttons, and icons MUST have sharp, unambiguous contrast against their background.
+- **Mandatory Dual-Theme (Light & Dark) Validation**:
+  - **Every single UI element, button, modal, badge, dropdown, and card MUST be styled and verified in BOTH Light Mode (`html.light`) and Dark Mode (`html.dark`)**.
+  - **Never assume a dark class automatically works in light mode**: In `index.css`, utility classes such as `bg-slate-900` or `bg-slate-950` are automatically mapped to white/light backgrounds in light mode. Leaving `text-white` without a dark prefix (or relying on unmapped dark opacities like `bg-sky-950/50`) results in invisible white-on-white text or muddy dark-on-dark buttons in light mode.
+  - **Avoid Broad Wildcard Selectors in CSS**: Never use broad attribute substring selectors (such as `html.light [class*="bg-sky-600"] span`) that unintentionally override text colors inside buttons containing dark hover states (`dark:hover:bg-sky-600`).
+- **Dynamic Text Contrast for User-Configured Background Colors**:
+  - Whenever a component renders an element with a user-chosen or dynamic background color (such as `subject.color` or `course.color`):
+    - **NEVER hardcode `text-white` or `text-black`**.
+    - **ALWAYS use the contrast routine**: Call `getContrastTextColor(backgroundColor)` or `getContrastBadgeStyle(backgroundColor)` from [`frontend/src/utils/colorUtils.ts`](file:///Users/glaforge/Projects/medj/frontend/src/utils/colorUtils.ts) (e.g. `style={{ backgroundColor: color, color: getContrastTextColor(color) }}`).
+    - **Perceptual Luminance Rule ($L > 0.48$)**:
+      - Saturated and medium-to-dark backgrounds (blues `#0284c7`, purples `#8b5cf6`, fuchsias `#ec4899`, emeralds `#10b981`, indigos, rubies, slates) automatically receive **pure white text (`#ffffff`)**.
+      - Extremely bright backgrounds (yellows `#facc15` / `#f4f740`, limes `#84cc16`, pastels, creams) automatically receive **pure black text (`#000000`)**.
+- **Standard Button & Badge Design Patterns**:
+  - **Pastel / Soft Action Buttons**: `bg-sky-100 hover:bg-sky-200 dark:bg-sky-950/60 dark:hover:bg-sky-600 text-sky-800 dark:text-sky-300 hover:text-sky-950 dark:hover:text-white border border-sky-300 dark:border-sky-500/30 font-semibold`
+  - **Neutral / Card Buttons**: `bg-white hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-800 font-bold`
+  - **Destructive Actions**: `bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/30 dark:hover:bg-rose-600 text-rose-800 dark:text-rose-400 hover:text-rose-950 dark:hover:text-white border border-rose-300 dark:border-rose-500/20`
+  - **Solid Primary Actions**: `bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white shadow-md`
+- **Modal & Math Ergonomics**:
+  - Ensure all interactive modals support keyboard dismissal via `Escape` key (`useEscapeKey`).
+  - Preserve KaTeX mathematical formula rendering for pharmacokinetics, biophysics, and chemistry equations.
+
+### 7. Java Import Standards & Prohibition of Fully Qualified Names (FQN)
+- **No Fully Qualified Names (FQN)**: Do NOT use inline FQNs in Java code declarations, parameters, return types, or instantiations (e.g., do not write `dev.langchain4j.model.chat.ChatModel` or `com.google.genai.types.Schema` in code bodies).
+- **Explicit Imports**: Always import all types, annotations, interfaces, and classes explicitly at the top of the Java file (`import ...;`).
+- **Naming Collision Exception**: The *only* exception to this rule is when two referenced types have the exact same simple class name in the same file (e.g., `com.google.genai.types.Tool` vs `dev.langchain4j.agent.tool.Tool`, or `com.google.genai.types.Content` vs another `Content`). In that case, import the primary/most frequently used class and use the FQN solely for the conflicting secondary class.
+

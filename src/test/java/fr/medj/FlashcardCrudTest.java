@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -82,7 +83,7 @@ public class FlashcardCrudTest {
         assertTrue(fav.isFavorite());
 
         // Filter favorites via controller
-        List<Flashcard> favOnly = geminiAiController.getFlashcards(null, null, java.util.Optional.of(true));
+        List<Flashcard> favOnly = geminiAiController.getFlashcards(null, null, Optional.of(true));
         assertTrue(favOnly.stream().anyMatch(f -> f.id().equals("fc-test-custom")));
 
         // Record review

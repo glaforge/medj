@@ -115,6 +115,8 @@ export interface HandwrittenScanResult {
   potentialExamTraps: string[];
   mnemonics: string[];
   generatedQcms?: QcmQuestion[];
+  illustrationUrl?: string;
+  illustrationId?: string;
   scannedAt: string;
 }
 

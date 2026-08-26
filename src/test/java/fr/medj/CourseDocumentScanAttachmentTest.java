@@ -4,6 +4,7 @@ import fr.medj.controller.CourseController;
 import fr.medj.controller.GeminiAiController;
 import fr.medj.model.Course;
 import fr.medj.model.HandwrittenScanResult;
+import fr.medj.model.MedicalIllustration;
 import fr.medj.model.QcmQuestion;
 import fr.medj.service.*;
 import io.micronaut.core.io.buffer.ReadBufferFactory;
@@ -261,5 +262,84 @@ public class CourseDocumentScanAttachmentTest {
 
         Optional<Course> nonExistent = firestoreService.getCourse("non-existent-course-999");
         assertTrue(nonExistent.isEmpty());
+    }
+
+    @Test
+    void testLinkAndUnlinkScanIllustration() {
+        String courseId = "course-ue5-07";
+        HandwrittenScanResult scan = new HandwrittenScanResult(
+            "scan-test-diag-1",
+            courseId,
+            "Anatomie du Plexus Brachial",
+            "https://storage.googleapis.com/test-bucket/scan1.png",
+            List.of("https://storage.googleapis.com/test-bucket/scan1.png"),
+            "# Résumé du plexus brachial\n\n- Troncs primaires\n- Faisceaux",
+            List.of("Tronc supérieur C5-C6", "Faisceau postérieur"),
+            List.of("Nerf radial", "Nerf médian"),
+            List.of("3 troncs", "3 faisceaux"),
+            List.of("Inversion nerf ulnaire et médian"),
+            List.of("MARMU : Médian, Axillaire, Radial, Musculocutané, Ulnaire"),
+            null,
+            null,
+            null,
+            LocalDateTime.now()
+        );
+
+        firestoreService.saveScan(scan);
+
+        // Verify initial scan has no illustration
+        Optional<HandwrittenScanResult> saved = firestoreService.getScan("scan-test-diag-1");
+        assertTrue(saved.isPresent());
+        assertNull(saved.get().illustrationUrl());
+        assertNull(saved.get().illustrationId());
+
+        // 1. Link illustration via controller PUT
+        GeminiAiController.LinkScanIllustrationRequest linkReq = new GeminiAiController.LinkScanIllustrationRequest(
+            "illus-diag-99",
+            "/api/storage/illustrations/schema_plexus_pastel.png"
+        );
+        HttpResponse<HandwrittenScanResult> putRes = geminiAiController.linkScanIllustration("scan-test-diag-1", linkReq);
+        assertEquals(200, putRes.status().getCode());
+        HandwrittenScanResult updated = putRes.body();
+        assertNotNull(updated);
+        assertEquals("illus-diag-99", updated.illustrationId());
+        assertEquals("/api/storage/illustrations/schema_plexus_pastel.png", updated.illustrationUrl());
+
+        // Verify database persistence
+        HandwrittenScanResult reloaded = firestoreService.getScan("scan-test-diag-1").orElseThrow();
+        assertEquals("illus-diag-99", reloaded.illustrationId());
+        assertEquals("/api/storage/illustrations/schema_plexus_pastel.png", reloaded.illustrationUrl());
+
+        // 2. Unlink illustration via controller DELETE
+        HttpResponse<HandwrittenScanResult> delRes = geminiAiController.unlinkScanIllustration("scan-test-diag-1");
+        assertEquals(200, delRes.status().getCode());
+        HandwrittenScanResult unlinked = delRes.body();
+        assertNotNull(unlinked);
+        assertNull(unlinked.illustrationId());
+        assertNull(unlinked.illustrationUrl());
+
+        HandwrittenScanResult reloadedUnlinked = firestoreService.getScan("scan-test-diag-1").orElseThrow();
+        assertNull(reloadedUnlinked.illustrationId());
+        assertNull(reloadedUnlinked.illustrationUrl());
+    }
+
+    @Test
+    void testHandDrawnSynthesisIllustrationGeneration() {
+        String prompt = "Crée un diagramme visuel de synthèse, dessiné à la main sur fond blanc pur, avec un peu de pastel pour réhausser les éléments important, et résumant les notes suivantes :\n\n- Anatomie du coeur\n- 4 cavités";
+        MedicalIllustration illustration = geminiMedicalService.generateMedicalIllustration(
+            "Schéma de Synthèse - Coeur",
+            prompt,
+            "course-ue5-07",
+            "Anatomie Cardiaque",
+            "UE5",
+            "CROQUIS_SYNTHETIQUE"
+        );
+
+        assertNotNull(illustration);
+        assertEquals("CROQUIS_SYNTHETIQUE", illustration.illustrationType());
+        assertNotNull(illustration.imageUrl());
+        assertFalse(illustration.imageUrl().isBlank());
+        assertNotNull(illustration.refinedVisualPrompt());
+        assertTrue(illustration.refinedVisualPrompt().toLowerCase().contains("fond blanc") || illustration.refinedVisualPrompt().toLowerCase().contains("pastel") || illustration.refinedVisualPrompt().toLowerCase().contains("synthèse"));
     }
 }

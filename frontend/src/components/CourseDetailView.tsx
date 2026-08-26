@@ -19,12 +19,14 @@ import { QcmVerificationModal } from './QcmVerificationModal';
 import { FlashcardVerificationModal } from './FlashcardVerificationModal';
 import { MedicalIllustrationModal } from './MedicalIllustrationModal';
 import { NewIllustrationModal } from './NewIllustrationModal';
+import { ScanDiagramModal } from './ScanDiagramModal';
 import { EditCourseNotesModal } from './EditCourseNotesModal';
 import { PrintFlashcardsModal } from './PrintFlashcardsModal';
 import { DeleteRevisionModal } from './DeleteRevisionModal';
 import { DeleteCourseModal } from './DeleteCourseModal';
 import { getLocalTodayString, parseDate } from '../utils/dateUtils';
 import { getContrastTextColor } from '../utils/colorUtils';
+import { printMedicalWorksheet } from '../utils/printWorksheet';
 import {
   ArrowLeft,
   Calendar,
@@ -50,6 +52,8 @@ import {
   ChevronUp,
   FileCheck,
   RotateCcw,
+  RotateCw,
+  Maximize2,
   ShieldCheck,
   Image as ImageIcon,
   Printer,
@@ -58,6 +62,7 @@ import {
   Layers,
   Star,
   Link2,
+  Wand2,
   MessageSquare
 } from 'lucide-react';
 
@@ -124,6 +129,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
   const [globalShowAnswers, setGlobalShowAnswers] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [isPrintFlashcardsModalOpen, setIsPrintFlashcardsModalOpen] = useState(false);
+  const [diagramScan, setDiagramScan] = useState<HandwrittenScanResult | null>(null);
 
   const fileUploadRef = useRef<HTMLInputElement>(null);
 
@@ -214,6 +220,68 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
       setScans(prev => prev.filter(s => s.id !== scanId));
     } catch (e) {
       console.error('Failed to delete scan', e);
+    }
+  };
+
+  const handleOpenDiagramModal = (scan: HandwrittenScanResult) => {
+    setDiagramScan(scan);
+  };
+
+  const handleScanDiagramSaved = (updatedScan: HandwrittenScanResult, illustration: MedicalIllustration) => {
+    setScans(prev => prev.map(s => s.id === updatedScan.id ? updatedScan : s));
+    setIllustrations(prev => {
+      const exists = prev.some(i => i.id === illustration.id);
+      if (exists) return prev.map(i => i.id === illustration.id ? illustration : i);
+      return [illustration, ...prev];
+    });
+    if (onShowToast) onShowToast('🎨 Diagramme de synthèse enregistré avec la fiche !');
+  };
+
+  const handleUnlinkScanIllustration = async (scanId: string) => {
+    if (!window.confirm('Voulez-vous détacher ce diagramme de synthèse de la fiche ?')) return;
+    try {
+      const updated = await api.unlinkScanIllustration(scanId);
+      setScans(prev => prev.map(s => s.id === scanId ? updated : s));
+      if (onShowToast) onShowToast('✓ Schéma détaché de la fiche');
+    } catch (err) {
+      console.error('Failed to unlink scan illustration', err);
+    }
+  };
+
+  const handlePrintScanDiagram = (scan: HandwrittenScanResult) => {
+    if (!scan.illustrationUrl) return;
+    if (scan.illustrationId) {
+      api.getIllustration(scan.illustrationId)
+        .then(illus => printMedicalWorksheet(illus, true))
+        .catch(() => {
+          printMedicalWorksheet({
+            id: scan.illustrationId || 'illus-scan',
+            courseId: scan.courseId,
+            courseTitle: scan.courseTitle,
+            ueCode: currentCourse.ueCode,
+            title: `Schéma de Synthèse : ${scan.courseTitle}`,
+            imageUrl: scan.illustrationUrl!,
+            illustrationType: 'CROQUIS_SYNTHETIQUE',
+            prompt: '',
+            refinedVisualPrompt: '',
+            legendItems: scan.keyPoints || [],
+            createdAt: scan.scannedAt,
+          }, true);
+        });
+    } else {
+      printMedicalWorksheet({
+        id: 'illus-scan',
+        courseId: scan.courseId,
+        courseTitle: scan.courseTitle,
+        ueCode: currentCourse.ueCode,
+        title: `Schéma de Synthèse : ${scan.courseTitle}`,
+        imageUrl: scan.illustrationUrl!,
+        illustrationType: 'CROQUIS_SYNTHETIQUE',
+        prompt: '',
+        refinedVisualPrompt: '',
+        legendItems: scan.keyPoints || [],
+        createdAt: scan.scannedAt,
+      }, true);
     }
   };
 
@@ -1448,6 +1516,19 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                         ) : null}
 
                         <button
+                          onClick={() => handleOpenDiagramModal(scan)}
+                          className={`px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+                            scan.illustrationUrl
+                              ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-700/50 hover:bg-purple-200 dark:hover:bg-purple-900/60'
+                              : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-purple-600/20'
+                          }`}
+                          title={scan.illustrationUrl ? 'Voir / Modifier le diagramme de synthèse' : 'Créer un diagramme de synthèse (Nano Banana Pro)'}
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>{scan.illustrationUrl ? '🎨 Schéma Visuel' : '🎨 Créer schéma'}</span>
+                        </button>
+
+                        <button
                           onClick={() => toggleScanExpanded(scan.id)}
                           className="px-3 py-1 rounded-xl bg-sky-50 dark:bg-sky-600/20 hover:bg-sky-100 dark:hover:bg-sky-600/30 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-500/30 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
                         >
@@ -1467,6 +1548,12 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
 
                     {/* Summary Quick Badges */}
                     <div className="px-4 py-2 bg-slate-50/40 dark:bg-slate-950/20 border-t border-b border-slate-200 dark:border-slate-800/50 flex items-center gap-3 overflow-x-auto text-[11px] text-slate-600 dark:text-slate-400">
+                      {scan.illustrationUrl && (
+                        <span className="flex items-center gap-1 shrink-0 font-bold text-purple-700 dark:text-purple-400">
+                          <span>🎨</span>
+                          <span>1 schéma visuel pastel</span>
+                        </span>
+                      )}
                       {scan.keyPoints && scan.keyPoints.length > 0 && (
                         <span className="flex items-center gap-1 shrink-0 font-bold text-emerald-700 dark:text-emerald-400">
                           <CheckCircle2 className="w-3 h-3" />
@@ -1490,6 +1577,102 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                     {/* Expandable Content */}
                     {isExpanded && (
                       <div className="p-5 space-y-5 bg-slate-50/60 dark:bg-slate-950/60 border-t border-slate-200 dark:border-slate-800">
+                        {/* Diagramme Visuel de Synthèse (Nano Banana Pro) */}
+                        {scan.illustrationUrl ? (
+                          <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-500/10 via-pink-500/5 to-purple-500/5 dark:from-purple-950/40 dark:via-slate-900/40 dark:to-purple-950/20 border-2 border-purple-300 dark:border-purple-800/60 space-y-3 shadow-sm">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="w-6 h-6 rounded-lg bg-purple-600 text-white flex items-center justify-center text-xs font-bold shadow-xs">
+                                  🎨
+                                </span>
+                                <div>
+                                  <h5 className="text-xs font-extrabold uppercase tracking-wider text-purple-950 dark:text-purple-200">
+                                    Diagramme Visuel de Synthèse (Nano Banana Pro)
+                                  </h5>
+                                  <p className="text-[11px] text-purple-700 dark:text-purple-400">
+                                    Dessiné à la main sur fond blanc pur avec rehauts pastels
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handlePrintScanDiagram(scan)}
+                                  className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-all border border-slate-200 dark:border-slate-700 shadow-2xs cursor-pointer"
+                                  title="Imprimer ce diagramme au format A4"
+                                >
+                                  <Printer className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                                  <span>Imprimer la planche</span>
+                                </button>
+
+                                <button
+                                  onClick={() => handleOpenDiagramModal(scan)}
+                                  className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-purple-600/20 cursor-pointer"
+                                  title="Ajuster ou régénérer le diagramme"
+                                >
+                                  <RotateCw className="w-3.5 h-3.5" />
+                                  <span>Régénérer / Ajuster</span>
+                                </button>
+
+                                <button
+                                  onClick={() => handleUnlinkScanIllustration(scan.id)}
+                                  className="p-1.5 rounded-xl text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
+                                  title="Détacher le diagramme de cette fiche"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            <div
+                              onClick={() => handleOpenDiagramModal(scan)}
+                              className="relative group rounded-xl overflow-hidden bg-white dark:bg-slate-950 border border-purple-200 dark:border-purple-800/80 cursor-pointer shadow-xs hover:border-purple-400 transition-all flex items-center justify-center max-h-[400px]"
+                              title="Cliquez pour agrandir, modifier ou imprimer"
+                            >
+                              <img
+                                src={scan.illustrationUrl}
+                                alt={`Diagramme de synthèse - ${scan.courseTitle}`}
+                                className="w-full h-auto object-contain max-h-[400px] select-none"
+                              />
+                              <div className="absolute inset-0 bg-slate-950/20 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                                <span className="px-3.5 py-1.5 rounded-full bg-white/90 dark:bg-slate-900/90 text-slate-900 dark:text-white text-xs font-extrabold shadow-lg flex items-center gap-1.5">
+                                  <Maximize2 className="w-3.5 h-3.5" />
+                                  <span>Agrandir / Modifier</span>
+                                </span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handlePrintScanDiagram(scan);
+                                  }}
+                                  className="px-3.5 py-1.5 rounded-full bg-purple-600 text-white text-xs font-extrabold shadow-lg flex items-center gap-1.5 hover:bg-purple-500 cursor-pointer"
+                                >
+                                  <Printer className="w-3.5 h-3.5" />
+                                  <span>Imprimer</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-50/60 to-pink-50/30 dark:from-purple-950/30 dark:to-slate-900/40 border border-dashed border-purple-300 dark:border-purple-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5 text-xs text-purple-950 dark:text-purple-200 font-medium">
+                              <span className="w-7 h-7 rounded-xl bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 flex items-center justify-center text-sm font-bold shrink-0">
+                                🎨
+                              </span>
+                              <div>
+                                <span className="font-bold text-purple-900 dark:text-purple-300">Schéma visuel de synthèse manquant : </span>
+                                <span>Générez un diagramme dessiné à la main avec rehauts pastels (Nano Banana Pro) résumant cette fiche.</span>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => handleOpenDiagramModal(scan)}
+                              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-bold shrink-0 shadow-md shadow-purple-600/20 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                            >
+                              <Wand2 className="w-3.5 h-3.5" />
+                              <span>🎨 Créer schéma de synthèse</span>
+                            </button>
+                          </div>
+                        )}
+
                         {/* Markdown Transcription */}
                         {scan.transcriptionMarkdown && (
                           <div className="space-y-2">
@@ -1846,6 +2029,18 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
         contextTitle={`Flashcards • [${currentCourse.ueCode}] ${currentCourse.title}`}
         onShowToast={onShowToast}
       />
+
+      {/* Scan Diagram Modal (Nano Banana Pro Hand-Drawn Synthesis) */}
+      {diagramScan && (
+        <ScanDiagramModal
+          scan={diagramScan}
+          course={currentCourse}
+          onClose={() => setDiagramScan(null)}
+          onSaved={(updatedScan, illustration) => {
+            handleScanDiagramSaved(updatedScan, illustration);
+          }}
+        />
+      )}
 
       {/* Delete Revision Modal */}
       <DeleteRevisionModal

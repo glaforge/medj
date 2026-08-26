@@ -1885,6 +1885,17 @@ public class GeminiMedicalService {
      */
     public MedicalIllustration generateMedicalIllustration(
         String title,
+        String prompt,
+        String courseId,
+        String courseTitle,
+        String ueCode,
+        String illustrationType
+    ) {
+        return generateMedicalIllustration(title, courseId, courseTitle, ueCode, illustrationType, prompt, List.of());
+    }
+
+    public MedicalIllustration generateMedicalIllustration(
+        String title,
         String courseId,
         String courseTitle,
         String ueCode,
@@ -1900,6 +1911,19 @@ public class GeminiMedicalService {
             finalLegend.addAll(legendItems);
         }
 
+        boolean isFillInTheBlank = "DESSIN_A_TROUS".equalsIgnoreCase(type);
+        boolean isHandDrawnSynthesis = "CROQUIS_SYNTHETIQUE".equalsIgnoreCase(type) ||
+            (prompt != null && (prompt.toLowerCase().contains("main") || prompt.toLowerCase().contains("pastel") || prompt.toLowerCase().contains("synthèse") || prompt.toLowerCase().contains("synthese")));
+
+        String styleGuideline = isFillInTheBlank
+            ? "Planche d'entraînement à trous : Les structures clés doivent comporter des repères numérotés clairs '(1)', '(2)', '(3)' avec des flèches nettes, SANS texte de légende écrit à côté pour permettre à l'étudiant de compléter lui-même au stylo."
+            : (isHandDrawnSynthesis
+                ? "Diagramme visuel de synthèse sketchnote médical : Dessiné à la main sur fond blanc pur (#FFFFFF), avec touches de pastel douces (bleu pastel, rose pastel, vert menthe pastel, jaune pastel) pour réhausser les éléments importants. Schéma conceptuel structuré avec encadrés clairs, flèches directrices et texte pédagogique STRICTEMENT EN FRANÇAIS."
+                : "Schéma anatomique/médical didactique de référence : Les structures anatomiques clés doivent être clairement identifiées avec des flèches et leurs annotations/légendes textuelles lisibles pointant sur chaque organe/structure (tous les libellés écrits STRICTEMENT en français).");
+
+        String defaultTitle = title != null && !title.isBlank() ? title :
+            (isFillInTheBlank ? "Planche à trous PASS" : (isHandDrawnSynthesis ? "Diagramme Visuel de Synthèse PASS" : "Schéma Anatomique PASS"));
+
         // 1. Fact-checking & Medical Grounding with Google Search (if GenAI Client available)
         String refinedVisualPrompt = prompt;
         if (genAiClient != null) {
@@ -1914,9 +1938,9 @@ public class GeminiMedicalService {
                     3. Rédige un prompt visuel extrêmement précis pour le modèle d'image '%s'.
                        Règles impératives de génération :
                        - LANGUE DU SCHÉMA : TOUS LES TEXTES, NOMS D'ORGANES, LIBELLÉS ET ANNOTATIONS SUR L'IMAGE DOIVENT ÊTRE STRICTEMENT ET INTÉGRALEMENT EN FRANÇAIS (ex: 'Oreillette droite', 'Crosse de l'aorte', 'Ventricule gauche', etc.). Aucun mot en anglais.
-                       - Style : Planche médicale pédagogique de haute précision (type atlas Netter/Sobotta épuré).
+                       - Style : %s
                        - Fond : Blanc pur (#FFFFFF).
-                       - Tracé : Lignes nettes, contrastées, couleurs anatomiques conventionnelles (artères en rouge, veines en bleu, nerfs en jaune, muscles en rose/brun).
+                       - Tracé : Lignes nettes, contrastées, couleurs anatomiques conventionnelles ou touches de pastel douces.
                        - %s
                     
                     Réponds STRICTEMENT sous format JSON :
@@ -1933,10 +1957,9 @@ public class GeminiMedicalService {
                         courseTitle != null ? courseTitle : "PASS",
                         ueCode != null ? ueCode : "UE5",
                         imageModelName,
-                        type.equals("DESSIN_A_TROUS")
-                            ? "Planche d'entraînement à trous : Les structures clés doivent comporter des repères numérotés clairs '(1)', '(2)', '(3)' avec des flèches nettes, SANS texte de légende écrit à côté pour permettre à l'étudiant de compléter lui-même au stylo."
-                            : "Schéma anatomique/médical didactique de référence : Les structures anatomiques clés doivent être clairement identifiées avec des flèches et leurs annotations/légendes textuelles lisibles pointant sur chaque organe/structure (tous les libellés écrits STRICTEMENT en français).",
-                        title != null ? title : (type.equals("DESSIN_A_TROUS") ? "Planche à trous PASS" : "Schéma Anatomique PASS")
+                        isHandDrawnSynthesis ? "Diagramme visuel de synthèse dessiné à la main sur fond blanc pur avec touches de pastel réhaussant les éléments clés" : "Planche médicale pédagogique de haute précision (type atlas Netter/Sobotta épuré)",
+                        styleGuideline,
+                        defaultTitle
                     );
 
                 GenerateContentResponse searchResponse = genAiClient.models.generateContent(
@@ -2060,11 +2083,20 @@ public class GeminiMedicalService {
         if (imageModel != null && visualPrompt != null && !visualPrompt.isBlank()) {
             try {
                 boolean isFill = "DESSIN_A_TROUS".equalsIgnoreCase(type) || (visualPrompt != null && visualPrompt.toLowerCase().contains("trou"));
-                String fullPrompt = "High quality medical textbook illustration, clear scientific diagram, clean white background. ALL TEXT LABELS, ANNOTATIONS AND CAPTIONS MUST BE STRICTLY WRITTEN IN ACCURATE FRENCH ONLY (Nomenclature anatomique officielle française): "
+                boolean isHandDrawnSynthesis = "CROQUIS_SYNTHETIQUE".equalsIgnoreCase(type) ||
+                    (visualPrompt != null && (visualPrompt.toLowerCase().contains("main") || visualPrompt.toLowerCase().contains("pastel") || visualPrompt.toLowerCase().contains("synthèse") || visualPrompt.toLowerCase().contains("synthese")));
+
+                String stylePrefix = isHandDrawnSynthesis
+                    ? "Hand-drawn visual synthesis diagram, pedagogical sketchnote on pure white background (#FFFFFF) with delicate pastel color highlights (pastel blue, pastel pink/rose, pastel green, pastel yellow) emphasizing key elements and concepts. Clean hand-drawn lines, clear structure. ALL TEXT LABELS, ANNOTATIONS AND CAPTIONS MUST BE STRICTLY WRITTEN IN ACCURATE FRENCH ONLY (Nomenclature officielle française): "
+                    : "High quality medical textbook illustration, clear scientific diagram, clean white background. ALL TEXT LABELS, ANNOTATIONS AND CAPTIONS MUST BE STRICTLY WRITTEN IN ACCURATE FRENCH ONLY (Nomenclature anatomique officielle française): ";
+
+                String fullPrompt = stylePrefix
                     + visualPrompt
                     + (isFill
                         ? ". Blank labeled callouts with circled numbers (1), (2), (3)... with arrows pointing to each structure for students to test themselves without written names."
-                        : ". Fully illustrated medical anatomical diagram with clear legible text annotations and labels in French pointing to each anatomical structure.");
+                        : (isHandDrawnSynthesis
+                            ? ". Clean hand-drawn summary diagram on pure white background with soft pastel highlights and legible annotations in French."
+                            : ". Fully illustrated medical anatomical diagram with clear legible text annotations and labels in French pointing to each anatomical structure."));
 
                 LOG.info("Calling GoogleGenAiImageModel ({}) [type={}] with prompt length: {}", imageModelName, type, fullPrompt.length());
                 Response<Image> response = imageModel.generate(fullPrompt);
@@ -2308,6 +2340,72 @@ public class GeminiMedicalService {
     private String generateMedicalSvgFallback(String prompt, String type) {
         String lower = (prompt != null ? prompt : "").toLowerCase();
         boolean isFill = "DESSIN_A_TROUS".equalsIgnoreCase(type) || lower.contains("trou") || lower.contains("numéro");
+        boolean isHandDrawnSynthesis = "CROQUIS_SYNTHETIQUE".equalsIgnoreCase(type) ||
+            lower.contains("synthèse") || lower.contains("synthese") || lower.contains("pastel") || lower.contains("dessiné à la main") || lower.contains("croquis");
+
+        if (isHandDrawnSynthesis) {
+            return """
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 650" width="100%%" height="100%%">
+                  <rect width="900" height="650" fill="#FFFFFF"/>
+                  
+                  <rect x="40" y="30" width="820" height="70" rx="16" fill="#F3E8FF" stroke="#C084FC" stroke-width="2" stroke-dasharray="6,4"/>
+                  <text x="450" y="65" font-family="'Caveat', system-ui, -apple-system, sans-serif" font-size="24" font-weight="bold" fill="#581C87" text-anchor="middle">
+                    Diagramme Visuel de Synthèse • Dessiné à la main
+                  </text>
+                  <text x="450" y="88" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#7E22CE" text-anchor="middle">
+                    Synthèse mémorielle avec réhaussement pastel (Nano Banana Pro)
+                  </text>
+                  
+                  <!-- 1. Pastel Blue Card: Notions Fondamentales -->
+                  <rect x="40" y="125" width="255" height="420" rx="16" fill="#E0F2FE" stroke="#38BDF8" stroke-width="2.5"/>
+                  <rect x="55" y="140" width="225" height="34" rx="8" fill="#BAE6FD"/>
+                  <text x="167" y="162" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="bold" fill="#0369A1" text-anchor="middle">
+                    1. Notions Clés &amp; Définitions
+                  </text>
+                  <circle cx="65" cy="205" r="8" fill="#0284C7"/>
+                  <text x="85" y="210" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="#0C4A6E">Structures &amp; Éléments</text>
+                  <rect x="65" y="225" width="205" height="85" rx="8" fill="#FFFFFF" stroke="#7DD3FC" stroke-width="1.5"/>
+                  <text x="75" y="250" font-family="system-ui, sans-serif" font-size="11" fill="#0369A1">• Relations anatomiques</text>
+                  <text x="75" y="275" font-family="system-ui, sans-serif" font-size="11" fill="#0369A1">• Polarité &amp; Orientation</text>
+                  <text x="75" y="300" font-family="system-ui, sans-serif" font-size="11" fill="#0369A1">• Organisation tissulaire</text>
+
+                  <!-- 2. Pastel Emerald Card: Mécanismes & Dynamique -->
+                  <rect x="322" y="125" width="255" height="420" rx="16" fill="#DCFCE7" stroke="#4ADE80" stroke-width="2.5"/>
+                  <rect x="337" y="140" width="225" height="34" rx="8" fill="#BBF7D0"/>
+                  <text x="449" y="162" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="bold" fill="#15803D" text-anchor="middle">
+                    2. Mécanismes d'Action
+                  </text>
+                  <circle cx="347" cy="205" r="8" fill="#16A34A"/>
+                  <text x="367" y="210" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="#14532D">Cinétique &amp; Échanges</text>
+                  <rect x="347" y="225" width="205" height="85" rx="8" fill="#FFFFFF" stroke="#86EFAC" stroke-width="1.5"/>
+                  <text x="357" y="250" font-family="system-ui, sans-serif" font-size="11" fill="#15803D">• Voies métaboliques</text>
+                  <text x="357" y="275" font-family="system-ui, sans-serif" font-size="11" fill="#15803D">• Transports membranaires</text>
+                  <text x="357" y="300" font-family="system-ui, sans-serif" font-size="11" fill="#15803D">• Régulation physiologique</text>
+
+                  <!-- 3. Pastel Rose Card: Pièges de Concours -->
+                  <rect x="605" y="125" width="255" height="420" rx="16" fill="#FFE4E6" stroke="#FB7185" stroke-width="2.5"/>
+                  <rect x="620" y="140" width="225" height="34" rx="8" fill="#FECDD3"/>
+                  <text x="732" y="162" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="bold" fill="#BE123C" text-anchor="middle">
+                    3. Pièges &amp; Constantes PASS
+                  </text>
+                  <circle cx="630" cy="205" r="8" fill="#E11D48"/>
+                  <text x="650" y="210" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="#881337">Pièges QCM Fréquents</text>
+                  <rect x="630" y="225" width="205" height="85" rx="8" fill="#FFFFFF" stroke="#FDA4AF" stroke-width="1.5"/>
+                  <text x="640" y="250" font-family="system-ui, sans-serif" font-size="11" fill="#BE123C">⚠️ Inversion des rapports</text>
+                  <text x="640" y="275" font-family="system-ui, sans-serif" font-size="11" fill="#BE123C">⚠️ Unités et ordres de grandeur</text>
+                  <text x="640" y="300" font-family="system-ui, sans-serif" font-size="11" fill="#BE123C">💡 Règle mnémotechnique</text>
+
+                  <!-- Hand-drawn connecting arrows -->
+                  <path d="M 295 267 Q 308 260 322 267" fill="none" stroke="#64748B" stroke-width="2.5" stroke-dasharray="4,3"/>
+                  <path d="M 577 267 Q 591 260 605 267" fill="none" stroke="#64748B" stroke-width="2.5" stroke-dasharray="4,3"/>
+
+                  <rect x="40" y="565" width="820" height="55" rx="12" fill="#FEF3C7" stroke="#FCD34D" stroke-width="1.5"/>
+                  <text x="450" y="598" font-family="system-ui, sans-serif" font-size="12" font-weight="bold" fill="#92400E" text-anchor="middle">
+                    💡 Mémorisation active : Re-dessinez ce schéma au stylo et surligneur pastel pour ancrer la mémoire visuelle.
+                  </text>
+                </svg>
+                """;
+        }
 
         if (lower.contains("coeur") || lower.contains("cœur") || lower.contains("cardiaque")) {
             return """

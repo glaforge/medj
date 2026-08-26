@@ -474,6 +474,24 @@ export const api = {
     if (!res.ok) throw new Error('Failed to delete scan');
   },
 
+  async linkScanIllustration(scanId: string, illustrationId: string, illustrationUrl: string): Promise<HandwrittenScanResult> {
+    const res = await authFetch(`${API_BASE}/gemini/scans/${encodeURIComponent(scanId)}/illustration`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ illustrationId, illustrationUrl }),
+    });
+    if (!res.ok) throw new Error('Failed to link illustration to scan');
+    return res.json();
+  },
+
+  async unlinkScanIllustration(scanId: string): Promise<HandwrittenScanResult> {
+    const res = await authFetch(`${API_BASE}/gemini/scans/${encodeURIComponent(scanId)}/illustration`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('Failed to unlink illustration from scan');
+    return res.json();
+  },
+
   // Medical Illustrations & Printable Fill-in-the-blank Drawings
   async getIllustrations(courseId?: string): Promise<import('../types').MedicalIllustration[]> {
     const url = courseId ? `${API_BASE}/gemini/illustrations?courseId=${encodeURIComponent(courseId)}` : `${API_BASE}/gemini/illustrations`;

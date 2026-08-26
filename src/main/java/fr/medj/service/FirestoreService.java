@@ -529,15 +529,44 @@ public class FirestoreService {
         data.put("courseId", scan.courseId());
         data.put("courseTitle", scan.courseTitle());
         data.put("imageUrl", scan.imageUrl());
+        if (scan.imageUrls() != null) data.put("imageUrls", scan.imageUrls());
         data.put("transcriptionMarkdown", scan.transcriptionMarkdown());
         data.put("keyPoints", scan.keyPoints());
         data.put("anatomicalTerms", scan.anatomicalTerms());
         data.put("keyFiguresAndValues", scan.keyFiguresAndValues());
         data.put("potentialExamTraps", scan.potentialExamTraps());
         data.put("mnemonics", scan.mnemonics());
+        if (scan.illustrationUrl() != null) data.put("illustrationUrl", scan.illustrationUrl());
+        if (scan.illustrationId() != null) data.put("illustrationId", scan.illustrationId());
         data.put("scannedAt", scan.scannedAt() != null ? scan.scannedAt().toString() : LocalDateTime.now().toString());
         asyncSave("scans", scan.id(), data);
         return scan;
+    }
+
+    public Optional<HandwrittenScanResult> updateScanIllustration(String scanId, String illustrationId, String illustrationUrl) {
+        HandwrittenScanResult existing = scans.get(scanId);
+        if (existing == null) {
+            return Optional.empty();
+        }
+        HandwrittenScanResult updated = new HandwrittenScanResult(
+            existing.id(),
+            existing.courseId(),
+            existing.courseTitle(),
+            existing.imageUrl(),
+            existing.imageUrls(),
+            existing.transcriptionMarkdown(),
+            existing.keyPoints(),
+            existing.anatomicalTerms(),
+            existing.keyFiguresAndValues(),
+            existing.potentialExamTraps(),
+            existing.mnemonics(),
+            existing.generatedQcms(),
+            illustrationUrl,
+            illustrationId,
+            existing.scannedAt()
+        );
+        saveScan(updated);
+        return Optional.of(updated);
     }
 
     public boolean deleteScan(String id) {
@@ -1028,11 +1057,17 @@ public class FirestoreService {
     private HandwrittenScanResult docToScan(DocumentSnapshot doc) {
         try {
             String scanned = doc.getString("scannedAt");
+            List<String> imageUrls = (List<String>) doc.get("imageUrls");
+            String singleImageUrl = doc.getString("imageUrl");
+            if (imageUrls == null && singleImageUrl != null && !singleImageUrl.isBlank()) {
+                imageUrls = List.of(singleImageUrl);
+            }
             return new HandwrittenScanResult(
                 doc.getString("id") != null ? doc.getString("id") : doc.getId(),
                 doc.getString("courseId"),
                 doc.getString("courseTitle"),
-                doc.getString("imageUrl"),
+                singleImageUrl,
+                imageUrls != null ? imageUrls : List.of(),
                 doc.getString("transcriptionMarkdown"),
                 (List<String>) doc.get("keyPoints") != null ? (List<String>) doc.get("keyPoints") : List.of(),
                 (List<String>) doc.get("anatomicalTerms") != null ? (List<String>) doc.get("anatomicalTerms") : List.of(),
@@ -1040,6 +1075,8 @@ public class FirestoreService {
                 (List<String>) doc.get("potentialExamTraps") != null ? (List<String>) doc.get("potentialExamTraps") : List.of(),
                 (List<String>) doc.get("mnemonics") != null ? (List<String>) doc.get("mnemonics") : List.of(),
                 List.of(),
+                doc.getString("illustrationUrl"),
+                doc.getString("illustrationId"),
                 scanned != null ? LocalDateTime.parse(scanned) : LocalDateTime.now()
             );
         } catch (Exception e) {

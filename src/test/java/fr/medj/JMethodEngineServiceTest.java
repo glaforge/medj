@@ -9,6 +9,7 @@ import jakarta.inject.Inject;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -57,13 +58,13 @@ public class JMethodEngineServiceTest {
 
         // Samedi suivant (Saturday 2026-09-12)
         Assertions.assertEquals(LocalDate.of(2026, 9, 12), sessions.get(2).scheduledDate());
-        Assertions.assertEquals(java.time.DayOfWeek.SATURDAY, sessions.get(2).scheduledDate().getDayOfWeek());
+        Assertions.assertEquals(DayOfWeek.SATURDAY, sessions.get(2).scheduledDate().getDayOfWeek());
 
         // All subsequent sessions must be Sundays up to 2026-12-31
         LocalDate lastSunday = null;
         for (int i = 3; i < sessions.size(); i++) {
             RevisionSession s = sessions.get(i);
-            Assertions.assertEquals(java.time.DayOfWeek.SUNDAY, s.scheduledDate().getDayOfWeek(), "Session " + i + " must be a Sunday");
+            Assertions.assertEquals(DayOfWeek.SUNDAY, s.scheduledDate().getDayOfWeek(), "Session " + i + " must be a Sunday");
             Assertions.assertFalse(s.scheduledDate().isAfter(LocalDate.of(2026, 12, 31)), "Sunday cannot exceed Dec 31");
             if (lastSunday != null) {
                 Assertions.assertEquals(lastSunday.plusWeeks(1), s.scheduledDate(), "Sundays must be spaced by exactly 1 week");
@@ -107,13 +108,13 @@ public class JMethodEngineServiceTest {
 
         // Samedi suivant (Saturday 2027-01-23)
         Assertions.assertEquals(LocalDate.of(2027, 1, 23), sessions.get(2).scheduledDate());
-        Assertions.assertEquals(java.time.DayOfWeek.SATURDAY, sessions.get(2).scheduledDate().getDayOfWeek());
+        Assertions.assertEquals(DayOfWeek.SATURDAY, sessions.get(2).scheduledDate().getDayOfWeek());
 
         // All subsequent sessions must be Sundays up to 2027-05-31
         LocalDate lastSunday = null;
         for (int i = 3; i < sessions.size(); i++) {
             RevisionSession s = sessions.get(i);
-            Assertions.assertEquals(java.time.DayOfWeek.SUNDAY, s.scheduledDate().getDayOfWeek());
+            Assertions.assertEquals(DayOfWeek.SUNDAY, s.scheduledDate().getDayOfWeek());
             Assertions.assertFalse(s.scheduledDate().isAfter(LocalDate.of(2027, 5, 31)), "Sunday cannot exceed May 31 for S2");
             lastSunday = s.scheduledDate();
         }
@@ -233,21 +234,21 @@ public class JMethodEngineServiceTest {
         // 3. Samedi suivant: Saturday 2026-08-29 (J5)
         Assertions.assertEquals(LocalDate.of(2026, 8, 29), sessions.get(2).scheduledDate());
         Assertions.assertEquals(5, sessions.get(2).jStep());
-        Assertions.assertEquals(java.time.DayOfWeek.SATURDAY, sessions.get(2).scheduledDate().getDayOfWeek());
+        Assertions.assertEquals(DayOfWeek.SATURDAY, sessions.get(2).scheduledDate().getDayOfWeek());
 
         // 4. Dimanches suivants jusqu'au 31 décembre 2026
         Assertions.assertEquals(LocalDate.of(2026, 8, 30), sessions.get(3).scheduledDate());
         Assertions.assertEquals(6, sessions.get(3).jStep());
-        Assertions.assertEquals(java.time.DayOfWeek.SUNDAY, sessions.get(3).scheduledDate().getDayOfWeek());
+        Assertions.assertEquals(DayOfWeek.SUNDAY, sessions.get(3).scheduledDate().getDayOfWeek());
 
         Assertions.assertEquals(LocalDate.of(2026, 9, 6), sessions.get(4).scheduledDate());
         Assertions.assertEquals(13, sessions.get(4).jStep());
-        Assertions.assertEquals(java.time.DayOfWeek.SUNDAY, sessions.get(4).scheduledDate().getDayOfWeek());
+        Assertions.assertEquals(DayOfWeek.SUNDAY, sessions.get(4).scheduledDate().getDayOfWeek());
 
         // Last session is Sunday Dec 27, 2026
         RevisionSession last = sessions.get(sessions.size() - 1);
         Assertions.assertEquals(LocalDate.of(2026, 12, 27), last.scheduledDate());
-        Assertions.assertEquals(java.time.DayOfWeek.SUNDAY, last.scheduledDate().getDayOfWeek());
+        Assertions.assertEquals(DayOfWeek.SUNDAY, last.scheduledDate().getDayOfWeek());
     }
 
     @Test

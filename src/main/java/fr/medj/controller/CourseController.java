@@ -15,6 +15,7 @@ import io.micronaut.security.rules.SecurityRule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -322,7 +323,7 @@ public class CourseController {
             else if (filename.toLowerCase().endsWith(".png")) mime = "image/png";
             else if (filename.toLowerCase().endsWith(".jpg") || filename.toLowerCase().endsWith(".jpeg")) mime = "image/jpeg";
 
-            String storageUrl = storageService.storeFile(filename, mime, new java.io.ByteArrayInputStream(bytes));
+            String storageUrl = storageService.storeFile(filename, mime, new ByteArrayInputStream(bytes));
 
             String detectedType = fileType.orElseGet(() -> {
                 if (filename.toLowerCase().endsWith(".pdf")) return "PDF";

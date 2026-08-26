@@ -2,6 +2,7 @@ package fr.medj;
 
 import fr.medj.model.AiTutorMessage;
 import fr.medj.model.GroundingSource;
+import fr.medj.model.HandwrittenScanResult;
 import fr.medj.service.FirestoreService;
 import fr.medj.service.GeminiMedicalService;
 import fr.medj.service.MedicalIllustrationTools;
@@ -9,9 +10,15 @@ import fr.medj.service.MedicalQcmTools;
 import fr.medj.service.MedicalFlashcardTools;
 import fr.medj.service.StorageService;
 import io.micronaut.serde.ObjectMapper;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -136,18 +143,18 @@ public class GroundingTutorTest {
         }
 
         // Generate a simple PDF in memory
-        org.apache.pdfbox.pdmodel.PDDocument doc = new org.apache.pdfbox.pdmodel.PDDocument();
-        org.apache.pdfbox.pdmodel.PDPage page = new org.apache.pdfbox.pdmodel.PDPage();
+        PDDocument doc = new PDDocument();
+        PDPage page = new PDPage();
         doc.addPage(page);
-        org.apache.pdfbox.pdmodel.PDPageContentStream stream = new org.apache.pdfbox.pdmodel.PDPageContentStream(doc, page);
+        PDPageContentStream stream = new PDPageContentStream(doc, page);
         stream.beginText();
-        stream.setFont(new org.apache.pdfbox.pdmodel.font.PDType1Font(org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName.HELVETICA_BOLD), 14);
+        stream.setFont(new PDType1Font(FontName.HELVETICA_BOLD), 14);
         stream.newLineAtOffset(50, 700);
         stream.showText("UE7 Sante Publique : Service Public d'Information en Sante (SPIS)");
         stream.endText();
         stream.close();
 
-        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
         doc.save(baos);
         doc.close();
         byte[] pdfBytes = baos.toByteArray();
@@ -164,7 +171,7 @@ public class GroundingTutorTest {
         service.setModelName("gemini-3.7-flash");
         service.init();
 
-        fr.medj.model.HandwrittenScanResult result = service.scanHandwrittenNotes(
+        HandwrittenScanResult result = service.scanHandwrittenNotes(
             pdfBytes,
             "application/pdf",
             "course-ue7-spis",

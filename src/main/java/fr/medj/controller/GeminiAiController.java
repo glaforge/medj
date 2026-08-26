@@ -3,6 +3,7 @@ package fr.medj.controller;
 import fr.medj.model.*;
 import fr.medj.service.FirestoreService;
 import fr.medj.service.GeminiMedicalService;
+import fr.medj.service.StorageService;
 import io.micronaut.core.annotation.Nullable;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MediaType;
@@ -11,13 +12,19 @@ import io.micronaut.http.multipart.CompletedFileUpload;
 import io.micronaut.security.annotation.Secured;
 import io.micronaut.security.rules.SecurityRule;
 import io.micronaut.serde.annotation.Serdeable;
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 @Secured(SecurityRule.IS_ANONYMOUS)
 @Controller("/api/gemini")
@@ -26,12 +33,12 @@ public class GeminiAiController {
 
     private final GeminiMedicalService geminiMedicalService;
     private final FirestoreService firestoreService;
-    private final fr.medj.service.StorageService storageService;
+    private final StorageService storageService;
 
     public GeminiAiController(
         GeminiMedicalService geminiMedicalService,
         FirestoreService firestoreService,
-        fr.medj.service.StorageService storageService
+        StorageService storageService
     ) {
         this.geminiMedicalService = geminiMedicalService;
         this.firestoreService = firestoreService;
@@ -64,27 +71,99 @@ public class GeminiAiController {
         return HttpResponse.ok(qcms);
     }
 
+    private static <T> CompletableFuture<List<T>> collectPublisher(Publisher<T> publisher) {
+        if (publisher == null) {
+            return CompletableFuture.completedFuture(Collections.emptyList());
+        }
+        CompletableFuture<List<T>> future = new CompletableFuture<>();
+        List<T> list = new CopyOnWriteArrayList<>();
+        publisher.subscribe(new Subscriber<T>() {
+            @Override
+            public void onSubscribe(Subscription s) {
+                s.request(Long.MAX_VALUE);
+            }
+
+            @Override
+            public void onNext(T item) {
+                if (item != null) {
+                    list.add(item);
+                }
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                future.completeExceptionally(t);
+            }
+
+            @Override
+            public void onComplete() {
+                future.complete(list);
+            }
+        });
+        return future;
+    }
+
     @Post(value = "/scan-annale", consumes = MediaType.MULTIPART_FORM_DATA)
-    public HttpResponse<List<QcmQuestion>> scanAnnale(
-        @Nullable CompletedFileUpload file,
-        @Nullable List<CompletedFileUpload> files,
+    public CompletableFuture<HttpResponse<List<QcmQuestion>>> scanAnnale(
+        @Nullable Publisher<CompletedFileUpload> files,
+        @Nullable Publisher<CompletedFileUpload> file,
         @QueryValue Optional<String> courseId,
         @QueryValue Optional<String> courseTitle,
         @QueryValue Optional<String> ueCode
     ) {
-        try {
+        CompletableFuture<List<CompletedFileUpload>> filesFuture = collectPublisher(files);
+        CompletableFuture<List<CompletedFileUpload>> fileFuture = collectPublisher(file);
+
+        return filesFuture.thenCombine(fileFuture, (fList, singleList) -> {
             List<CompletedFileUpload> allUploads = new ArrayList<>();
-            if (files != null && !files.isEmpty()) {
-                allUploads.addAll(files);
-            }
-            if (file != null && !allUploads.contains(file)) {
-                allUploads.add(file);
+            if (fList != null && !fList.isEmpty()) {
+                allUploads.addAll(fList);
+            } else if (singleList != null && !singleList.isEmpty()) {
+                allUploads.addAll(singleList);
             }
 
             if (allUploads.isEmpty()) {
                 return HttpResponse.badRequest();
             }
 
+            return processAnnaleUploads(allUploads, courseId, courseTitle, ueCode);
+        });
+    }
+
+    @Post(value = "/scan-handwritten", consumes = MediaType.MULTIPART_FORM_DATA)
+    public CompletableFuture<HttpResponse<HandwrittenScanResult>> scanHandwritten(
+        @Nullable Publisher<CompletedFileUpload> files,
+        @Nullable Publisher<CompletedFileUpload> file,
+        @QueryValue Optional<String> courseId,
+        @QueryValue Optional<String> courseTitle,
+        @QueryValue Optional<String> ueCode
+    ) {
+        CompletableFuture<List<CompletedFileUpload>> filesFuture = collectPublisher(files);
+        CompletableFuture<List<CompletedFileUpload>> fileFuture = collectPublisher(file);
+
+        return filesFuture.thenCombine(fileFuture, (fList, singleList) -> {
+            List<CompletedFileUpload> allUploads = new ArrayList<>();
+            if (fList != null && !fList.isEmpty()) {
+                allUploads.addAll(fList);
+            } else if (singleList != null && !singleList.isEmpty()) {
+                allUploads.addAll(singleList);
+            }
+
+            if (allUploads.isEmpty()) {
+                return HttpResponse.badRequest();
+            }
+
+            return processHandwrittenUploads(allUploads, courseId, courseTitle, ueCode);
+        });
+    }
+
+    private HttpResponse<List<QcmQuestion>> processAnnaleUploads(
+        List<CompletedFileUpload> allUploads,
+        Optional<String> courseId,
+        Optional<String> courseTitle,
+        Optional<String> ueCode
+    ) {
+        try {
             List<byte[]> fileBytesList = new ArrayList<>();
             List<String> mimeTypes = new ArrayList<>();
             List<String> storageUrls = new ArrayList<>();
@@ -96,7 +175,7 @@ public class GeminiAiController {
                 String filename = (upload.getFilename() != null && !upload.getFilename().isBlank())
                     ? upload.getFilename()
                     : ("scan_annale_page_" + (fileBytesList.size() + 1) + ".pdf");
-                String storageUrl = storageService.storeFile(filename, mimeType, new java.io.ByteArrayInputStream(bytes));
+                String storageUrl = storageService.storeFile(filename, mimeType, new ByteArrayInputStream(bytes));
 
                 fileBytesList.add(bytes);
                 mimeTypes.add(mimeType);
@@ -154,27 +233,13 @@ public class GeminiAiController {
         }
     }
 
-    @Post(value = "/scan-handwritten", consumes = MediaType.MULTIPART_FORM_DATA)
-    public HttpResponse<HandwrittenScanResult> scanHandwritten(
-        @Nullable CompletedFileUpload file,
-        @Nullable List<CompletedFileUpload> files,
-        @QueryValue Optional<String> courseId,
-        @QueryValue Optional<String> courseTitle,
-        @QueryValue Optional<String> ueCode
+    private HttpResponse<HandwrittenScanResult> processHandwrittenUploads(
+        List<CompletedFileUpload> allUploads,
+        Optional<String> courseId,
+        Optional<String> courseTitle,
+        Optional<String> ueCode
     ) {
         try {
-            List<CompletedFileUpload> allUploads = new ArrayList<>();
-            if (files != null && !files.isEmpty()) {
-                allUploads.addAll(files);
-            }
-            if (file != null && !allUploads.contains(file)) {
-                allUploads.add(file);
-            }
-
-            if (allUploads.isEmpty()) {
-                return HttpResponse.badRequest();
-            }
-
             List<byte[]> fileBytesList = new ArrayList<>();
             List<String> mimeTypes = new ArrayList<>();
             List<String> storageUrls = new ArrayList<>();
@@ -186,7 +251,7 @@ public class GeminiAiController {
                 String filename = (upload.getFilename() != null && !upload.getFilename().isBlank())
                     ? upload.getFilename()
                     : ("fiche_scan_page_" + (fileBytesList.size() + 1) + ".png");
-                String storageUrl = storageService.storeFile(filename, mimeType, new java.io.ByteArrayInputStream(bytes));
+                String storageUrl = storageService.storeFile(filename, mimeType, new ByteArrayInputStream(bytes));
 
                 fileBytesList.add(bytes);
                 mimeTypes.add(mimeType);
@@ -259,9 +324,9 @@ public class GeminiAiController {
                 return HttpResponse.ok(withUrl);
             }
 
-            return HttpResponse.ok(result);
+            return HttpResponse.serverError();
         } catch (IOException e) {
-            LOG.error("Failed to read file for handwritten scan: {}", e.getMessage(), e);
+            LOG.error("Failed to read handwritten note scan file: {}", e.getMessage(), e);
             return HttpResponse.serverError();
         }
     }
@@ -272,7 +337,23 @@ public class GeminiAiController {
         Optional<String> courseTitle,
         Optional<String> ueCode
     ) {
-        return scanAnnale(file, null, courseId, courseTitle, ueCode);
+        return processAnnaleUploads(file != null ? List.of(file) : List.of(), courseId, courseTitle, ueCode);
+    }
+
+    public HttpResponse<List<QcmQuestion>> scanAnnale(
+        CompletedFileUpload file,
+        List<CompletedFileUpload> files,
+        Optional<String> courseId,
+        Optional<String> courseTitle,
+        Optional<String> ueCode
+    ) {
+        List<CompletedFileUpload> all = new ArrayList<>();
+        if (files != null && !files.isEmpty()) {
+            all.addAll(files);
+        } else if (file != null) {
+            all.add(file);
+        }
+        return processAnnaleUploads(all, courseId, courseTitle, ueCode);
     }
 
     public HttpResponse<HandwrittenScanResult> scanHandwritten(
@@ -281,7 +362,23 @@ public class GeminiAiController {
         Optional<String> courseTitle,
         Optional<String> ueCode
     ) {
-        return scanHandwritten(file, null, courseId, courseTitle, ueCode);
+        return processHandwrittenUploads(file != null ? List.of(file) : List.of(), courseId, courseTitle, ueCode);
+    }
+
+    public HttpResponse<HandwrittenScanResult> scanHandwritten(
+        CompletedFileUpload file,
+        List<CompletedFileUpload> files,
+        Optional<String> courseId,
+        Optional<String> courseTitle,
+        Optional<String> ueCode
+    ) {
+        List<CompletedFileUpload> all = new ArrayList<>();
+        if (files != null && !files.isEmpty()) {
+            all.addAll(files);
+        } else if (file != null) {
+            all.add(file);
+        }
+        return processHandwrittenUploads(all, courseId, courseTitle, ueCode);
     }
 
     private static String detectMimeType(CompletedFileUpload file, byte[] bytes) {
@@ -635,6 +732,32 @@ public class GeminiAiController {
             return HttpResponse.noContent();
         }
         return HttpResponse.notFound();
+    }
+
+    @Serdeable
+    public record LinkScanIllustrationRequest(
+        String illustrationId,
+        String illustrationUrl
+    ) {}
+
+    @Put("/scans/{id}/illustration")
+    public HttpResponse<HandwrittenScanResult> linkScanIllustration(
+        @PathVariable String id,
+        @Body LinkScanIllustrationRequest request
+    ) {
+        if (request == null || request.illustrationUrl() == null || request.illustrationUrl().isBlank()) {
+            return HttpResponse.badRequest();
+        }
+        return firestoreService.updateScanIllustration(id, request.illustrationId(), request.illustrationUrl())
+            .map(HttpResponse::ok)
+            .orElseGet(HttpResponse::notFound);
+    }
+
+    @Delete("/scans/{id}/illustration")
+    public HttpResponse<HandwrittenScanResult> unlinkScanIllustration(@PathVariable String id) {
+        return firestoreService.updateScanIllustration(id, null, null)
+            .map(HttpResponse::ok)
+            .orElseGet(HttpResponse::notFound);
     }
 
     // --- Medical Illustrations & Fill-in-the-Blank Drawings ---

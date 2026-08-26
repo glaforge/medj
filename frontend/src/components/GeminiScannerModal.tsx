@@ -5,6 +5,8 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { FullscreenImageViewer } from './FullscreenImageViewer';
 import { CourseCombobox } from './CourseCombobox';
+import { ScanDiagramModal } from './ScanDiagramModal';
+import { printMedicalWorksheet } from '../utils/printWorksheet';
 import { getLocalTodayString } from '../utils/dateUtils';
 import {
   Camera,
@@ -23,7 +25,11 @@ import {
   ArrowRight,
   Trash2,
   ZoomIn,
-  Plus
+  Plus,
+  Printer,
+  Wand2,
+  RotateCw,
+  Maximize2
 } from 'lucide-react';
 
 interface GeminiScannerModalProps {
@@ -65,7 +71,8 @@ export const GeminiScannerModal: React.FC<GeminiScannerModalProps> = ({
   const [scanResult, setScanResult] = useState<HandwrittenScanResult | null>(null);
   const [annaleQcms, setAnnaleQcms] = useState<QcmQuestion[]>([]);
   const [showAnnaleAnswers, setShowAnnaleAnswers] = useState(false);
-  const [activeTab, setActiveTab] = useState<'transcription' | 'keyPoints' | 'traps' | 'qcms'>('qcms');
+  const [activeTab, setActiveTab] = useState<'transcription' | 'keyPoints' | 'traps' | 'diagram' | 'qcms'>('qcms');
+  const [isDiagramModalOpen, setIsDiagramModalOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -75,6 +82,8 @@ export const GeminiScannerModal: React.FC<GeminiScannerModalProps> = ({
       setTargetCourseId(selectedCourseForScan.id);
     }
   }, [selectedCourseForScan, isOpen]);
+
+  const targetCourse = courses.find(c => c.id === targetCourseId) || selectedCourseForScan;
 
   // Clean up Object URLs when unmounting or closing
   useEffect(() => {
@@ -551,17 +560,26 @@ export const GeminiScannerModal: React.FC<GeminiScannerModalProps> = ({
             <div className="space-y-4 animate-fadeIn">
               
               {/* Success Banner */}
-              <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-500/40 text-emerald-900 dark:text-emerald-200 text-xs font-bold flex items-center justify-between gap-2 shadow-2xs">
+              <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-500/40 text-emerald-900 dark:text-emerald-200 text-xs font-bold flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span>
                     Fiche manuscrite ({pages.length > 0 ? `${pages.length} page${pages.length > 1 ? 's' : ''}` : 'numérisée'}) synthétisée et enregistrée avec succès !
                   </span>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsDiagramModalOpen(true)}
+                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-bold shadow-md shadow-purple-600/20 flex items-center gap-1.5 cursor-pointer shrink-0 transition-all active:scale-95"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{scanResult.illustrationUrl ? '🎨 Schéma Visuel' : '🎨 Créer schéma de synthèse'}</span>
+                </button>
               </div>
 
               {/* Tabs */}
-              <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+              <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 flex-wrap">
                 <button
                   onClick={() => setActiveTab('transcription')}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
@@ -594,7 +612,86 @@ export const GeminiScannerModal: React.FC<GeminiScannerModalProps> = ({
                 >
                   Pièges & Mnémotechniques
                 </button>
+
+                {scanResult.illustrationUrl && (
+                  <button
+                    onClick={() => setActiveTab('diagram')}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeTab === 'diagram'
+                        ? 'bg-purple-600 text-white shadow-xs'
+                        : 'text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40'
+                    }`}
+                  >
+                    <span>🎨 Schéma Visuel Pastel</span>
+                  </button>
+                )}
               </div>
+
+              {/* Tab: Diagramme Visuel de Synthèse */}
+              {activeTab === 'diagram' && scanResult.illustrationUrl && (
+                <div className="p-4 rounded-2xl bg-white dark:bg-slate-950 border border-purple-200 dark:border-purple-800/60 space-y-3 shadow-inner">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h4 className="text-xs font-extrabold text-purple-950 dark:text-purple-200 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>🎨</span>
+                        <span>Schéma de Synthèse (Nano Banana Pro)</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">Dessiné à la main sur fond blanc pur avec rehauts pastels</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (scanResult.illustrationUrl) {
+                            printMedicalWorksheet({
+                              id: scanResult.illustrationId || 'illus-scan',
+                              courseId: scanResult.courseId,
+                              courseTitle: scanResult.courseTitle,
+                              ueCode: targetCourse?.ueCode || 'PASS',
+                              title: `Schéma de Synthèse : ${scanResult.courseTitle}`,
+                              imageUrl: scanResult.illustrationUrl,
+                              illustrationType: 'CROQUIS_SYNTHETIQUE',
+                              prompt: '',
+                              refinedVisualPrompt: '',
+                              legendItems: scanResult.keyPoints || [],
+                              createdAt: scanResult.scannedAt,
+                            }, true);
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                        <span>Imprimer</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsDiagramModalOpen(true)}
+                        className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <RotateCw className="w-3.5 h-3.5" />
+                        <span>Régénérer / Ajuster</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div
+                    onClick={() => setIsDiagramModalOpen(true)}
+                    className="cursor-pointer rounded-xl overflow-hidden border border-purple-200 dark:border-purple-800 flex items-center justify-center max-h-80 bg-white dark:bg-slate-900 group relative"
+                    title="Cliquez pour agrandir ou régénérer"
+                  >
+                    <img
+                      src={scanResult.illustrationUrl}
+                      alt={scanResult.courseTitle}
+                      className="w-full h-auto object-contain max-h-80"
+                    />
+                    <div className="absolute inset-0 bg-slate-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <span className="px-3 py-1.5 rounded-full bg-white/90 dark:bg-slate-900/90 text-slate-900 dark:text-white text-xs font-bold shadow-md flex items-center gap-1.5">
+                        <Maximize2 className="w-3.5 h-3.5" />
+                        <span>Agrandir / Modifier</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Tab 1: Transcription */}
               {activeTab === 'transcription' && (
@@ -830,6 +927,18 @@ export const GeminiScannerModal: React.FC<GeminiScannerModalProps> = ({
           title={fullscreenPreview.title}
           subtitle={fullscreenPreview.subtitle}
           onClose={() => setFullscreenPreview(null)}
+        />
+      )}
+
+      {isDiagramModalOpen && scanResult && (
+        <ScanDiagramModal
+          scan={scanResult}
+          course={targetCourse}
+          onClose={() => setIsDiagramModalOpen(false)}
+          onSaved={(updatedScan) => {
+            setScanResult(updatedScan);
+            if (onScanSaved) onScanSaved();
+          }}
         />
       )}
     </div>
