@@ -266,16 +266,21 @@ public class CourseController {
 
         firestoreService.saveCourse(updated);
 
-        // Propagate UE color/code change to existing revision sessions if needed
-        if (ueColor != null && !ueColor.equalsIgnoreCase(current.color())) {
+        // Propagate UE color/code and course title change to existing revision sessions if needed
+        boolean titleChanged = courseInput.title() != null && !courseInput.title().equals(current.title());
+        boolean ueChanged = !targetUeId.equalsIgnoreCase(current.ueId()) || (ueCode != null && !ueCode.equalsIgnoreCase(current.ueCode()));
+        boolean colorChanged = ueColor != null && !ueColor.equalsIgnoreCase(current.color());
+
+        if (titleChanged || ueChanged || colorChanged) {
+            String newTitle = courseInput.title() != null ? courseInput.title() : current.title();
             for (RevisionSession s : firestoreService.getRevisionsForCourse(id)) {
                 RevisionSession updatedSession = new RevisionSession(
                     s.id(),
                     s.courseId(),
-                    s.courseTitle(),
-                    s.ueId(),
-                    s.ueCode(),
-                    ueColor,
+                    newTitle,
+                    targetUeId,
+                    ueCode != null ? ueCode : s.ueCode(),
+                    ueColor != null ? ueColor : s.ueColor(),
                     s.jStep(),
                     s.scheduledDate(),
                     s.completedDate(),

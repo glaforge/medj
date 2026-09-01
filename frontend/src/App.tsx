@@ -25,26 +25,64 @@ import { AiTutorChat } from './components/AiTutorChat';
 import { QcmTrainerModal } from './components/QcmTrainerModal';
 import { GeminiScannerModal } from './components/GeminiScannerModal';
 import { NewCourseModal } from './components/NewCourseModal';
+import { EditCourseModal } from './components/EditCourseModal';
 import { MedicalIllustrationModal } from './components/MedicalIllustrationModal';
 import { getLocalTodayString } from './utils/dateUtils';
 import { AddRevisionModal } from './components/AddRevisionModal';
 import { SettingsModal } from './components/SettingsModal';
+import { ColdStartLoader } from './components/ColdStartLoader';
 import { useAuth } from './context/AuthContext';
 import { LoginView } from './components/LoginView';
 
 export const App: React.FC = () => {
   const { user, loading } = useAuth();
   const [currentTab, setCurrentTab] = useState<'dashboard' | 'calendar' | 'courses' | 'qcms' | 'flashcards' | 'tutor' | 'scans'>('dashboard');
-  const [subjects, setSubjects] = useState<SubjectUE[]>([]);
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [revisions, setRevisions] = useState<RevisionSession[]>([]);
-  const [todaySummary, setTodaySummary] = useState<TodaySummary>({
-    todayDate: getLocalTodayString(),
-    dueToday: [],
-    overdue: [],
-    completedToday: [],
-    totalDueCount: 0,
-    completedCount: 0,
+  const [subjects, setSubjects] = useState<SubjectUE[]>(() => {
+    try {
+      const cached = localStorage.getItem('medj_subjects_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [courses, setCourses] = useState<Course[]>(() => {
+    try {
+      const cached = localStorage.getItem('medj_courses_cache');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [revisions, setRevisions] = useState<RevisionSession[]>(() => {
+    try {
+      const cached = localStorage.getItem('medj_all_revisions');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [todaySummary, setTodaySummary] = useState<TodaySummary>(() => {
+    try {
+      const cached = localStorage.getItem('medj_today_summary');
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return {
+      todayDate: getLocalTodayString(),
+      dueToday: [],
+      overdue: [],
+      completedToday: [],
+      totalDueCount: 0,
+      completedCount: 0,
+    };
+  });
+  const [isInitialDataLoading, setIsInitialDataLoading] = useState<boolean>(() => {
+    try {
+      const cachedCourses = localStorage.getItem('medj_courses_cache');
+      const cachedSubjects = localStorage.getItem('medj_subjects_cache');
+      return !(cachedCourses && cachedSubjects && JSON.parse(cachedCourses).length > 0);
+    } catch {
+      return true;
+    }
   });
 
   // Modal and view states
@@ -58,6 +96,8 @@ export const App: React.FC = () => {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isNewCourseOpen, setIsNewCourseOpen] = useState(false);
   const [newCourseInitialUeId, setNewCourseInitialUeId] = useState<string | undefined>(undefined);
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  const [isEditCourseOpen, setIsEditCourseOpen] = useState(false);
   const [isAddRevisionOpen, setIsAddRevisionOpen] = useState(false);
   const [addRevisionInitialDate, setAddRevisionInitialDate] = useState<string | undefined>(undefined);
   const [addRevisionInitialCourseId, setAddRevisionInitialCourseId] = useState<string | undefined>(undefined);
@@ -229,6 +269,8 @@ export const App: React.FC = () => {
       applyRoute(window.location.pathname, courseData);
     } catch (e) {
       console.error('Failed to load initial data', e);
+    } finally {
+      setIsInitialDataLoading(false);
     }
   };
 
@@ -461,13 +503,8 @@ export const App: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center">
-        <div className="w-10 h-10 border-4 border-sky-500 border-t-transparent rounded-full animate-spin mb-4" />
-        <span className="text-sm font-semibold text-slate-600 dark:text-slate-400">Chargement de MedJ...</span>
-      </div>
-    );
+  if (loading || (user && isInitialDataLoading)) {
+    return <ColdStartLoader onRetry={() => loadAllData()} />;
   }
 
   if (!user) {
@@ -552,8 +589,12 @@ export const App: React.FC = () => {
             revisionUpdateTrigger={revisionUpdateTrigger}
             onCourseUpdated={(updated) => {
               setSelectedCourseForDetail(updated);
-              showToast('✓ Couleur du cours mise à jour partout !');
+              showToast('✓ Fiche du cours mise à jour partout !');
               loadAllData();
+            }}
+            onOpenEditCourseModal={(c) => {
+              setEditingCourse(c);
+              setIsEditCourseOpen(true);
             }}
             onOpenAddRevisionModal={handleOpenAddRevision}
             onOpenEditQcmModal={(qcm, cId) => {
@@ -618,6 +659,10 @@ export const App: React.FC = () => {
                 onOpenNewCourseModal={(ueId) => {
                   setNewCourseInitialUeId(ueId);
                   setIsNewCourseOpen(true);
+                }}
+                onOpenEditCourseModal={(c) => {
+                  setEditingCourse(c);
+                  setIsEditCourseOpen(true);
                 }}
                 onDeleteCourse={async (id) => {
                   try {
@@ -745,6 +790,24 @@ export const App: React.FC = () => {
         initialUeId={newCourseInitialUeId}
         onCourseCreated={(c) => {
           showToast(`✓ Cours « ${c.title} » créé à J0 !`);
+          setRevisionUpdateTrigger(prev => prev + 1);
+          loadAllData();
+        }}
+      />
+
+      <EditCourseModal
+        isOpen={isEditCourseOpen}
+        onClose={() => {
+          setIsEditCourseOpen(false);
+          setEditingCourse(null);
+        }}
+        course={editingCourse}
+        subjects={subjects}
+        onCourseSaved={(saved) => {
+          showToast(`✓ Fiche du cours « ${saved.title} » mise à jour avec succès !`);
+          if (selectedCourseForDetail && selectedCourseForDetail.id === saved.id) {
+            setSelectedCourseForDetail(saved);
+          }
           setRevisionUpdateTrigger(prev => prev + 1);
           loadAllData();
         }}

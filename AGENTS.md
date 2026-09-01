@@ -259,6 +259,7 @@ medj/
 │   │           └── paris-cite-curriculum.json # Externalized JSON PASS dataset (186 courses, QCMs, Flashcards, 9 UEs)
 │   └── test/
 │       ├── java/fr/medj/
+│       │   ├── CourseCrudTest.java          # Course creation, difficulty editing & revision propagation tests
 │       │   ├── CourseDocumentScanAttachmentTest.java # PDF upload & course document attachment tests
 │       │   ├── FlashcardCrudTest.java       # Flashcard creation, review ratings & filtering tests
 │       │   ├── FlashcardVerificationTest.java # Flashcard LLM-as-Judge verification tests
@@ -311,6 +312,7 @@ medj/
             ├── MedicalIllustrationModal.tsx # Diagram viewer with maskable legend & zoom
             ├── NewIllustrationModal.tsx     # Direct diagram prompt generation modal
             ├── NewCourseModal.tsx           # New course creation modal with J0 scheduling & on-the-fly UE
+            ├── EditCourseModal.tsx          # Full course sheet editor (title, UE, professor, difficulty 1-5, tags, notes)
             ├── EditQcmModal.tsx             # QCM editor with 5-item A-E validator
             ├── EditSubjectModal.tsx         # Subject UE customization modal
             ├── EditCourseNotesModal.tsx     # Course markdown summary & notes editor

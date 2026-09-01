@@ -26,6 +26,7 @@ interface CourseListViewProps {
   subjects: SubjectUE[];
   onSelectCourse: (course: Course) => void;
   onOpenNewCourseModal: (initialUeId?: string) => void;
+  onOpenEditCourseModal?: (course: Course) => void;
   onDeleteCourse: (courseId: string) => void;
   onOpenEditSubjectModal?: (subject?: SubjectUE) => void;
   onDeleteSubject?: (subjectId: string) => void;
@@ -36,6 +37,7 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
   subjects,
   onSelectCourse,
   onOpenNewCourseModal,
+  onOpenEditCourseModal,
   onDeleteCourse,
   onOpenEditSubjectModal,
   onDeleteSubject
@@ -484,6 +486,19 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                       </div>
 
                       <div className="flex items-center gap-2">
+                        {onOpenEditCourseModal && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenEditCourseModal(course);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-sky-950/40 transition-colors cursor-pointer"
+                            title="Modifier la fiche et la difficulté de ce cours"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={(e) => {

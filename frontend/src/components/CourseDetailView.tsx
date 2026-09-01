@@ -21,6 +21,7 @@ import { MedicalIllustrationModal } from './MedicalIllustrationModal';
 import { NewIllustrationModal } from './NewIllustrationModal';
 import { ScanDiagramModal } from './ScanDiagramModal';
 import { EditCourseNotesModal } from './EditCourseNotesModal';
+import { EditCourseModal } from './EditCourseModal';
 import { PrintFlashcardsModal } from './PrintFlashcardsModal';
 import { DeleteRevisionModal } from './DeleteRevisionModal';
 import { DeleteCourseModal } from './DeleteCourseModal';
@@ -79,6 +80,7 @@ interface CourseDetailViewProps {
   onUncompleteRevision?: (sessionId: string) => void;
   onDeleteCourse?: (courseId: string) => Promise<void> | void;
   onCourseUpdated?: (course: Course) => void;
+  onOpenEditCourseModal?: (course: Course) => void;
   onOpenAddRevisionModal?: (initialDate?: string, courseId?: string) => void;
   onOpenEditQcmModal?: (qcm?: QcmQuestion, courseId?: string) => void;
   onOpenEditFlashcardModal?: (flashcard?: Flashcard, defaultCourseId?: string) => void;
@@ -100,6 +102,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
   onUncompleteRevision,
   onDeleteCourse,
   onCourseUpdated,
+  onOpenEditCourseModal,
   onOpenAddRevisionModal,
   onOpenEditQcmModal,
   onOpenEditFlashcardModal,
@@ -122,6 +125,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
   const [selectedIllustration, setSelectedIllustration] = useState<MedicalIllustration | null>(null);
   const [isNewIllustrationModalOpen, setIsNewIllustrationModalOpen] = useState(false);
   const [isEditNotesOpen, setIsEditNotesOpen] = useState(false);
+  const [isEditCourseModalOpen, setIsEditCourseModalOpen] = useState(false);
   const [isGeneratingQcm, setIsGeneratingQcm] = useState(false);
   const [qcmGenerationSuccess, setQcmGenerationSuccess] = useState(false);
   const [expandedQcmIds, setExpandedQcmIds] = useState<Set<string>>(new Set());
@@ -541,6 +545,21 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
 
         <div className="flex items-center gap-2">
           <button
+            type="button"
+            onClick={() => {
+              if (onOpenEditCourseModal) {
+                onOpenEditCourseModal(currentCourse);
+              } else {
+                setIsEditCourseModalOpen(true);
+              }
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-sky-400 hover:text-sky-300 border border-sky-500/30 text-xs font-semibold transition-all cursor-pointer shadow-xs"
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+            <span>Modifier la fiche</span>
+          </button>
+
+          <button
             onClick={() => onOpenAiTutor(course)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-sky-950/40 transition-all cursor-pointer"
           >
@@ -569,27 +588,49 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                 className="px-2.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider shadow-sm"
                 style={{ backgroundColor: currentColor, color: getContrastTextColor(currentColor) }}
               >
-                {course.ueCode || subject?.code || 'UE'} • {subject?.name || 'Matière'}
+                {currentCourse.ueCode || subject?.code || 'UE'} • {subject?.name || 'Matière'}
               </span>
 
               <span className="text-xs text-slate-400">
-                Cours du {course.taughtDate} (J0)
+                Cours du {currentCourse.taughtDate} (J0)
               </span>
+
+              {/* Difficulty rating badge */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (onOpenEditCourseModal) {
+                    onOpenEditCourseModal(currentCourse);
+                  } else {
+                    setIsEditCourseModalOpen(true);
+                  }
+                }}
+                title="Cliquer pour modifier la difficulté et les détails du cours"
+                className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold transition-all cursor-pointer group"
+              >
+                <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                <span>Difficulté :</span>
+                <span className="text-amber-400 tracking-wider">
+                  {'★'.repeat(currentCourse.difficulty || 3)}{'☆'.repeat(5 - (currentCourse.difficulty || 3))}
+                </span>
+                <span className="text-slate-400 font-medium">({currentCourse.difficulty || 3}/5)</span>
+                <Edit3 className="w-3 h-3 ml-0.5 text-amber-400/60 group-hover:text-amber-300 transition-colors" />
+              </button>
             </div>
 
             <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-              {course.title}
+              {currentCourse.title}
             </h1>
 
-            {course.professor && (
+            {currentCourse.professor && (
               <p className="text-xs text-slate-400">
-                Enseignant : <span className="text-slate-300 font-medium">{course.professor}</span>
+                Enseignant : <span className="text-slate-300 font-medium">{currentCourse.professor}</span>
               </p>
             )}
 
-            {course.tags && (
+            {currentCourse.tags && currentCourse.tags.length > 0 && (
               <div className="flex flex-wrap gap-1 pt-1">
-                {course.tags.map((t, idx) => (
+                {currentCourse.tags.map((t, idx) => (
                   <span key={idx} className="px-2 py-0.5 rounded bg-slate-900 text-slate-400 text-[10px] border border-slate-800 font-medium">
                     #{t}
                   </span>
@@ -1988,6 +2029,20 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
         onNotesSaved={(updated) => {
           setCurrentCourse(updated);
           if (onCourseUpdated) onCourseUpdated(updated);
+        }}
+      />
+
+      {/* Edit Course General Details & Difficulty Modal */}
+      <EditCourseModal
+        isOpen={isEditCourseModalOpen}
+        onClose={() => setIsEditCourseModalOpen(false)}
+        course={currentCourse}
+        subjects={subjects}
+        onCourseSaved={(updated) => {
+          setCurrentCourse(updated);
+          if (onCourseUpdated) onCourseUpdated(updated);
+          loadCourseData();
+          if (onShowToast) onShowToast(`✓ Fiche du cours « ${updated.title} » modifiée avec succès !`);
         }}
       />
 
