@@ -44,7 +44,7 @@ public class GeminiMedicalService {
     @Value("${medj.gemini.api-key:}")
     private String apiKey;
 
-    @Value("${medj.gemini.model:gemini-3.7-flash}")
+    @Value("${medj.gemini.model:gemini-3.8-flash}")
     private String modelName;
 
     @Value("${medj.gemini.image-model:gemini-3-pro-image}")
@@ -56,9 +56,29 @@ public class GeminiMedicalService {
     private final MedicalIllustrationTools medicalIllustrationTools;
     private final MedicalFlashcardTools medicalFlashcardTools;
     private final StorageService storageService;
+    private final CourseKnowledgeBaseService courseKnowledgeBaseService;
     private Client genAiClient;
     private PassTutorAiService tutorAiService;
     private ImageModel imageModel;
+
+    @jakarta.inject.Inject
+    public GeminiMedicalService(
+        ObjectMapper objectMapper,
+        FirestoreService firestoreService,
+        MedicalQcmTools medicalQcmTools,
+        MedicalIllustrationTools medicalIllustrationTools,
+        MedicalFlashcardTools medicalFlashcardTools,
+        StorageService storageService,
+        CourseKnowledgeBaseService courseKnowledgeBaseService
+    ) {
+        this.objectMapper = objectMapper;
+        this.firestoreService = firestoreService;
+        this.medicalQcmTools = medicalQcmTools;
+        this.medicalIllustrationTools = medicalIllustrationTools;
+        this.medicalFlashcardTools = medicalFlashcardTools;
+        this.storageService = storageService;
+        this.courseKnowledgeBaseService = courseKnowledgeBaseService;
+    }
 
     public GeminiMedicalService(
         ObjectMapper objectMapper,
@@ -68,12 +88,15 @@ public class GeminiMedicalService {
         MedicalFlashcardTools medicalFlashcardTools,
         StorageService storageService
     ) {
-        this.objectMapper = objectMapper;
-        this.firestoreService = firestoreService;
-        this.medicalQcmTools = medicalQcmTools;
-        this.medicalIllustrationTools = medicalIllustrationTools;
-        this.medicalFlashcardTools = medicalFlashcardTools;
-        this.storageService = storageService;
+        this(
+            objectMapper,
+            firestoreService,
+            medicalQcmTools,
+            medicalIllustrationTools,
+            medicalFlashcardTools,
+            storageService,
+            new CourseKnowledgeBaseService(firestoreService, storageService)
+        );
     }
 
     public void setApiKey(String apiKey) {
@@ -194,16 +217,51 @@ public class GeminiMedicalService {
     }
 
     /**
-     * Generates PASS-compliant QCMs (5 items A to E, each True/False with explanations & trap detection).
+     * Generates PASS-compliant QCMs (5 items A to E, each True/False with explanations & trap detection)
+     * using the full course knowledge base (notes, scans, PDFs).
      */
     public List<QcmQuestion> generatePassQcm(String courseId, String courseTitle, String ueCode, String content, int count) {
+        return generatePassQcm(courseId, courseTitle, ueCode, content, count, null, true, true, true);
+    }
+
+    public List<QcmQuestion> generatePassQcm(
+        String courseId,
+        String courseTitle,
+        String ueCode,
+        String content,
+        int count,
+        List<String> selectedSourceIds,
+        Boolean includeNotes,
+        Boolean includeScans,
+        Boolean includePdfs
+    ) {
         if (count <= 0) count = 3;
+
+        CourseKnowledgeBaseService.CourseKnowledgeBase kb = courseKnowledgeBaseService.buildKnowledgeBase(
+            courseId,
+            selectedSourceIds,
+            includeNotes,
+            includeScans,
+            includePdfs,
+            content
+        );
+
+        String effectiveTitle = (courseTitle != null && !courseTitle.isBlank()) ? courseTitle : kb.courseTitle();
+        String effectiveUeCode = (ueCode != null && !ueCode.isBlank()) ? ueCode : kb.ueCode();
+        String effectiveContent = kb.hasContent() ? kb.formattedContent() : (content != null && !content.isBlank() ? content : effectiveTitle);
 
         if (genAiClient != null) {
             try {
                 String prompt = """
                     Tu es un professeur d'université médicale et concepteur d'épreuves de concours PASS / LAS en France.
-                    À partir du contenu de cours suivant, génère %d QCMs au format officiel des concours médicaux français (PASS).
+                    Tu dois concevoir exactement %d QCMs au format officiel des concours médicaux français (PASS) pour le cours : '%s' (UE: %s).
+                    
+                    HIÉRARCHIE DES SOURCES & ANCRAGE PÉDAGOGIQUE (Impératif) :
+                    1. BASE DE CONNAISSANCES DU COURS FOURNIE (Priorité d'ancrage) :
+                       - Appuie-toi en priorité sur les données, définitions, formules, chiffres et pièges mentionnés dans les documents et notes fournis ci-dessous.
+                    2. RECHERCHE GOOGLE SEARCH & SAVOIR MÉDICAL INTRINSÈQUE (Complément Indispensable) :
+                       - Si la base de connaissances fournie ci-dessous est concise, incomplète, partielle ou insuffisante pour concevoir %d questions complètes et rigoureuses de niveau concours PASS/LAS, complète IMPÉRATIVEMENT avec ton savoir médical intrinsèque universitaire et avec les données officielles issues de la recherche Google (consensus HAS, Collèges des Enseignants de Médecine, Société Française de Pharmacologie, Terminologia Anatomica, etc.).
+                       - Ne refuse JAMAIS de générer le nombre de QCMs demandé : élargis naturellement aux notions clés et pièges incontournables de ce cours du programme officiel de médecine.
                     
                     Règles impératives du format QCM PASS :
                     1. Chaque QCM comporte un énoncé clair (stem) et exactement 5 propositions identifiées de A à E.
@@ -231,25 +289,54 @@ public class GeminiMedicalService {
                     ]
                     
                     Cours : %s (UE: %s)
-                    Contenu :
+                    Base de connaissances fournie :
                     %s
-                    """.formatted(count, courseTitle, ueCode, content);
+                    """.formatted(count, effectiveTitle, effectiveUeCode, count, effectiveTitle, effectiveUeCode, effectiveContent);
 
-                GenerateContentResponse response = genAiClient.models.generateContent(
-                    modelName,
-                    prompt,
-                    GenerateContentConfig.builder()
-                        .responseMimeType("application/json")
-                        .responseSchema(createQcmSchema())
-                        .temperature(0.2f)
-                        .build()
-                );
+                GenerateContentResponse response;
+                List<Part> parts = new ArrayList<>();
+                parts.add(Part.fromText(prompt));
+                if (kb.rawPdfAttachments() != null && !kb.rawPdfAttachments().isEmpty()) {
+                    for (byte[] pdfBytes : kb.rawPdfAttachments()) {
+                        parts.add(Part.fromBytes(pdfBytes, "application/pdf"));
+                    }
+                }
+                Content contentPayload = Content.builder().parts(parts).build();
+
+                // 1. Attempt with Google Search Grounding to complement documents with live web search and intrinsic knowledge
+                try {
+                    response = genAiClient.models.generateContent(
+                        modelName,
+                        contentPayload,
+                        GenerateContentConfig.builder()
+                            .temperature(0.2f)
+                            .tools(List.of(Tool.builder().googleSearch(GoogleSearch.builder().build()).build()))
+                            .build()
+                    );
+                    List<GroundingSource> searchSources = extractGroundingSources(response);
+                    if (searchSources != null && !searchSources.isEmpty()) {
+                        LOG.info("Gemini QCM generation grounded with {} Google Search web sources", searchSources.size());
+                    }
+                } catch (Exception searchEx) {
+                    LOG.warn("Google Search Grounding in QCM generation encountered issue, falling back to structured JSON schema: {}", searchEx.getMessage());
+                    // Fallback to strict JSON Schema mode without tools
+                    response = genAiClient.models.generateContent(
+                        modelName,
+                        contentPayload,
+                        GenerateContentConfig.builder()
+                            .responseMimeType("application/json")
+                            .responseSchema(createQcmSchema())
+                            .temperature(0.2f)
+                            .build()
+                    );
+                }
 
                 String jsonText = response.text();
-                LOG.info("Gemini Structured QCM generation response received (length: {})", jsonText != null ? jsonText.length() : 0);
+                LOG.info("Gemini Structured QCM generation response received (length: {}, sources: {})",
+                    jsonText != null ? jsonText.length() : 0, kb.sourcesUsed());
 
                 if (jsonText != null && !jsonText.isBlank()) {
-                    List<QcmQuestion> questions = parseQcmJson(jsonText, courseId, courseTitle, ueCode, count);
+                    List<QcmQuestion> questions = parseQcmJson(jsonText, courseId, effectiveTitle, effectiveUeCode, count);
                     for (QcmQuestion q : questions) {
                         firestoreService.saveQcm(q);
                     }
@@ -261,7 +348,7 @@ public class GeminiMedicalService {
         }
 
         // High quality medical fallback for PASS demo / offline mode
-        List<QcmQuestion> fallbackQuestions = generateFallbackQcms(courseId, courseTitle, ueCode, count);
+        List<QcmQuestion> fallbackQuestions = generateFallbackQcms(courseId, effectiveTitle, effectiveUeCode, count);
         for (QcmQuestion q : fallbackQuestions) {
             firestoreService.saveQcm(q);
         }
@@ -452,44 +539,122 @@ public class GeminiMedicalService {
     }
 
     /**
-     * Generates active recall flashcards (Question Recto / Réponse Verso / Indice) using Gemini with structured output.
+     * Generates active recall flashcards (Question Recto / Réponse Verso / Indice) using Gemini with structured output
+     * and grounded on the full course knowledge base (notes, scans, PDFs).
      */
     public List<Flashcard> generateFlashcards(String courseId, String courseTitle, String ueCode, String ueId, String content, int count) {
+        return generateFlashcards(courseId, courseTitle, ueCode, ueId, content, count, null, true, true, true);
+    }
+
+    public List<Flashcard> generateFlashcards(
+        String courseId,
+        String courseTitle,
+        String ueCode,
+        String ueId,
+        String content,
+        int count,
+        List<String> selectedSourceIds,
+        Boolean includeNotes,
+        Boolean includeScans,
+        Boolean includePdfs
+    ) {
         if (count <= 0) count = 5;
+
+        CourseKnowledgeBaseService.CourseKnowledgeBase kb = courseKnowledgeBaseService.buildKnowledgeBase(
+            courseId,
+            selectedSourceIds,
+            includeNotes,
+            includeScans,
+            includePdfs,
+            content
+        );
+
+        String effectiveTitle = (courseTitle != null && !courseTitle.isBlank()) ? courseTitle : kb.courseTitle();
+        String effectiveUeCode = (ueCode != null && !ueCode.isBlank()) ? ueCode : kb.ueCode();
+        String effectiveUeId = (ueId != null && !ueId.isBlank()) ? ueId : kb.ueId();
+        String effectiveContent = kb.hasContent() ? kb.formattedContent() : (content != null && !content.isBlank() ? content : effectiveTitle);
 
         if (genAiClient != null) {
             try {
                 String prompt = """
                     Tu es un professeur de médecine et tuteur majeur du concours PASS / LAS en France.
-                    À partir du contenu ou de la synthèse de cours suivante, génère exactement %d flashcards de mémorisation active (active recall) à haute rentabilité (high-yield) pour les révisions de l'étudiant.
+                    Tu dois concevoir exactement %d flashcards de mémorisation active (active recall) à haute rentabilité (high-yield) pour le cours : '%s' (UE: %s).
+                    
+                    HIÉRARCHIE DES SOURCES & ANCRAGE PÉDAGOGIQUE (Impératif) :
+                    1. BASE DE CONNAISSANCES DU COURS FOURNIE (Priorité d'ancrage) :
+                       - Appuie-toi en priorité sur les notes, fiches scannées, polycopiés et documents d'étudiant fournis ci-dessous.
+                       - Intègre fidèlement les définitions, formules chiffrées, détails anatomiques et pièges mentionnés dans cette documentation.
+                    2. RECHERCHE GOOGLE SEARCH & SAVOIR MÉDICAL INTRINSÈQUE (Complément Indispensable) :
+                       - Si la base de connaissances fournie ci-dessous est concise, incomplète, partielle ou insuffisante pour concevoir %d flashcards complètes et variées au niveau d'exigence du concours PASS/LAS, complète IMPÉRATIVEMENT avec ton savoir médical intrinsèque approfondi et avec les données officielles issues de la recherche Google (consensus HAS, Collèges des Enseignants de Médecine, Société Française de Pharmacologie, Terminologia Anatomica, etc.).
+                       - Ne refuse JAMAIS de générer le nombre de cartes demandé sous prétexte que les documents fournis sont trop courts : élargis naturellement aux notions fondamentales, valeurs de référence et pièges classiques de ce cours de PASS.
                     
                     Règles pour chaque flashcard :
-                    1. 'front' : Une question claire, ciblée et percutante (ex: "Quelle est la formule de la clairance corporelle ?", "Quels sont les 3 muscles innervés par le nerf musculocutané ?").
+                    1. 'front' : Une question claire, ciblée et percutante basée sur les notions, valeurs ou mécanismes de cours (ex: "Quelle est la formule de la clairance corporelle ?", "Quels sont les 3 muscles innervés par le nerf musculocutané ?").
                     2. 'back' : Une réponse concise, rigoureuse et complète avec formatage Markdown / LaTeX ($...$) si formules.
                     3. 'hint' : Un indice court (amorce, première lettre, structure de formule) qui aide la mémoire sans donner la réponse complète.
                     4. 'difficulty' : Niveau de difficulté de 1 à 5.
                     5. 'tags' : Liste de 2 à 4 mots-clés pertinents (incluant le code de l'UE).
                     
+                    Réponds STRICTEMENT au format JSON avec la structure suivante :
+                    [
+                      {
+                        "front": "Question...",
+                        "back": "Réponse...",
+                        "hint": "Indice...",
+                        "difficulty": 3,
+                        "tags": ["UE...", "MotClé"]
+                      }
+                    ]
+                    
                     Cours : %s (UE: %s)
-                    Contenu :
+                    Base de connaissances fournie :
                     %s
-                    """.formatted(count, courseTitle != null ? courseTitle : "Cours PASS", ueCode != null ? ueCode : "UE", content != null ? content : "");
+                    """.formatted(count, effectiveTitle, effectiveUeCode, count, effectiveTitle, effectiveUeCode, effectiveContent);
 
-                GenerateContentResponse response = genAiClient.models.generateContent(
-                    modelName,
-                    prompt,
-                    GenerateContentConfig.builder()
-                        .responseMimeType("application/json")
-                        .responseSchema(createFlashcardSchema())
-                        .temperature(0.2f)
-                        .build()
-                );
+                GenerateContentResponse response;
+                List<Part> parts = new ArrayList<>();
+                parts.add(Part.fromText(prompt));
+                if (kb.rawPdfAttachments() != null && !kb.rawPdfAttachments().isEmpty()) {
+                    for (byte[] pdfBytes : kb.rawPdfAttachments()) {
+                        parts.add(Part.fromBytes(pdfBytes, "application/pdf"));
+                    }
+                }
+                Content contentPayload = Content.builder().parts(parts).build();
+
+                // 1. Attempt with Google Search Grounding to complement documents with live web search and intrinsic knowledge
+                try {
+                    response = genAiClient.models.generateContent(
+                        modelName,
+                        contentPayload,
+                        GenerateContentConfig.builder()
+                            .temperature(0.2f)
+                            .tools(List.of(Tool.builder().googleSearch(GoogleSearch.builder().build()).build()))
+                            .build()
+                    );
+                    List<GroundingSource> searchSources = extractGroundingSources(response);
+                    if (searchSources != null && !searchSources.isEmpty()) {
+                        LOG.info("Gemini Flashcard generation grounded with {} Google Search web sources", searchSources.size());
+                    }
+                } catch (Exception searchEx) {
+                    LOG.warn("Google Search Grounding in Flashcard generation encountered issue, falling back to structured JSON schema: {}", searchEx.getMessage());
+                    // Fallback to strict JSON Schema mode without tools
+                    response = genAiClient.models.generateContent(
+                        modelName,
+                        contentPayload,
+                        GenerateContentConfig.builder()
+                            .responseMimeType("application/json")
+                            .responseSchema(createFlashcardSchema())
+                            .temperature(0.2f)
+                            .build()
+                    );
+                }
 
                 String jsonText = response.text();
-                LOG.info("Gemini Structured Flashcards generation response received (length: {})", jsonText != null ? jsonText.length() : 0);
+                LOG.info("Gemini Structured Flashcards generation response received (length: {}, sources: {})",
+                    jsonText != null ? jsonText.length() : 0, kb.sourcesUsed());
 
                 if (jsonText != null && !jsonText.isBlank()) {
-                    List<Flashcard> cards = parseFlashcardsJson(jsonText, courseId, courseTitle, ueCode, ueId);
+                    List<Flashcard> cards = parseFlashcardsJson(jsonText, courseId, effectiveTitle, effectiveUeCode, effectiveUeId);
                     for (Flashcard card : cards) {
                         firestoreService.saveFlashcard(card);
                     }
@@ -505,15 +670,15 @@ public class GeminiMedicalService {
         fallbacks.add(new Flashcard(
             "fc-" + UUID.randomUUID(),
             courseId != null ? courseId : "course-general",
-            courseTitle != null ? courseTitle : "Cours PASS",
-            ueCode != null ? ueCode : "UE",
-            ueId != null ? ueId : "ue1",
-            "Quelles sont les notions et définitions clés à retenir pour " + (courseTitle != null ? courseTitle : "ce cours") + " ?",
+            effectiveTitle,
+            effectiveUeCode,
+            effectiveUeId,
+            "Quelles sont les notions et définitions clés à retenir pour " + effectiveTitle + " ?",
             "Les éléments fondamentaux reposent sur la terminologie officielle, les équations d'état ou valeurs physiologiques normales, ainsi que les diagnostics différentiels abordés en cours.",
             "Révisez les formules fondamentales et les rapports anatomiques.",
             3,
             false,
-            List.of(ueCode != null ? ueCode : "UE", "Mémorisation", "Synthèse"),
+            List.of(effectiveUeCode, "Mémorisation", "Synthèse"),
             0,
             null,
             LocalDateTime.now()
@@ -651,6 +816,20 @@ public class GeminiMedicalService {
                 if (courseId != null && !courseId.isBlank()) {
                     promptBuilder.append(" (Identifiant exact du cours: '").append(courseId)
                         .append("', Titre: '").append(courseTitle != null ? courseTitle : "").append("')");
+
+                    try {
+                        CourseKnowledgeBaseService.CourseKnowledgeBase kb = courseKnowledgeBaseService.buildKnowledgeBase(courseId, null, true, true, true, null);
+                        if (kb.hasContent()) {
+                            String kbSnippet = kb.formattedContent();
+                            if (kbSnippet.length() > 6000) {
+                                kbSnippet = kbSnippet.substring(0, 6000) + "\n... [Base de connaissances du cours tronquée pour concision]";
+                            }
+                            promptBuilder.append("\n\nBASE DE CONNAISSANCES DU COURS (Notes étudiant, Fiches scannées, Polycopiés PDF) :\n")
+                                .append(kbSnippet);
+                        }
+                    } catch (Exception kbEx) {
+                        LOG.warn("Could not enrich tutor context with course knowledge base: {}", kbEx.getMessage());
+                    }
                 }
                 promptBuilder.append("\n\n");
 
@@ -2569,7 +2748,7 @@ public class GeminiMedicalService {
                     .build();
 
                 GenerateContentResponse response = genAiClient.models.generateContent(
-                    this.modelName != null ? this.modelName : "gemini-3.7-flash",
+                    this.modelName != null ? this.modelName : "gemini-3.8-flash",
                     prompt,
                     config
                 );

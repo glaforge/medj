@@ -277,8 +277,8 @@ Pour activer les fonctionnalités IA complètes de **Google Gemini** et la persi
 # Clé API Google Gemini (Requise pour l'IA en direct, les QCMs, Flashcards et le Tuteur)
 export GEMINI_API_KEY="AIzaSy..."
 
-# Modèle textuel et raisonnement (défaut : gemini-3.7-flash)
-export GEMINI_MODEL="gemini-3.7-flash"
+# Modèle textuel et raisonnement (défaut : gemini-3.8-flash)
+export GEMINI_MODEL="gemini-3.8-flash"
 
 # Modèle de génération d'images et schémas (défaut : gemini-3-pro-image)
 export GEMINI_IMAGE_MODEL="gemini-3-pro-image"

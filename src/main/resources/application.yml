@@ -46,7 +46,7 @@ medj:
     allowed-emails: ${MEDJ_ALLOWED_EMAILS:glaforge@gmail.com,marionlaforge4@gmail.com}
   gemini:
     api-key: ${GEMINI_API_KEY:}
-    model: ${GEMINI_MODEL:gemini-3.7-flash}
+    model: ${GEMINI_MODEL:gemini-3.8-flash}
     image-model: ${GEMINI_IMAGE_MODEL:gemini-3-pro-image}
   google:
     calendar:

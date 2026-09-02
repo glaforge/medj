@@ -1,6 +1,7 @@
 package fr.medj.controller;
 
 import fr.medj.model.*;
+import fr.medj.service.CourseKnowledgeBaseService;
 import fr.medj.service.FirestoreService;
 import fr.medj.service.GeminiMedicalService;
 import fr.medj.service.StorageService;
@@ -34,15 +35,32 @@ public class GeminiAiController {
     private final GeminiMedicalService geminiMedicalService;
     private final FirestoreService firestoreService;
     private final StorageService storageService;
+    private final CourseKnowledgeBaseService courseKnowledgeBaseService;
+
+    @jakarta.inject.Inject
+    public GeminiAiController(
+        GeminiMedicalService geminiMedicalService,
+        FirestoreService firestoreService,
+        StorageService storageService,
+        CourseKnowledgeBaseService courseKnowledgeBaseService
+    ) {
+        this.geminiMedicalService = geminiMedicalService;
+        this.firestoreService = firestoreService;
+        this.storageService = storageService;
+        this.courseKnowledgeBaseService = courseKnowledgeBaseService;
+    }
 
     public GeminiAiController(
         GeminiMedicalService geminiMedicalService,
         FirestoreService firestoreService,
         StorageService storageService
     ) {
-        this.geminiMedicalService = geminiMedicalService;
-        this.firestoreService = firestoreService;
-        this.storageService = storageService;
+        this(
+            geminiMedicalService,
+            firestoreService,
+            storageService,
+            new CourseKnowledgeBaseService(firestoreService, storageService)
+        );
     }
 
     @Serdeable
@@ -51,12 +69,29 @@ public class GeminiAiController {
         String courseTitle,
         String ueCode,
         String content,
-        int count
+        int count,
+        List<String> selectedSourceIds,
+        Boolean includeNotes,
+        Boolean includeScans,
+        Boolean includePdfs
     ) {}
+
+    @Get("/courses/{courseId}/knowledge-sources")
+    public HttpResponse<CourseKnowledgeSourcesResponse> getCourseKnowledgeSources(@PathVariable String courseId) {
+        if (courseId == null || courseId.isBlank()) {
+            return HttpResponse.badRequest();
+        }
+        CourseKnowledgeSourcesResponse response = courseKnowledgeBaseService.getKnowledgeSources(courseId);
+        return HttpResponse.ok(response);
+    }
 
     @Post("/generate-qcm")
     public HttpResponse<List<QcmQuestion>> generateQcm(@Body GenerateQcmRequest request) {
-        if (request == null || request.content() == null || request.content().isBlank()) {
+        if (request == null) {
+            return HttpResponse.badRequest();
+        }
+        // Content is not required if courseId is provided because the knowledge base will provide the content
+        if ((request.courseId() == null || request.courseId().isBlank()) && (request.content() == null || request.content().isBlank())) {
             return HttpResponse.badRequest();
         }
 
@@ -65,7 +100,11 @@ public class GeminiAiController {
             request.courseTitle() != null ? request.courseTitle() : "Cours de Médecine PASS",
             request.ueCode() != null ? request.ueCode() : "UE",
             request.content(),
-            request.count() > 0 ? request.count() : 3
+            request.count() > 0 ? request.count() : 3,
+            request.selectedSourceIds(),
+            request.includeNotes(),
+            request.includeScans(),
+            request.includePdfs()
         );
 
         return HttpResponse.ok(qcms);
@@ -853,7 +892,11 @@ public class GeminiAiController {
         String ueCode,
         String ueId,
         String content,
-        Integer count
+        Integer count,
+        List<String> selectedSourceIds,
+        Boolean includeNotes,
+        Boolean includeScans,
+        Boolean includePdfs
     ) {}
 
     @Post("/generate-flashcards")
@@ -866,7 +909,11 @@ public class GeminiAiController {
             request.ueCode(),
             request.ueId(),
             request.content(),
-            count
+            count,
+            request.selectedSourceIds(),
+            request.includeNotes(),
+            request.includeScans(),
+            request.includePdfs()
         );
         return HttpResponse.ok(generated);
     }

@@ -613,7 +613,7 @@ Configure the following runtime environment variables:
 | Variable | Description | Default | Required for |
 | :--- | :--- | :--- | :--- |
 | `GEMINI_API_KEY` | Google Gemini API Key (Secret Manager) | — | Live AI generation, OCR, Tuteur & Fact-checking |
-| `GEMINI_MODEL` | Primary text & reasoning model | `gemini-3.7-flash` | QCMs, Flashcards, Tutor & OCR |
+| `GEMINI_MODEL` | Primary text & reasoning model | `gemini-3.8-flash` | QCMs, Flashcards, Tutor & OCR |
 | `GEMINI_IMAGE_MODEL`| Image generation model | `gemini-3-pro-image`| Anatomical illustrations & drawings |
 | `GCP_PROJECT_ID` | Google Cloud Project ID | `medj-505807` | Cloud Firestore & GCS persistence |
 | `GCS_BUCKET` | Cloud Storage assets bucket | `medj-505807-assets` | PDFs, scans, generated images |

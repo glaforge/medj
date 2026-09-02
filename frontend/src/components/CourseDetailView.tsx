@@ -25,6 +25,7 @@ import { EditCourseModal } from './EditCourseModal';
 import { PrintFlashcardsModal } from './PrintFlashcardsModal';
 import { DeleteRevisionModal } from './DeleteRevisionModal';
 import { DeleteCourseModal } from './DeleteCourseModal';
+import { KnowledgeGenerationModal } from './KnowledgeGenerationModal';
 import { getLocalTodayString, parseDate } from '../utils/dateUtils';
 import { getContrastTextColor } from '../utils/colorUtils';
 import { printMedicalWorksheet } from '../utils/printWorksheet';
@@ -153,8 +154,14 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
   const [sessionToDelete, setSessionToDelete] = useState<RevisionSession | null>(null);
   const [isDeleteCourseModalOpen, setIsDeleteCourseModalOpen] = useState(false);
 
+  // Knowledge Base Generation Modal
+  const [isKnowledgeModalOpen, setIsKnowledgeModalOpen] = useState(false);
+  const [knowledgeModalMode, setKnowledgeModalMode] = useState<'QCM' | 'FLASHCARDS'>('QCM');
+  const [preselectedSourceId, setPreselectedSourceId] = useState<string | undefined>(undefined);
+
   const subject = subjects.find(s => s.id.toLowerCase() === currentCourse.ueId.toLowerCase() || s.code.toLowerCase() === currentCourse.ueId.toLowerCase());
   const currentColor = subject?.color || currentCourse.color || '#0284c7';
+  const totalKnowledgeSourcesCount = (currentCourse.notes && currentCourse.notes.trim().length > 0 ? 1 : 0) + (currentCourse.documents?.length || 0) + scans.length;
 
   useEffect(() => {
     setCurrentCourse(course);
@@ -397,46 +404,74 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
     }
   };
 
-  const handleGenerateQcms = async () => {
-    setIsGeneratingQcm(true);
-    setQcmGenerationSuccess(false);
-    try {
-      const generated = await api.generateQcm(
-        course.id,
-        course.title,
-        course.ueCode || 'UE',
-        course.notes || course.title,
-        3
-      );
-      setQcms(prev => [...generated, ...prev]);
-      setQcmGenerationSuccess(true);
-      setTimeout(() => setQcmGenerationSuccess(false), 4000);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsGeneratingQcm(false);
-    }
+  const handleOpenKnowledgeModal = (mode: 'QCM' | 'FLASHCARDS', sourceId?: string) => {
+    setKnowledgeModalMode(mode);
+    setPreselectedSourceId(sourceId);
+    setIsKnowledgeModalOpen(true);
   };
 
-  const handleGenerateFlashcards = async () => {
-    setIsGeneratingFlashcards(true);
-    setFlashcardGenerationSuccess(false);
-    try {
-      const generated = await api.generateFlashcards(
-        course.id,
-        course.title,
-        course.ueCode || 'UE',
-        course.ueId || 'ue1',
-        course.notes || course.title,
-        5
-      );
-      setFlashcards(prev => [...generated, ...prev]);
-      setFlashcardGenerationSuccess(true);
-      setTimeout(() => setFlashcardGenerationSuccess(false), 4000);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsGeneratingFlashcards(false);
+  const handleGenerateQcms = () => {
+    handleOpenKnowledgeModal('QCM');
+  };
+
+  const handleGenerateFlashcards = () => {
+    handleOpenKnowledgeModal('FLASHCARDS');
+  };
+
+  const handleGenerateWithKnowledge = async ({
+    count,
+    selectedSourceIds,
+    customPrompt
+  }: {
+    count: number;
+    selectedSourceIds: string[];
+    customPrompt?: string;
+  }) => {
+    if (knowledgeModalMode === 'QCM') {
+      setIsGeneratingQcm(true);
+      setQcmGenerationSuccess(false);
+      try {
+        const generated = await api.generateQcm(
+          currentCourse.id,
+          currentCourse.title,
+          currentCourse.ueCode || 'UE',
+          customPrompt,
+          count,
+          { selectedSourceIds }
+        );
+        setQcms(prev => [...generated, ...prev]);
+        setQcmGenerationSuccess(true);
+        setTimeout(() => setQcmGenerationSuccess(false), 4000);
+        if (onShowToast) onShowToast(`✨ ${generated.length} QCMs générés par IA avec vos sources !`);
+      } catch (err) {
+        console.error('Failed to generate QCMs with knowledge base', err);
+        throw err;
+      } finally {
+        setIsGeneratingQcm(false);
+      }
+    } else {
+      setIsGeneratingFlashcards(true);
+      setFlashcardGenerationSuccess(false);
+      try {
+        const generated = await api.generateFlashcards(
+          currentCourse.id,
+          currentCourse.title,
+          currentCourse.ueCode || 'UE',
+          currentCourse.ueId || 'ue1',
+          customPrompt,
+          count,
+          { selectedSourceIds }
+        );
+        setFlashcards(prev => [...generated, ...prev]);
+        setFlashcardGenerationSuccess(true);
+        setTimeout(() => setFlashcardGenerationSuccess(false), 4000);
+        if (onShowToast) onShowToast(`✨ ${generated.length} Flashcards générées par IA avec vos sources !`);
+      } catch (err) {
+        console.error('Failed to generate Flashcards with knowledge base', err);
+        throw err;
+      } finally {
+        setIsGeneratingFlashcards(false);
+      }
     }
   };
 
@@ -658,13 +693,33 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                 <Edit3 className="w-4 h-4 text-sky-500" />
                 <span>Notes & Synthèse du cours</span>
               </span>
-              <button
-                onClick={() => setIsEditNotesOpen(true)}
-                className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-400 border border-slate-200 dark:border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>Modifier mes notes</span>
-              </button>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => handleOpenKnowledgeModal('QCM', 'notes')}
+                  className="px-2 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800/50 text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95"
+                  title="Générer des QCMs ciblés sur ces notes"
+                >
+                  <Sparkles className="w-3 h-3 text-sky-500" />
+                  <span>QCMs</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenKnowledgeModal('FLASHCARDS', 'notes')}
+                  className="px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800/50 text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-2xs active:scale-95"
+                  title="Générer des Flashcards ciblées sur ces notes"
+                >
+                  <Layers className="w-3 h-3 text-amber-500" />
+                  <span>Cartes</span>
+                </button>
+                <button
+                  onClick={() => setIsEditNotesOpen(true)}
+                  className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-400 border border-slate-200 dark:border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Modifier mes notes</span>
+                </button>
+              </div>
             </div>
             <MarkdownRenderer content={currentCourse.notes} />
           </div>
@@ -878,13 +933,25 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
               </button>
             )}
 
+            {totalKnowledgeSourcesCount > 0 && (
+              <button
+                type="button"
+                onClick={() => handleOpenKnowledgeModal('QCM')}
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800/50 text-[11px] font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+                title="Choisir les notes, PDFs et scans à utiliser comme sources"
+              >
+                <BookOpen className="w-3 h-3 text-sky-500" />
+                <span>Base active ({totalKnowledgeSourcesCount})</span>
+              </button>
+            )}
+
             <button
               onClick={handleGenerateQcms}
               disabled={isGeneratingQcm}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-500/30 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50"
             >
               <Sparkles className={`w-3.5 h-3.5 ${isGeneratingQcm ? 'animate-spin' : ''}`} />
-              <span>{isGeneratingQcm ? 'Génération Gemini...' : 'Générer 3 QCMs'}</span>
+              <span>{isGeneratingQcm ? 'Génération Gemini...' : '✨ Générer des QCMs'}</span>
             </button>
 
             <button
@@ -901,7 +968,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
         {qcms.length === 0 ? (
           <div className="p-6 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-500 dark:text-slate-400 space-y-3">
             <p>
-              Aucun QCM enregistré pour ce cours. Cliquez sur <strong>Générer 3 QCMs</strong> ou <strong>+ Ajouter un QCM</strong> pour en créer un manuellement.
+              Aucun QCM enregistré pour ce cours. Cliquez sur <strong>Générer des QCMs</strong> ou <strong>+ Ajouter un QCM</strong> pour en créer un manuellement.
             </p>
             <div className="flex items-center justify-center gap-2 pt-1">
               <button
@@ -910,7 +977,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-500/30 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50"
               >
                 <Sparkles className={`w-3.5 h-3.5 ${isGeneratingQcm ? 'animate-spin' : ''}`} />
-                <span>{isGeneratingQcm ? 'Génération Gemini...' : '✨ Générer 3 QCMs avec l\'IA'}</span>
+                <span>{isGeneratingQcm ? 'Génération Gemini...' : '✨ Générer des QCMs avec l\'IA'}</span>
               </button>
             </div>
           </div>
@@ -1158,13 +1225,25 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
               </button>
             )}
 
+            {totalKnowledgeSourcesCount > 0 && (
+              <button
+                type="button"
+                onClick={() => handleOpenKnowledgeModal('FLASHCARDS')}
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800/50 text-[11px] font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+                title="Choisir les notes, PDFs et scans à utiliser comme sources"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-amber-500" />
+                <span>Base active ({totalKnowledgeSourcesCount})</span>
+              </button>
+            )}
+
             <button
               onClick={handleGenerateFlashcards}
               disabled={isGeneratingFlashcards}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs font-bold shadow-md shadow-amber-950/30 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
             >
               <Sparkles className={`w-3.5 h-3.5 ${isGeneratingFlashcards ? 'animate-spin' : ''}`} />
-              <span>{isGeneratingFlashcards ? 'Génération Gemini...' : '✨ Générer +5 Flashcards'}</span>
+              <span>{isGeneratingFlashcards ? 'Génération Gemini...' : '✨ Générer des Flashcards'}</span>
             </button>
           </div>
         </div>
@@ -1179,9 +1258,9 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
               <button
                 onClick={handleGenerateFlashcards}
                 disabled={isGeneratingFlashcards}
-                className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950"
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer active:scale-95"
               >
-                ✨ Générer 5 cartes avec l'IA
+                ✨ Générer des cartes avec l'IA
               </button>
             </div>
           </div>
@@ -1482,19 +1561,39 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                       </button>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] gap-2 flex-wrap">
                       <span className="text-[10px] text-slate-500 dark:text-slate-400">
                         {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString('fr-FR') : ''}
                       </span>
-                      <a
-                        href={doc.storageUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1 font-bold text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline"
-                      >
-                        <span>Ouvrir / Consulter</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenKnowledgeModal('QCM', doc.id)}
+                          className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800/40 cursor-pointer shadow-2xs transition-all active:scale-95"
+                          title="Générer des QCMs ciblés sur ce document"
+                        >
+                          <Sparkles className="w-2.5 h-2.5 text-sky-500" />
+                          <span>QCMs</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenKnowledgeModal('FLASHCARDS', doc.id)}
+                          className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800/40 cursor-pointer shadow-2xs transition-all active:scale-95"
+                          title="Générer des Flashcards ciblées sur ce document"
+                        >
+                          <Layers className="w-2.5 h-2.5 text-amber-500" />
+                          <span>Cartes</span>
+                        </button>
+                        <a
+                          href={doc.storageUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1 font-bold text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline ml-1"
+                        >
+                          <span>Ouvrir</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1566,6 +1665,26 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                             <span>Document source</span>
                           </a>
                         ) : null}
+
+                        <button
+                          type="button"
+                          onClick={() => handleOpenKnowledgeModal('QCM', scan.id)}
+                          className="px-2.5 py-1 rounded-xl text-xs font-bold flex items-center gap-1 bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800/40 hover:bg-sky-100 dark:hover:bg-sky-900/50 cursor-pointer shadow-2xs transition-all active:scale-95"
+                          title="Générer des QCMs ciblés sur cette fiche scannée"
+                        >
+                          <Sparkles className="w-3 h-3 text-sky-500" />
+                          <span>QCMs</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleOpenKnowledgeModal('FLASHCARDS', scan.id)}
+                          className="px-2.5 py-1 rounded-xl text-xs font-bold flex items-center gap-1 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 cursor-pointer shadow-2xs transition-all active:scale-95"
+                          title="Générer des Flashcards ciblées sur cette fiche scannée"
+                        >
+                          <Layers className="w-3 h-3 text-amber-500" />
+                          <span>Cartes</span>
+                        </button>
 
                         <button
                           onClick={() => handleOpenDiagramModal(scan)}
@@ -2123,6 +2242,19 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
         course={currentCourse}
         subject={subject}
         onConfirmDelete={handleDeleteCourseConfirmed}
+      />
+
+      {/* Knowledge Base Generation Modal (AI QCMs & Flashcards from Course Notes, Scans & PDFs) */}
+      <KnowledgeGenerationModal
+        isOpen={isKnowledgeModalOpen}
+        onClose={() => {
+          setIsKnowledgeModalOpen(false);
+          setPreselectedSourceId(undefined);
+        }}
+        course={currentCourse}
+        mode={knowledgeModalMode}
+        preselectedSourceId={preselectedSourceId}
+        onGenerate={handleGenerateWithKnowledge}
       />
 
     </div>

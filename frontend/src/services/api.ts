@@ -7,7 +7,8 @@ import {
   FlashcardReviewRating,
   HandwrittenScanResult,
   JScheduleConfig,
-  TodaySummary
+  TodaySummary,
+  CourseKnowledgeSourcesResponse
 } from '../types';
 import { getAuthToken } from './firebase';
 
@@ -273,11 +274,39 @@ export const api = {
   },
 
   // Gemini AI
-  async generateQcm(courseId: string, courseTitle: string, ueCode: string, content: string, count: number = 3): Promise<QcmQuestion[]> {
+  async getCourseKnowledgeSources(courseId: string): Promise<CourseKnowledgeSourcesResponse> {
+    const res = await authFetch(`${API_BASE}/gemini/courses/${encodeURIComponent(courseId)}/knowledge-sources`);
+    if (!res.ok) throw new Error('Failed to fetch course knowledge sources');
+    return res.json();
+  },
+
+  async generateQcm(
+    courseId: string,
+    courseTitle: string,
+    ueCode: string,
+    content?: string,
+    count: number = 3,
+    options?: {
+      selectedSourceIds?: string[];
+      includeNotes?: boolean;
+      includeScans?: boolean;
+      includePdfs?: boolean;
+    }
+  ): Promise<QcmQuestion[]> {
     const res = await authFetch(`${API_BASE}/gemini/generate-qcm`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ courseId, courseTitle, ueCode, content, count }),
+      body: JSON.stringify({
+        courseId,
+        courseTitle,
+        ueCode,
+        content: content || '',
+        count,
+        selectedSourceIds: options?.selectedSourceIds,
+        includeNotes: options?.includeNotes,
+        includeScans: options?.includeScans,
+        includePdfs: options?.includePdfs,
+      }),
     });
     if (!res.ok) throw new Error('Failed to generate QCM');
     return res.json();
@@ -651,12 +680,29 @@ export const api = {
     ueCode?: string,
     ueId?: string,
     content?: string,
-    count: number = 5
+    count: number = 5,
+    options?: {
+      selectedSourceIds?: string[];
+      includeNotes?: boolean;
+      includeScans?: boolean;
+      includePdfs?: boolean;
+    }
   ): Promise<Flashcard[]> {
     const res = await authFetch(`${API_BASE}/gemini/generate-flashcards`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ courseId, courseTitle, ueCode, ueId, content, count }),
+      body: JSON.stringify({
+        courseId,
+        courseTitle,
+        ueCode,
+        ueId,
+        content: content || '',
+        count,
+        selectedSourceIds: options?.selectedSourceIds,
+        includeNotes: options?.includeNotes,
+        includeScans: options?.includeScans,
+        includePdfs: options?.includePdfs,
+      }),
     });
     if (!res.ok) throw new Error('Failed to generate flashcards');
     return res.json();

@@ -252,3 +252,22 @@ export interface FlashcardVerification {
   verifiedAt: string;
 }
 
+export interface CourseKnowledgeSource {
+  id: string; // "notes", or doc.id, or scan.id
+  type: 'NOTES' | 'PDF' | 'SCAN' | 'ATTACHMENT' | string;
+  title: string;
+  description: string;
+  sizeBytes: number;
+  previewUrl?: string | null;
+  date?: string | null;
+  tags: string[];
+}
+
+export interface CourseKnowledgeSourcesResponse {
+  courseId: string;
+  courseTitle: string;
+  ueCode: string;
+  sources: CourseKnowledgeSource[];
+  totalCount: number;
+}
+
