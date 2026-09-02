@@ -289,9 +289,6 @@ export const api = {
     files.forEach(f => {
       formData.append('files', f);
     });
-    if (files.length > 0) {
-      formData.append('file', files[0]);
-    }
 
     const params = new URLSearchParams();
     if (courseId) params.append('courseId', courseId);
@@ -312,9 +309,6 @@ export const api = {
     files.forEach(f => {
       formData.append('files', f);
     });
-    if (files.length > 0) {
-      formData.append('file', files[0]);
-    }
 
     const params = new URLSearchParams();
     if (courseId) params.append('courseId', courseId);

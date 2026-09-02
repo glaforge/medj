@@ -640,29 +640,14 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
           </div>
 
           {/* Quick Quiz Trigger */}
-          <div className="flex flex-col gap-2 min-w-44">
+          <div className="shrink-0">
             <button
               onClick={() => onStartQcmQuiz(course)}
-              className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold text-xs shadow-lg shadow-emerald-950/40 active:scale-95 transition-all"
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold text-xs shadow-lg shadow-emerald-950/40 active:scale-95 transition-all cursor-pointer whitespace-nowrap"
             >
               <Play className="w-4 h-4" />
               <span>S'entraîner aux QCMs ({qcms.length})</span>
             </button>
-
-            <button
-              onClick={handleGenerateQcms}
-              disabled={isGeneratingQcm}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-sky-400 border border-sky-500/20 text-xs font-semibold transition-all disabled:opacity-50"
-            >
-              <Sparkles className={`w-3.5 h-3.5 ${isGeneratingQcm ? 'animate-spin' : ''}`} />
-              <span>{isGeneratingQcm ? 'Génération Gemini...' : 'Générer +3 QCMs'}</span>
-            </button>
-
-            {qcmGenerationSuccess && (
-              <div className="text-[10px] text-emerald-400 text-center font-bold animate-bounce">
-                ✨ 3 nouveaux QCMs PASS créés !
-              </div>
-            )}
           </div>
         </div>
 
@@ -835,10 +820,15 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
       <div className="glass-panel rounded-2xl p-6 border border-slate-800 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
+            <h2 className="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-amber-400" />
               QCMs Associés à ce Cours ({qcms.length})
             </h2>
+            {qcmGenerationSuccess && (
+              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold animate-bounce flex items-center gap-1 ml-2">
+                ✨ 3 nouveaux QCMs créés !
+              </span>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -881,7 +871,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
             {onOpenEditQcmModal && (
               <button
                 onClick={() => onOpenEditQcmModal(undefined, course.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-500/30 text-xs font-bold transition-all shadow-2xs"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-500/30 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>+ Ajouter un QCM</span>
@@ -889,9 +879,18 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
             )}
 
             <button
+              onClick={handleGenerateQcms}
+              disabled={isGeneratingQcm}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-500/30 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50"
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${isGeneratingQcm ? 'animate-spin' : ''}`} />
+              <span>{isGeneratingQcm ? 'Génération Gemini...' : 'Générer 3 QCMs'}</span>
+            </button>
+
+            <button
               onClick={() => onStartQcmQuiz(course)}
               disabled={qcms.length === 0}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-bold shadow-md shadow-emerald-950/20 active:scale-95 transition-all"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-bold shadow-md shadow-emerald-950/20 active:scale-95 transition-all cursor-pointer"
             >
               <Play className="w-3.5 h-3.5 fill-current" />
               <span>S'entraîner ({qcms.length})</span>
@@ -900,8 +899,20 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
         </div>
 
         {qcms.length === 0 ? (
-          <div className="p-6 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-500 dark:text-slate-400">
-            Aucun QCM enregistré pour ce cours. Cliquez sur <strong>Générer +3 QCMs</strong> ou <strong>+ Ajouter un QCM</strong> pour en créer un manuellement.
+          <div className="p-6 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-500 dark:text-slate-400 space-y-3">
+            <p>
+              Aucun QCM enregistré pour ce cours. Cliquez sur <strong>Générer 3 QCMs</strong> ou <strong>+ Ajouter un QCM</strong> pour en créer un manuellement.
+            </p>
+            <div className="flex items-center justify-center gap-2 pt-1">
+              <button
+                onClick={handleGenerateQcms}
+                disabled={isGeneratingQcm}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-500/30 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50"
+              >
+                <Sparkles className={`w-3.5 h-3.5 ${isGeneratingQcm ? 'animate-spin' : ''}`} />
+                <span>{isGeneratingQcm ? 'Génération Gemini...' : '✨ Générer 3 QCMs avec l\'IA'}</span>
+              </button>
+            </div>
           </div>
         ) : (
           <div className="space-y-3">

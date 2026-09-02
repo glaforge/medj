@@ -1,6 +1,10 @@
 micronaut:
   server:
     port: -1
+    max-request-size: 32MB
+    multipart:
+      enabled: true
+      max-file-size: 32MB
 
 medj:
   security:

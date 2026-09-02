@@ -16,9 +16,10 @@ micronaut:
   server:
     port: ${PORT:8080}
     host: 0.0.0.0
+    max-request-size: 32MB
     multipart:
       enabled: true
-      max-file-size: 50MB
+      max-file-size: 32MB
     cors:
       enabled: true
       configurations:

@@ -172,10 +172,20 @@ export const GeminiScannerModal: React.FC<GeminiScannerModalProps> = ({
     return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
   };
 
+  const MAX_UPLOAD_BYTES = 30 * 1024 * 1024; // 30 Mo (Infrastructure limit Cloud Run: 32 Mo)
   const totalBytes = pages.reduce((acc, p) => acc + p.size, 0);
+  const isOverSizeLimit = totalBytes > MAX_UPLOAD_BYTES;
 
   const handleLaunchScan = async () => {
     if (pages.length === 0) return;
+
+    if (isOverSizeLimit) {
+      setErrorMessage(
+        `Le document sélectionné fait ${formatFileSize(totalBytes)}, ce qui dépasse la limite d'envoi autorisée de 30 Mo. ` +
+        `Veuillez compresser votre fichier PDF (par ex. avec un compresseur de PDF en ligne ou en réduisant la résolution des photos) avant de lancer l'analyse.`
+      );
+      return;
+    }
 
     setIsScanning(true);
     setErrorMessage(null);
@@ -215,7 +225,18 @@ export const GeminiScannerModal: React.FC<GeminiScannerModalProps> = ({
       if (onScanSaved) onScanSaved();
     } catch (e: any) {
       console.error('Scan failed', e);
-      setErrorMessage(e.message || 'Erreur lors de la numérisation avec Gemini. Veuillez réessayer.');
+      const isNetworkOrFetchError =
+        e?.message?.toLowerCase().includes('failed to fetch') ||
+        e?.name === 'TypeError';
+      if (isNetworkOrFetchError) {
+        setErrorMessage(
+          `Erreur réseau (Failed to fetch) : la connexion au serveur a été interrompue. ` +
+          `Cela survient lorsque le fichier est trop volumineux (limite max 30 Mo) ou que le réseau a coupé. ` +
+          `Taille actuelle : ${formatFileSize(totalBytes)}. Veuillez essayer avec un document compressé.`
+        );
+      } else {
+        setErrorMessage(e.message || 'Erreur lors de la numérisation avec Gemini. Veuillez réessayer.');
+      }
     } finally {
       setIsScanning(false);
     }
@@ -386,7 +407,11 @@ export const GeminiScannerModal: React.FC<GeminiScannerModalProps> = ({
                       </span>
                       <div className="text-xs font-extrabold text-slate-900 dark:text-white">
                         {pages.length} page{pages.length > 1 ? 's' : ''} prête{pages.length > 1 ? 's' : ''} pour l'analyse
-                        <span className="font-normal text-slate-500 dark:text-slate-400 ml-1.5 font-mono text-[11px]">
+                        <span className={`ml-1.5 font-mono text-[11px] ${
+                          isOverSizeLimit
+                            ? 'font-bold text-rose-600 dark:text-rose-400'
+                            : 'font-normal text-slate-500 dark:text-slate-400'
+                        }`}>
                           ({formatFileSize(totalBytes)})
                         </span>
                       </div>
@@ -421,6 +446,30 @@ export const GeminiScannerModal: React.FC<GeminiScannerModalProps> = ({
                       </button>
                     </div>
                   </div>
+
+                  {/* Size Limit Warnings */}
+                  {isOverSizeLimit && (
+                    <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-500/30 text-rose-900 dark:text-rose-200 text-xs animate-fadeIn shadow-2xs">
+                      <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <div className="font-extrabold">
+                          Document trop volumineux ({formatFileSize(totalBytes)}) — Limite maximale : 30 Mo
+                        </div>
+                        <div className="text-[11px] text-rose-800/90 dark:text-rose-300/90 leading-relaxed">
+                          La taille totale dépasse la limite d'envoi autorisée par le serveur (30 Mo). Veuillez compresser votre fichier PDF (par ex. via un compresseur de PDF en ligne ou en réduisant la résolution des photos) avant de lancer la numérisation.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {!isOverSizeLimit && totalBytes > 20 * 1024 * 1024 && (
+                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 text-amber-800 dark:text-amber-300 text-xs animate-fadeIn">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span className="text-[11px]">
+                        Fichier volumineux ({formatFileSize(totalBytes)}). L'analyse par Gemini peut prendre 15 à 30 secondes selon le nombre de pages.
+                      </span>
+                    </div>
+                  )}
 
                   {/* Grid of Page Thumbnails */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 max-h-[380px] overflow-y-auto p-1">
@@ -885,16 +934,18 @@ export const GeminiScannerModal: React.FC<GeminiScannerModalProps> = ({
           {!scanResult && annaleQcms.length === 0 ? (
             <button
               onClick={handleLaunchScan}
-              disabled={pages.length === 0 || isScanning}
+              disabled={pages.length === 0 || isScanning || isOverSizeLimit}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 via-indigo-600 to-teal-500 hover:from-sky-500 hover:to-teal-400 text-white font-extrabold text-xs shadow-lg shadow-sky-950/20 dark:shadow-sky-950/40 active:scale-95 transition-all disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
             >
               <Sparkles className="w-4 h-4" />
               <span>
                 {isScanning
                   ? `Numérisation en cours (${pages.length} page${pages.length > 1 ? 's' : ''})...`
-                  : pages.length > 0
-                    ? `Lancer la numérisation IA Gemini (${pages.length} page${pages.length > 1 ? 's' : ''})`
-                    : 'Lancer la numérisation IA Gemini'}
+                  : isOverSizeLimit
+                    ? `Fichier trop volumineux (${formatFileSize(totalBytes)} > 30 Mo)`
+                    : pages.length > 0
+                      ? `Lancer la numérisation IA Gemini (${pages.length} page${pages.length > 1 ? 's' : ''})`
+                      : 'Lancer la numérisation IA Gemini'}
               </span>
             </button>
           ) : (
