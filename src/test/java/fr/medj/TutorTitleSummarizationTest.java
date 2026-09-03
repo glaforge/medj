@@ -45,5 +45,33 @@ public class TutorTitleSummarizationTest {
         assertNotNull(t2);
         assertFalse(t2.toLowerCase().startsWith("crée-moi"));
         assertTrue(t2.toLowerCase().contains("récepteurs") || t2.toLowerCase().contains("rcpg"));
+
+        String q3 = "Dessine-moi le coeur avec les cavités et valves";
+        String t3 = geminiMedicalService.summarizeConversationTitle(q3, "Voici un schéma anatomique...", "Anatomie");
+        assertNotNull(t3);
+        assertFalse(t3.toLowerCase().startsWith("dessine-moi"));
+        assertTrue(t3.toLowerCase().contains("coeur") || t3.toLowerCase().contains("cavité") || t3.toLowerCase().contains("valve"));
+    }
+
+    @Test
+    void testLiveTitleSummarization() {
+        String apiKey = System.getenv("GEMINI_API_KEY");
+        if (apiKey == null || apiKey.isBlank()) {
+            return;
+        }
+        geminiMedicalService.setApiKey(apiKey);
+        geminiMedicalService.setModelName("gemini-3.8-flash");
+        geminiMedicalService.init();
+
+        String q = "Dessine-moi le coeur avec les cavités et valves";
+        String a = "Voici un schéma anatomique des 4 cavités cardiaques...";
+        String title = geminiMedicalService.summarizeConversationTitle(q, a, "Anatomie Cardiovasculaire");
+
+        assertNotNull(title);
+        assertFalse(title.isBlank());
+        assertFalse(title.toLowerCase().startsWith("provide"), "Title should never start with English leak 'Provide'");
+        assertFalse(title.toLowerCase().startsWith("here is"));
+        assertTrue(title.length() >= 5);
+        assertTrue(title.length() <= 80);
     }
 }

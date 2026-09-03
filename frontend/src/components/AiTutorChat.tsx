@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Course, AiTutorMessage, TutorConversationThread, QcmQuestion, MedicalIllustration } from '../types';
+import { Course, AiTutorMessage, TutorConversationThread, QcmQuestion, MedicalIllustration, CourseKnowledgeSource } from '../types';
 import { api } from '../services/api';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { MedicalIllustrationModal } from './MedicalIllustrationModal';
@@ -71,6 +71,11 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
   const [revealedQcmIds, setRevealedQcmIds] = useState<Set<string>>(new Set());
   const [selectedIllustration, setSelectedIllustration] = useState<MedicalIllustration | null>(null);
 
+  const [courseSources, setCourseSources] = useState<CourseKnowledgeSource[]>([]);
+  const [isLoadingSources, setIsLoadingSources] = useState(false);
+  const [isSourcesPopoverOpen, setIsSourcesPopoverOpen] = useState(false);
+  const sourcesPopoverRef = useRef<HTMLDivElement>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const DEFAULT_WELCOME_MSG: AiTutorMessage = {
@@ -83,6 +88,43 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
   useEffect(() => {
     loadThreads();
   }, [initialCourse?.id, initialThreadId]);
+
+  useEffect(() => {
+    if (!selectedCourseId) {
+      setCourseSources([]);
+      return;
+    }
+    let isMounted = true;
+    setIsLoadingSources(true);
+    api.getCourseKnowledgeSources(selectedCourseId)
+      .then(res => {
+        if (isMounted) {
+          setCourseSources(res.sources || []);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to load course knowledge sources for tutor', err);
+        if (isMounted) setCourseSources([]);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingSources(false);
+      });
+    return () => { isMounted = false; };
+  }, [selectedCourseId]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sourcesPopoverRef.current && !sourcesPopoverRef.current.contains(e.target as Node)) {
+        setIsSourcesPopoverOpen(false);
+      }
+    };
+    if (isSourcesPopoverOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isSourcesPopoverOpen]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -431,7 +473,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
               <div className="flex items-center gap-2">
                 <h2 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white truncate">Tuteur Médical IA</h2>
                 <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-800/40 flex items-center gap-1 shrink-0">
-                  <Sparkles className="w-2.5 h-2.5 text-amber-500 dark:text-amber-300" /> 3.7 Flash
+                  <Sparkles className="w-2.5 h-2.5 text-amber-500 dark:text-amber-300" /> 3.8 Flash
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate hidden sm:block">
@@ -451,6 +493,66 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
                 placeholder="Rechercher un cours (UE, nom, mot-clé)..."
               />
             </div>
+
+            {currentCourse && (
+              <div className="relative" ref={sourcesPopoverRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsSourcesPopoverOpen(prev => !prev)}
+                  title={courseSources.length > 0
+                    ? `${courseSources.length} document(s) et note(s) actifs dans la mémoire du tuteur`
+                    : "Aucun document associé - Utilisation du programme et savoir médical intrinsèque"}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-600/40 text-xs font-bold transition-all shrink-0 cursor-pointer shadow-2xs"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span className="hidden sm:inline">
+                    {isLoadingSources ? 'Chargement...' : `${courseSources.length} doc${courseSources.length > 1 ? 's' : ''} en mémoire`}
+                  </span>
+                  <span className="sm:hidden">
+                    {courseSources.length}
+                  </span>
+                </button>
+
+                {/* Popover listing active documents */}
+                {isSourcesPopoverOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 p-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-50 animate-fadeIn text-xs">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 mb-2 font-bold text-slate-800 dark:text-slate-200">
+                      <span className="flex items-center gap-1.5">
+                        <BookOpen className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>Base documentaire du cours</span>
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-mono font-bold">
+                        {courseSources.length} active{courseSources.length > 1 ? 's' : ''}
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2.5 leading-relaxed">
+                      L'intégralité des documents et notes ci-dessous est injectée automatiquement dans le contexte de l'IA sans sélection préalable :
+                    </p>
+
+                    {courseSources.length === 0 ? (
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-[11px] text-slate-500 text-center leading-relaxed">
+                        Aucun document ou polycopié rattaché à ce cours. Le tuteur s'appuie sur le programme officiel de PASS et la recherche Google.
+                      </div>
+                    ) : (
+                      <div className="max-h-52 overflow-y-auto space-y-1.5 pr-1 scrollbar-none">
+                        {courseSources.map(s => (
+                          <div key={s.id} className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 flex items-start gap-2 text-[11px]">
+                            <span className="shrink-0 mt-0.5">
+                              {s.type === 'NOTES' ? '📝' : s.type === 'PDF' ? '📚' : '📑'}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-slate-800 dark:text-slate-200 truncate">{s.title}</div>
+                              <div className="text-[10px] text-slate-400 truncate">{s.description}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {currentCourse && onNavigateToCourse && (
               <button

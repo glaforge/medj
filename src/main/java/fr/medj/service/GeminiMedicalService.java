@@ -694,18 +694,23 @@ public class GeminiMedicalService {
         QcmQuestion createdQcm,
         MedicalIllustration createdIllustration,
         Flashcard createdFlashcard,
-        List<GroundingSource> groundingSources
+        List<GroundingSource> groundingSources,
+        List<String> knowledgeSourcesUsed
     ) {
         public TutorResponse(String answer, QcmQuestion createdQcm) {
-            this(answer, createdQcm, null, null, List.of());
+            this(answer, createdQcm, null, null, List.of(), List.of());
         }
 
         public TutorResponse(String answer, QcmQuestion createdQcm, List<GroundingSource> groundingSources) {
-            this(answer, createdQcm, null, null, groundingSources);
+            this(answer, createdQcm, null, null, groundingSources, List.of());
         }
 
         public TutorResponse(String answer, QcmQuestion createdQcm, MedicalIllustration createdIllustration, List<GroundingSource> groundingSources) {
-            this(answer, createdQcm, createdIllustration, null, groundingSources);
+            this(answer, createdQcm, createdIllustration, null, groundingSources, List.of());
+        }
+
+        public TutorResponse(String answer, QcmQuestion createdQcm, MedicalIllustration createdIllustration, Flashcard createdFlashcard, List<GroundingSource> groundingSources) {
+            this(answer, createdQcm, createdIllustration, createdFlashcard, groundingSources, List.of());
         }
     }
 
@@ -808,30 +813,51 @@ public class GeminiMedicalService {
         medicalFlashcardTools.setActiveCourse(courseId, courseTitle, resolvedUeCode, resolvedUeId);
         medicalQcmTools.setActiveCourse(courseId, courseTitle, resolvedUeCode);
 
+        // Build the complete Course Knowledge Base (Notes, PDFs, Scans) without arbitrary truncation
+        CourseKnowledgeBaseService.CourseKnowledgeBase kb = null;
+        List<String> knowledgeSourcesUsed = List.of();
+        if (courseId != null && !courseId.isBlank()) {
+            try {
+                kb = courseKnowledgeBaseService.buildKnowledgeBase(courseId, null, true, true, true, null);
+                if (kb != null && kb.hasContent()) {
+                    knowledgeSourcesUsed = kb.sourcesUsed();
+                    LOG.info("AI Tutor enriched with full knowledge base for course '{}' ({} sources: {})",
+                        courseTitle, knowledgeSourcesUsed.size(), knowledgeSourcesUsed);
+                }
+            } catch (Exception kbEx) {
+                LOG.warn("Could not enrich tutor context with course knowledge base for course '{}': {}", courseId, kbEx.getMessage());
+            }
+        }
+
+        StringBuilder courseContextBlock = new StringBuilder();
+        courseContextBlock.append("Contexte du cours actuel : ")
+            .append(courseContext != null ? courseContext : (courseTitle != null ? courseTitle : "Cours général de PASS"));
+        if (courseId != null && !courseId.isBlank()) {
+            courseContextBlock.append(" (UE : ").append(resolvedUeCode).append(", Identifiant : '").append(courseId).append("')");
+        }
+
+        if (kb != null && kb.hasContent()) {
+            String kbContent = kb.formattedContent();
+            // Generous ceiling for safety (200,000 chars ~ 50k tokens, comfortably within Gemini 3.8 Flash's 1M context)
+            if (kbContent.length() > 200_000) {
+                kbContent = kbContent.substring(0, 200_000) + "\n... [Base de connaissances du cours tronquée à 200 000 caractères pour sécurité]";
+            }
+            courseContextBlock.append("\n\n================================================================================")
+                .append("\nBASE DE CONNAISSANCES COMPLÈTE DU COURS (Notes étudiant, Polycopiés PDF, Fiches Scannées) :")
+                .append("\n================================================================================\n")
+                .append(kbContent)
+                .append("\n================================================================================")
+                .append("\nCONSIGNES PÉDAGOGIQUES DU TUTEUR POUR CE COURS :")
+                .append("\n1. La base documentaire ci-dessus est ta RÉFÉRENCE PRIORITAIRE ABSOLUE pour ce cours.")
+                .append("\n2. Cite fidèlement la terminologie, les définitions, formules chiffrées, mécanismes et pièges mentionnés par le professeur.")
+                .append("\n3. Si un détail précis n'est pas mentionné dans ces documents, complète avec ton savoir médical universitaire approfondi et les recommandations officielles via la recherche Google Search en le signalant clairement à l'étudiant.")
+                .append("\n================================================================================\n");
+        }
+
         if (tutorAiService != null) {
             try {
                 StringBuilder promptBuilder = new StringBuilder();
-                promptBuilder.append("Contexte du cours actuel : ")
-                    .append(courseContext != null ? courseContext : "Cours général de PASS");
-                if (courseId != null && !courseId.isBlank()) {
-                    promptBuilder.append(" (Identifiant exact du cours: '").append(courseId)
-                        .append("', Titre: '").append(courseTitle != null ? courseTitle : "").append("')");
-
-                    try {
-                        CourseKnowledgeBaseService.CourseKnowledgeBase kb = courseKnowledgeBaseService.buildKnowledgeBase(courseId, null, true, true, true, null);
-                        if (kb.hasContent()) {
-                            String kbSnippet = kb.formattedContent();
-                            if (kbSnippet.length() > 6000) {
-                                kbSnippet = kbSnippet.substring(0, 6000) + "\n... [Base de connaissances du cours tronquée pour concision]";
-                            }
-                            promptBuilder.append("\n\nBASE DE CONNAISSANCES DU COURS (Notes étudiant, Fiches scannées, Polycopiés PDF) :\n")
-                                .append(kbSnippet);
-                        }
-                    } catch (Exception kbEx) {
-                        LOG.warn("Could not enrich tutor context with course knowledge base: {}", kbEx.getMessage());
-                    }
-                }
-                promptBuilder.append("\n\n");
+                promptBuilder.append(courseContextBlock).append("\n\n");
 
                 if (history != null && !history.isEmpty()) {
                     promptBuilder.append("Historique de conversation récente :\n");
@@ -916,7 +942,7 @@ public class GeminiMedicalService {
                 String answer = result != null ? result.content() : null;
                 if (answer != null && !answer.isBlank()) {
                     String finalAnswer = appendGroundingLinksToAnswer(answer, sources);
-                    return new TutorResponse(finalAnswer, createdQcm, createdIllus, createdCard, sources);
+                    return new TutorResponse(finalAnswer, createdQcm, createdIllus, createdCard, sources, knowledgeSourcesUsed);
                 }
             } catch (Exception e) {
                 LOG.error("Error asking LangChain4j AI Tutor: {}", e.getMessage(), e);
@@ -930,9 +956,8 @@ public class GeminiMedicalService {
                     Tu es un tuteur d'élite et major de concours PASS en médecine.
                     Tu réponds avec une extrême rigueur scientifique et médicale, tout en restant clair, concis, encourageant et pédagogique.
                     Donne des analogies physiologiques précises, insiste sur les définitions exactes attendues au concours et ajoute si pertinent un moyen mnémotechnique.
-                    
-                    Contexte du cours actuel :
-                    """).append(courseContext != null ? courseContext : "Cours général de PASS").append("\n\n");
+                    """).append("\n\n")
+                    .append(courseContextBlock).append("\n\n");
 
                 if (history != null && !history.isEmpty()) {
                     promptBuilder.append("Historique de conversation récente :\n");
@@ -944,16 +969,36 @@ public class GeminiMedicalService {
 
                 promptBuilder.append("\nQuestion de l'étudiant : ").append(question).append("\nRéponse du tuteur :");
 
-                GenerateContentResponse response = genAiClient.models.generateContent(
-                    modelName,
-                    promptBuilder.toString(),
-                    GenerateContentConfig.builder()
-                        .temperature(0.3f)
-                        .tools(List.of(Tool.builder()
-                            .googleSearch(GoogleSearch.builder().build())
-                            .build()))
-                        .build()
+                GenerateContentResponse response;
+                if (kb != null && kb.rawPdfAttachments() != null && !kb.rawPdfAttachments().isEmpty()) {
+                    List<Part> parts = new ArrayList<>();
+                    parts.add(Part.fromText(promptBuilder.toString()));
+                    for (byte[] pdfBytes : kb.rawPdfAttachments()) {
+                        parts.add(Part.fromBytes(pdfBytes, "application/pdf"));
+                    }
+                    Content contentPayload = Content.builder().parts(parts).build();
+                    response = genAiClient.models.generateContent(
+                        modelName,
+                        contentPayload,
+                        GenerateContentConfig.builder()
+                            .temperature(0.3f)
+                            .tools(List.of(Tool.builder()
+                                .googleSearch(GoogleSearch.builder().build())
+                                .build()))
+                            .build()
                     );
+                } else {
+                    response = genAiClient.models.generateContent(
+                        modelName,
+                        promptBuilder.toString(),
+                        GenerateContentConfig.builder()
+                            .temperature(0.3f)
+                            .tools(List.of(Tool.builder()
+                                .googleSearch(GoogleSearch.builder().build())
+                                .build()))
+                            .build()
+                    );
+                }
 
                 String answer = response.text();
                 List<GroundingSource> sources = extractGroundingSources(response);
@@ -968,7 +1013,7 @@ public class GeminiMedicalService {
 
                 if (answer != null && !answer.isBlank()) {
                     String finalAnswer = appendGroundingLinksToAnswer(answer, sources);
-                    return new TutorResponse(finalAnswer, createdQcm, createdIllus, createdCard, sources);
+                    return new TutorResponse(finalAnswer, createdQcm, createdIllus, createdCard, sources, knowledgeSourcesUsed);
                 }
             } catch (Exception e) {
                 LOG.error("Error asking Gemini AI Tutor: {}", e.getMessage(), e);
@@ -1007,7 +1052,8 @@ public class GeminiMedicalService {
                 null,
                 null,
                 createdCard,
-                demoSources
+                demoSources,
+                knowledgeSourcesUsed
             );
         }
 
@@ -1053,7 +1099,8 @@ public class GeminiMedicalService {
                 null,
                 createdIllus,
                 null,
-                demoSources
+                demoSources,
+                knowledgeSourcesUsed
             );
         }
 
@@ -1092,7 +1139,8 @@ public class GeminiMedicalService {
                 created,
                 null,
                 null,
-                demoSources
+                demoSources,
+                knowledgeSourcesUsed
             );
         }
 
@@ -1112,7 +1160,8 @@ public class GeminiMedicalService {
             null,
             null,
             null,
-            demoSources
+            demoSources,
+            knowledgeSourcesUsed
         );
     }
 
@@ -2729,13 +2778,14 @@ public class GeminiMedicalService {
             try {
                 String prompt = """
                     Tu es un expert pédagogique médical PASS/LAS.
-                    Donne un titre très court, synthétique et précis (maximum 4 à 7 mots, en français médical, sans guillemets, sans formule d'introduction, sans ponctuation finale) qui résume le sujet précis de cet échange entre un étudiant en médecine et son tuteur IA.
+                    Donne UNIQUEMENT un titre très court, synthétique et précis (4 à 7 mots, en français médical, sans guillemets, sans formule d'introduction, sans préambule, sans mot en anglais, sans ponctuation finale) qui résume le sujet précis de cet échange entre un étudiant en médecine et son tuteur IA.
+                    Exemples attendus : "Anatomie des cavités cardiaques", "Cinétique enzymatique de Michaelis-Menten", "Schéma des voies biliaires", "Innervation motrice du bras".
 
                     Matière / Cours : %s
                     Question de l'étudiant : %s
                     Réponse du tuteur : %s
 
-                    Titre court et synthétique :
+                    Titre médical en français (4 à 7 mots) :
                     """.formatted(
                         courseTitle != null && !courseTitle.isBlank() ? courseTitle : "Général",
                         question,
@@ -2744,7 +2794,7 @@ public class GeminiMedicalService {
 
                 GenerateContentConfig config = GenerateContentConfig.builder()
                     .temperature(0.2f)
-                    .maxOutputTokens(40)
+                    .maxOutputTokens(1024)
                     .build();
 
                 GenerateContentResponse response = genAiClient.models.generateContent(
@@ -2755,11 +2805,16 @@ public class GeminiMedicalService {
 
                 if (response != null && response.text() != null && !response.text().isBlank()) {
                     String cleanTitle = response.text().trim();
-                    // Strip quotes and extra spaces/lines
-                    cleanTitle = cleanTitle.replaceAll("^[\"«'\\s]+|[\"»'\\s.]+$", "").trim();
-                    // Remove prefixes like "Titre :", "Résumé :"
-                    cleanTitle = cleanTitle.replaceAll("^(?i)(titre|résumé|sujet)\\s*:\\s*", "").trim();
-                    if (!cleanTitle.isBlank() && cleanTitle.length() <= 80) {
+                    // Strip markdown bold / headers / quotes / backticks
+                    cleanTitle = cleanTitle.replaceAll("^[#*\"«'`\\s]+|[#*\"»'`\\s.]+$", "").trim();
+                    // Remove prefixes like "Titre :", "Title:", "Résumé :"
+                    cleanTitle = cleanTitle.replaceAll("^(?i)(titre|title|résumé|summary|sujet|topic)\\s*:\\s*", "").trim();
+                    // Remove conversational English preambles if any leaked
+                    cleanTitle = cleanTitle.replaceAll("^(?i)(provide\\s+a|here\\s+is|here's|this\\s+is|a\\s+summary|title\\s+for|the\\s+conversation\\s+is\\s+about)\\s+.*?:?\\s*", "").trim();
+
+                    // Check if title is valid: no English junk, at least 2 words or >= 5 chars, length <= 80
+                    boolean isEnglishJunk = cleanTitle.toLowerCase().matches("^(provide\\b|here\\b|this\\b|the\\s+conversation|summary\\b|title\\b|a\\s+short).*");
+                    if (!cleanTitle.isBlank() && !isEnglishJunk && cleanTitle.length() >= 4 && cleanTitle.length() <= 80) {
                         return cleanTitle;
                     }
                 }
@@ -2776,10 +2831,10 @@ public class GeminiMedicalService {
         // Remove common greetings
         clean = clean.replaceAll("^(?i)(bonjour|bonsoir|salut|hello|coucou)[,;!\\s]+", "");
         // Remove conversational requests and helpers
-        clean = clean.replaceAll("^(?i)(peux-tu|peux tu|pourrais-tu|pourrais tu|est-ce que tu peux|merci de|stp|s'il te plaît|s'il vous plaît|veuillez)\\s+(m'expliquer|m'aider sur|me dire|m'éclairer sur|m'éclaircir sur|résumer|synthétiser|créer|générer|faire|donner)\\s+", "");
-        clean = clean.replaceAll("^(?i)(peux-tu m'expliquer|peux-tu m'aider sur|peux tu m'expliquer|peux tu m'aider sur|explique-moi|explique moi|crée-moi un qcm sur|crée moi un qcm sur|fais-moi un qcm sur|génère un qcm sur|génère des flashcards sur|crée des flashcards sur|qu'est-ce que|qu'est ce que|c'est quoi|quels sont les|quelles sont les|quel est le|quelle est la|donne-moi|donne moi|je ne comprends pas)[,;!\\s]+", "");
+        clean = clean.replaceAll("^(?i)(peux-tu|peux tu|pourrais-tu|pourrais tu|est-ce que tu peux|merci de|stp|s'il te plaît|s'il vous plaît|veuillez)\\s+(m'expliquer|m'aider sur|me dire|m'éclairer sur|m'éclaircir sur|résumer|synthétiser|créer|générer|faire|donner|me dessiner|dessiner|illustrer|me faire|tracer)\\s+", "");
+        clean = clean.replaceAll("^(?i)(peux-tu m'expliquer|peux-tu m'aider sur|peux tu m'expliquer|peux tu m'aider sur|peux-tu me dessiner|peux tu me dessiner|peux-tu me faire|peux tu me faire|explique-moi|explique moi|crée-moi un qcm sur|crée moi un qcm sur|fais-moi un qcm sur|génère un qcm sur|génère des flashcards sur|crée des flashcards sur|dessine-moi|dessine moi|fais-moi un schéma|fais moi un schéma|fais un schéma|schématise|illustre|qu'est-ce que|qu'est ce que|c'est quoi|quels sont les|quelles sont les|quel est le|quelle est la|donne-moi|donne moi|je ne comprends pas)[,;!\\s]+", "");
         // Remove modifiers
-        clean = clean.replaceAll("^(?i)(en détail|brièvement|rapidement|de façon simple|clairement|précisément|sur|concernant)\\s+", "");
+        clean = clean.replaceAll("^(?i)(un schéma de|un dessin de|une planche de|un croquis de|des détails sur|en détail|brièvement|rapidement|de façon simple|clairement|précisément|sur|concernant)\\s+", "");
         clean = clean.replaceAll("[?!.]+$", "").trim();
         if (clean.isBlank() || clean.length() < 4) {
             return courseTitle != null && !courseTitle.isBlank() ? courseTitle : "Discussion Tuteur IA";

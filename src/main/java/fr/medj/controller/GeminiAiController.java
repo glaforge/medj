@@ -460,15 +460,21 @@ public class GeminiAiController {
 
     @Get("/tutor/threads{?courseId}")
     public List<TutorConversationThread> getTutorThreads(@QueryValue Optional<String> courseId) {
-        if (courseId.isPresent() && !courseId.get().isBlank()) {
-            return firestoreService.getTutorThreadsForCourse(courseId.get());
+        List<TutorConversationThread> threads = courseId.isPresent() && !courseId.get().isBlank()
+            ? firestoreService.getTutorThreadsForCourse(courseId.get())
+            : firestoreService.getAllTutorThreads();
+
+        List<TutorConversationThread> result = new ArrayList<>(threads.size());
+        for (TutorConversationThread t : threads) {
+            result.add(repairThreadTitleIfNeeded(t));
         }
-        return firestoreService.getAllTutorThreads();
+        return result;
     }
 
     @Get("/tutor/threads/{id}")
     public HttpResponse<TutorConversationThread> getTutorThread(@PathVariable String id) {
         return firestoreService.getTutorThread(id)
+            .map(this::repairThreadTitleIfNeeded)
             .map(HttpResponse::ok)
             .orElseGet(HttpResponse::notFound);
     }
@@ -528,12 +534,21 @@ public class GeminiAiController {
         TutorConversationThread thread = null;
         List<AiTutorMessage> history = new ArrayList<>();
 
+        String effectiveCourseId = request.courseId();
+        String effectiveCourseTitle = request.courseTitle();
+
         if (threadId != null && !threadId.isBlank()) {
             Optional<TutorConversationThread> threadOpt = firestoreService.getTutorThread(threadId);
             if (threadOpt.isPresent()) {
                 thread = threadOpt.get();
                 if (thread.messages() != null) {
                     history.addAll(thread.messages());
+                }
+                if ((effectiveCourseId == null || effectiveCourseId.isBlank()) && thread.courseId() != null) {
+                    effectiveCourseId = thread.courseId();
+                }
+                if ((effectiveCourseTitle == null || effectiveCourseTitle.isBlank()) && thread.courseTitle() != null) {
+                    effectiveCourseTitle = thread.courseTitle();
                 }
             }
         }
@@ -542,16 +557,16 @@ public class GeminiAiController {
             "msg-" + UUID.randomUUID(),
             "user",
             request.question(),
-            request.courseId(),
-            request.courseTitle(),
+            effectiveCourseId,
+            effectiveCourseTitle,
             LocalDateTime.now()
         );
 
         GeminiMedicalService.TutorResponse tutorResponse = geminiMedicalService.askTutor(
             request.question(),
             request.courseContext(),
-            request.courseId(),
-            request.courseTitle(),
+            effectiveCourseId,
+            effectiveCourseTitle,
             history
         );
 
@@ -559,8 +574,8 @@ public class GeminiAiController {
             "msg-" + UUID.randomUUID(),
             "model",
             tutorResponse.answer(),
-            request.courseId(),
-            request.courseTitle(),
+            effectiveCourseId,
+            effectiveCourseTitle,
             LocalDateTime.now(),
             tutorResponse.createdQcm(),
             tutorResponse.createdIllustration(),
@@ -575,13 +590,11 @@ public class GeminiAiController {
         // Determine or generate summarized thread title
         String summaryTitle;
         boolean needsSummary = (thread == null)
-            || thread.title() == null
-            || "Nouvelle conversation".equalsIgnoreCase(thread.title().trim())
-            || thread.title().startsWith("Discussion :")
-            || (thread.messages() != null && thread.messages().size() <= 2);
+            || isInvalidOrPlaceholderTitle(thread.title())
+            || (thread.messages() != null && thread.messages().size() <= 4);
 
         if (needsSummary) {
-            String courseTitle = request.courseTitle() != null ? request.courseTitle() : (thread != null ? thread.courseTitle() : null);
+            String courseTitle = effectiveCourseTitle != null ? effectiveCourseTitle : (thread != null ? thread.courseTitle() : null);
             summaryTitle = geminiMedicalService.summarizeConversationTitle(
                 request.question(),
                 tutorResponse.answer(),
@@ -595,8 +608,8 @@ public class GeminiAiController {
             thread = new TutorConversationThread(
                 threadId != null && !threadId.isBlank() ? threadId : "thread-" + UUID.randomUUID(),
                 summaryTitle,
-                request.courseId(),
-                request.courseTitle(),
+                effectiveCourseId,
+                effectiveCourseTitle,
                 null,
                 updatedMessages,
                 LocalDateTime.now(),
@@ -606,8 +619,8 @@ public class GeminiAiController {
             thread = new TutorConversationThread(
                 thread.id(),
                 summaryTitle,
-                thread.courseId() != null ? thread.courseId() : request.courseId(),
-                thread.courseTitle() != null ? thread.courseTitle() : request.courseTitle(),
+                thread.courseId() != null ? thread.courseId() : effectiveCourseId,
+                thread.courseTitle() != null ? thread.courseTitle() : effectiveCourseTitle,
                 thread.ueCode(),
                 updatedMessages,
                 thread.createdAt(),
@@ -625,6 +638,7 @@ public class GeminiAiController {
         response.put("createdIllustration", tutorResponse.createdIllustration());
         response.put("createdFlashcard", tutorResponse.createdFlashcard());
         response.put("groundingSources", tutorResponse.groundingSources());
+        response.put("knowledgeSources", tutorResponse.knowledgeSourcesUsed());
         response.put("messageId", modelMsg.id());
         response.put("threadId", thread.id());
         response.put("threadTitle", thread.title());
@@ -1034,5 +1048,60 @@ public class GeminiAiController {
         }
         FlashcardVerification result = geminiMedicalService.verifyAndFactCheckFlashcard(flashcard);
         return HttpResponse.ok(result);
+    }
+
+    private boolean isInvalidOrPlaceholderTitle(String title) {
+        if (title == null || title.isBlank()) return true;
+        String t = title.trim().toLowerCase();
+        return t.equals("nouvelle conversation")
+            || t.startsWith("discussion :")
+            || t.equals("discussion tuteur ia")
+            || t.startsWith("provide ")
+            || t.equals("provide a")
+            || t.startsWith("here is")
+            || t.startsWith("here's")
+            || t.startsWith("this is")
+            || t.startsWith("title:")
+            || t.length() < 4;
+    }
+
+    private TutorConversationThread repairThreadTitleIfNeeded(TutorConversationThread thread) {
+        if (thread == null || !isInvalidOrPlaceholderTitle(thread.title())) {
+            return thread;
+        }
+        if (thread.messages() == null || thread.messages().isEmpty()) {
+            return thread;
+        }
+        String firstUserQuestion = null;
+        String firstModelAnswer = null;
+        for (AiTutorMessage msg : thread.messages()) {
+            if (firstUserQuestion == null && "user".equalsIgnoreCase(msg.role())) {
+                firstUserQuestion = msg.content();
+            } else if (firstModelAnswer == null && "model".equalsIgnoreCase(msg.role())) {
+                firstModelAnswer = msg.content();
+            }
+        }
+        if (firstUserQuestion != null && !firstUserQuestion.isBlank()) {
+            String newTitle = geminiMedicalService.summarizeConversationTitle(
+                firstUserQuestion,
+                firstModelAnswer,
+                thread.courseTitle()
+            );
+            if (newTitle != null && !isInvalidOrPlaceholderTitle(newTitle)) {
+                TutorConversationThread repaired = new TutorConversationThread(
+                    thread.id(),
+                    newTitle,
+                    thread.courseId(),
+                    thread.courseTitle(),
+                    thread.ueCode(),
+                    thread.messages(),
+                    thread.createdAt(),
+                    thread.updatedAt()
+                );
+                firestoreService.saveTutorThread(repaired);
+                return repaired;
+            }
+        }
+        return thread;
     }
 }

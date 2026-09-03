@@ -1,6 +1,7 @@
 package fr.medj;
 
 import fr.medj.model.AiTutorMessage;
+import fr.medj.model.Course;
 import fr.medj.model.GroundingSource;
 import fr.medj.model.HandwrittenScanResult;
 import fr.medj.service.FirestoreService;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -73,6 +75,43 @@ public class GroundingTutorTest {
             assertNotNull(source.uri());
             assertNotNull(source.domain());
         }
+    }
+
+    @Test
+    void testAskTutorWithCourseKnowledgeBase() {
+        // Create a course with rich notes
+        Course course = new Course(
+            "course-pharmacocinetique",
+            "ue6",
+            "UE6",
+            "Pharmacocinétique Fondamentale",
+            "#0284c7",
+            "Pr. Benamou",
+            LocalDate.now(),
+            3,
+            "EN_COURS",
+            List.of("Pharmacologie", "Cinétique"),
+            "La clairance corporelle totale est égale au produit du volume de distribution par la constante d'élimination : Cl = Vd * ke. La biodisponibilité IV vaut 100%.",
+            List.of(),
+            List.of(1, 3, 7, 14),
+            LocalDateTime.now(),
+            LocalDateTime.now()
+        );
+        firestoreService.saveCourse(course);
+
+        GeminiMedicalService.TutorResponse response = geminiMedicalService.askTutor(
+            "Quelle est la formule de la clairance corporelle totale ?",
+            null,
+            course.id(),
+            course.title(),
+            List.of()
+        );
+
+        assertNotNull(response);
+        assertNotNull(response.answer());
+        assertNotNull(response.knowledgeSourcesUsed());
+        assertFalse(response.knowledgeSourcesUsed().isEmpty(), "Course knowledge sources should be recorded when askTutor is called with a course");
+        assertTrue(response.knowledgeSourcesUsed().stream().anyMatch(s -> s.contains("Notes")), "Should have identified course notes as source");
     }
 
     @Test

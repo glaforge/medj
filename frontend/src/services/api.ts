@@ -367,6 +367,7 @@ export const api = {
     createdIllustration?: import('../types').MedicalIllustration;
     createdFlashcard?: import('../types').Flashcard;
     groundingSources?: import('../types').GroundingSource[];
+    knowledgeSources?: string[];
   }> {
     const res = await authFetch(`${API_BASE}/gemini/tutor`, {
       method: 'POST',

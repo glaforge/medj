@@ -90,7 +90,7 @@ flowchart TB
     end
 
     subgraph ExternalCloud ["External Google Cloud Services & APIs"]
-        GeminiFlash["Google Gemini 3.7 Flash (Text, Reasoning, OCR, Structured Output)"]
+        GeminiFlash["Google Gemini 3.8 Flash (Text, Reasoning, OCR, Structured Output)"]
         GeminiImage["Google Gemini 3 Pro Image / Imagen (Medical Drawings)"]
         GoogleSearch["Google Search Grounding Engine"]
         GoogleCalendarAPI["Google Calendar API v3"]
@@ -152,11 +152,11 @@ flowchart TB
 - **LangChain4j (`PassTutorAiService`)**:
   - Powers the conversational medical tutor.
   - Injected with `@Tool` annotated components (`MedicalQcmTools`, `MedicalFlashcardTools`, `MedicalIllustrationTools`).
-  - Allows Gemini 3.7 Flash to autonomously persist QCMs, flashcards, and medical illustrations into the user's database while conversing with the student.
+  - Allows Gemini 3.8 Flash to autonomously persist QCMs, flashcards, and medical illustrations into the user's database while conversing with the student.
 
 ### 2. LLM-as-Judge Medical Fact-Checking Pipeline
 - Implemented for **QCMs**, **Flashcards**, and **Medical Illustrations**.
-- Sends the item along with real-time Google Search Grounding to Gemini 3.7 Flash.
+- Sends the item along with real-time Google Search Grounding to Gemini 3.8 Flash.
 - Returns a structured assessment:
   - **Verdict**: `EXACT`, `CORRECTION_PROPOSEE`, or `INVALIDE`.
   - **Accuracy Score**: Integer rating from 0 to 100.
@@ -165,7 +165,7 @@ flowchart TB
   - **Web Grounding Citations**: Authoritative references (HAS, ANSM, Collèges Médicaux, PubMed).
 
 ### 3. Automatic Conversation Summarization
-- New conversation threads with the AI Tutor automatically generate a concise, professional title (4 to 7 words in French medical terminology) via Gemini 3.7 Flash.
+- New conversation threads with the AI Tutor automatically generate a concise, professional title (4 to 7 words in French medical terminology) via Gemini 3.8 Flash.
 - A robust regex-based heuristic cleaner strips conversational greetings (*"Bonjour"*, *"Peux-tu m'expliquer en détail..."*, *"Crée-moi un QCM sur..."*) as a zero-latency fallback.
 
 ### 4. SM-2 & Spaced Repetition Workload Smoothing Algorithm (*Lissage de Charge*)
