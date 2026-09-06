@@ -133,7 +133,7 @@ export const EditCourseModal: React.FC<EditCourseModalProps> = ({
                 Modifier la fiche du cours
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                Ajustez le titre, l'UE, la date $J_0$, la difficulté et les notes
+                Ajustez le titre, l'UE, la date d'apprentissage (APP), la difficulté et les notes
               </p>
             </div>
           </div>

@@ -148,7 +148,7 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
               <Zap className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base font-extrabold text-slate-900 dark:text-white truncate">Ajouter un Cours Appris (J0)</h2>
+              <h2 className="text-base font-extrabold text-slate-900 dark:text-white truncate">Ajouter un Cours Appris (APP)</h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 truncate">Génération automatique des cycles de révision espacée</p>
             </div>
           </div>

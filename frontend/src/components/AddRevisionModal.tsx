@@ -195,7 +195,7 @@ export const AddRevisionModal: React.FC<AddRevisionModalProps> = ({
               <span>Cours à réviser :</span>
               {selectedCourse && (
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">
-                  J0 dispensé le {taughtDateStr}
+                  APP dispensé le {taughtDateStr}
                 </span>
               )}
             </label>

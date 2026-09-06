@@ -623,7 +623,7 @@ export const App: React.FC = () => {
                   navigate(`/subjects/${c.id}`);
                 }}
                 onTriggerSmoothing={handleTriggerSmoothing}
-                onNewCourseJ0={() => setIsNewCourseOpen(true)}
+                onNewCourse={() => setIsNewCourseOpen(true)}
                 onLoadSampleData={handleLoadSampleData}
                 revisionUpdateTrigger={revisionUpdateTrigger}
               />
@@ -789,7 +789,7 @@ export const App: React.FC = () => {
         subjects={subjects}
         initialUeId={newCourseInitialUeId}
         onCourseCreated={(c) => {
-          showToast(`✓ Cours « ${c.title} » créé à J0 !`);
+          showToast(`✓ Cours « ${c.title} » créé (palier APP) !`);
           setRevisionUpdateTrigger(prev => prev + 1);
           loadAllData();
         }}

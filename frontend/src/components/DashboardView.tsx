@@ -43,7 +43,7 @@ interface DashboardViewProps {
   onStartQcmQuiz: (course: Course) => void;
   onSelectCourse: (course: Course) => void;
   onTriggerSmoothing: () => void;
-  onNewCourseJ0: () => void;
+  onNewCourse: () => void;
   onLoadSampleData?: () => void;
   revisionUpdateTrigger?: number;
 }
@@ -59,7 +59,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onStartQcmQuiz,
   onSelectCourse,
   onTriggerSmoothing,
-  onNewCourseJ0,
+  onNewCourse,
   onLoadSampleData,
   revisionUpdateTrigger
 }) => {
@@ -177,11 +177,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
               <button
-                onClick={onNewCourseJ0}
+                onClick={onNewCourse}
                 className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-lg shadow-sky-950/30 active:scale-95 transition-all cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
-                <span>Créer mon 1er cours (J0)</span>
+                <span>Créer mon 1er cours (APP)</span>
               </button>
               {onLoadSampleData && (
                 <button
@@ -209,7 +209,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="flex items-center gap-2 mb-1">
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
                   <Flame className="w-3.5 h-3.5 text-emerald-400" />
-                  Méthode des J en cours
+                  Paliers cognitifs en cours
                 </span>
                 <span className="text-xs text-slate-400">
                   {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
@@ -221,11 +221,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <button
-              onClick={onNewCourseJ0}
+              onClick={onNewCourse}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white shadow-lg shadow-sky-900/30 active:scale-95 transition-all self-start sm:self-center"
             >
               <Zap className="w-4 h-4" />
-              <span>Nouveau Cours J0</span>
+              <span>Nouveau Cours (APP)</span>
             </button>
           </div>
 
@@ -281,7 +281,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             <p className="text-xs text-slate-400 leading-relaxed">
               {isOverloaded
-                ? `Attention : ${totalDue} révisions programmées. Le lissage intelligent préserve vos cours difficiles (4-5★) sur leur date cible et relègue en premier les cours plus faciles (1-2★) ou cycles avancés (J30/J60).`
+                ? `Attention : ${totalDue} révisions programmées. Le lissage intelligent préserve vos cours prioritaires (4-5★) sur leur date cible et relègue en premier les séances plus flexibles.`
                 : `Charge de travail équilibrée (${totalDue} révisions restantes). Les révisions sont triées par difficulté décroissante pour aborder les cours les plus exigeants en premier.`}
             </p>
           </div>
@@ -432,11 +432,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <h3 className="text-base font-bold text-white">Toutes les révisions du jour sont terminées !</h3>
             <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-              Félicitations pour votre régularité ! Vous pouvez ajouter un nouveau cours $J_0$ ou vous entraîner sur les QCMs libres.
+              Félicitations pour votre régularité ! Vous pouvez ajouter un nouveau cours (APP) ou vous entraîner sur les QCMs libres.
             </p>
             <div className="mt-5 flex justify-center gap-3">
               <button
-                onClick={onNewCourseJ0}
+                onClick={onNewCourse}
                 className="px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white shadow-md transition-all cursor-pointer"
               >
                 + Ajouter un cours appris aujourd'hui

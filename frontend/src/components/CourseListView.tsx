@@ -146,7 +146,7 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                 className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-white hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-800 active:scale-95 transition-all cursor-pointer shadow-xs"
               >
                 <Plus className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-                <span>+ Cours (J0)</span>
+                <span>+ Cours (APP)</span>
               </button>
             </div>
           ) : (
@@ -155,7 +155,7 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white shadow-lg shadow-sky-900/30 active:scale-95 transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>Ajouter un cours (J0)</span>
+              <span>Ajouter un cours (APP)</span>
             </button>
           )}
         </div>
@@ -227,25 +227,30 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                       )}
                     </div>
 
-                    {/* Default J steps */}
-                    {((subject.customIntervals || subject.defaultIntervals) && (subject.customIntervals || subject.defaultIntervals)!.length > 0) && (
-                      <div className="space-y-1">
-                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-slate-400" />
-                          <span>Rythme des J par défaut :</span>
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {(subject.customIntervals || subject.defaultIntervals)!.map((j) => (
-                            <span
-                              key={j}
-                              className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] font-mono text-slate-700 dark:text-slate-300"
-                            >
-                              J{j}
-                            </span>
-                          ))}
-                        </div>
+                    {/* Cognitive revision steps */}
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-slate-400" />
+                        <span>Paliers cognitifs :</span>
                       </div>
-                    )}
+                      <div className="flex flex-wrap gap-1">
+                        <span className="px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800/50 text-[10px] font-bold text-sky-700 dark:text-sky-300">
+                          APP
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/50 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                          QCM
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/50 text-[10px] font-bold text-amber-700 dark:text-amber-300">
+                          ERR
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/50 text-[10px] font-bold text-indigo-700 dark:text-indigo-300">
+                          SAM
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded bg-fuchsia-50 dark:bg-fuchsia-950/60 border border-fuchsia-200 dark:border-fuchsia-800/50 text-[10px] font-bold text-fuchsia-700 dark:text-fuchsia-300">
+                          DIM
+                        </span>
+                      </div>
+                    </div>
 
                     {/* Action link */}
                     <div className="pt-2 flex items-center justify-between text-xs text-sky-600 dark:text-sky-400 font-bold group-hover:translate-x-0.5 transition-all">
@@ -396,7 +401,7 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
               <FolderOpen className="w-12 h-12 text-slate-600 mx-auto mb-3" />
               <h3 className="text-sm font-bold text-slate-300">Aucun cours ne correspond à votre recherche</h3>
               <p className="text-xs text-slate-500 mt-1">
-                Essayez de modifier vos filtres ou ajoutez votre premier cours $J_0$.
+                Essayez de modifier vos filtres ou ajoutez votre premier cours (palier APP).
               </p>
               <button
                 onClick={() => onOpenNewCourseModal(selectedUe !== 'ALL' ? selectedUe : undefined)}

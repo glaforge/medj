@@ -28,7 +28,10 @@ import {
   Brain,
   Zap,
   Shield,
-  Sparkles
+  Sparkles,
+  Calendar,
+  CircleHelp,
+  Infinity
 } from 'lucide-react';
 
 interface EditSubjectModalProps {
@@ -187,7 +190,7 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
                 {isEditing ? `Modifier l'UE : ${subject?.code}` : 'Créer une Nouvelle UE / Matière'}
               </h2>
               <p className="text-xs text-slate-400">
-                Personnalisez le code, les ECTS, le code couleur et le rythme des J
+                Personnalisez le code, les ECTS, le code couleur et les paliers cognitifs de révision
               </p>
             </div>
           </div>
@@ -301,14 +304,58 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
             />
           </div>
 
-          {/* Programme de révision automatique pour l'UE */}
-          <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400 space-y-1">
-            <div className="flex items-center gap-1.5 font-bold text-slate-200 text-xs">
-              <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-              <span>Méthode des J pour cette UE</span>
+          {/* Programme de révision automatique - 5 Paliers Cognitifs */}
+          <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2.5">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-sky-400 shrink-0" />
+              <span className="font-bold text-xs text-sky-200">
+                Paliers cognitifs de révision pour cette UE
+              </span>
             </div>
-            <p className="text-[10px] text-slate-400 leading-relaxed">
-              Tous les cours créés dans cette UE suivront le cycle : <strong>J0</strong>, <strong>J1</strong>, <strong>samedi suivant</strong>, puis chaque <strong>dimanche</strong> jusqu'à la fin du semestre.
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-[11px]">
+              <div className="p-2 rounded-xl bg-slate-950/70 border border-sky-800/40 text-center shadow-2xs flex flex-col items-center">
+                <div className="flex items-center gap-1 text-sky-400 font-extrabold text-xs">
+                  <Brain className="w-3.5 h-3.5" />
+                  <span>APP</span>
+                </div>
+                <span className="text-[10px] text-slate-300 font-semibold truncate">Apprentissage</span>
+                <span className="text-[9px] text-slate-400 font-medium">Jour même</span>
+              </div>
+              <div className="p-2 rounded-xl bg-slate-950/70 border border-emerald-800/40 text-center shadow-2xs flex flex-col items-center">
+                <div className="flex items-center gap-1 text-emerald-400 font-extrabold text-xs">
+                  <CircleHelp className="w-3.5 h-3.5" />
+                  <span>QCM</span>
+                </div>
+                <span className="text-[10px] text-slate-300 font-semibold truncate">Révision & QCMs</span>
+                <span className="text-[9px] text-slate-400 font-medium">Lendemain</span>
+              </div>
+              <div className="p-2 rounded-xl bg-slate-950/70 border border-amber-800/40 text-center shadow-2xs flex flex-col items-center">
+                <div className="flex items-center gap-1 text-amber-400 font-extrabold text-xs">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>ERR</span>
+                </div>
+                <span className="text-[10px] text-slate-300 font-semibold truncate">Consolidation</span>
+                <span className="text-[9px] text-slate-400 font-medium">J+2 (ou Ven.)</span>
+              </div>
+              <div className="p-2 rounded-xl bg-slate-950/70 border border-indigo-800/40 text-center shadow-2xs flex flex-col items-center">
+                <div className="flex items-center gap-1 text-indigo-400 font-extrabold text-xs">
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>SAM</span>
+                </div>
+                <span className="text-[10px] text-slate-300 font-semibold truncate">Samedi</span>
+                <span className="text-[9px] text-slate-400 font-medium">Cours semaine</span>
+              </div>
+              <div className="p-2 rounded-xl bg-slate-950/70 border border-fuchsia-800/40 text-center shadow-2xs flex flex-col items-center col-span-2 sm:col-span-1">
+                <div className="flex items-center gap-1 text-fuchsia-400 font-extrabold text-xs">
+                  <Infinity className="w-3.5 h-3.5" />
+                  <span>DIM</span>
+                </div>
+                <span className="text-[10px] text-slate-300 font-semibold truncate">Dimanches</span>
+                <span className="text-[9px] text-slate-400 font-medium">Jusqu'à fin sem.</span>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-400 leading-tight">
+              Tous les cours créés dans cette UE suivront automatiquement ce cycle : <strong>APP</strong> (jour même), <strong>QCM</strong> (J+1), <strong>ERR</strong> (J+2 ou regroupé vendredi), <strong>SAM</strong> (synthèse transversale) et <strong>DIM</strong> (révisions cumulatives chaque dimanche).
             </p>
           </div>
 

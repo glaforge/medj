@@ -236,7 +236,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
             <h3 className="font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-[11px] flex items-center gap-2">
               <Sliders className="w-4 h-4 text-sky-500" />
-              Méthode des J : Rythme & Seuils
+              Paliers cognitifs : Rythme & Seuils
             </h3>
 
             {/* Rythme personnalisé card - 5 Paliers Cognitifs */}
@@ -323,7 +323,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <div className="font-bold text-slate-900 dark:text-slate-200">Agenda "MedJ - Révisions PASS"</div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Synchronise automatiquement les séances de J sur votre compte Google</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Synchronise automatiquement les séances de révision sur votre compte Google</div>
                 </div>
                 <button
                   onClick={handleSyncGoogleCalendar}

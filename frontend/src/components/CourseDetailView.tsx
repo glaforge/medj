@@ -628,7 +628,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
               </span>
 
               <span className="text-xs text-slate-400">
-                Cours du {currentCourse.taughtDate} (J0)
+                Cours du {currentCourse.taughtDate} (APP)
               </span>
 
               {/* Difficulty rating badge */}
@@ -747,7 +747,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
               <Clock className="w-4 h-4 text-sky-400" />
-              Planning des Révisions (J0, J1, Samedi & Dimanches)
+              Planning des Révisions (Paliers Cognitifs)
             </h2>
             <span className="text-xs text-slate-400">
               ({sessions.filter(s => s.status === 'VALIDE').length} / {sessions.length} validées)
