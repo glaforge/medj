@@ -36,7 +36,8 @@ gcloud beta run deploy medj-backend \
   --no-build \
   --base-image="europe-west1-docker.pkg.dev/serverless-runtimes/google-24-full/runtimes/java25" \
   --command="java" \
-  --args="-cp,app/*:libs/*:resources,fr.medj.Application" \
+  --args="-XX:MaxRAMPercentage=75,-cp,app/*:libs/*:resources,fr.medj.Application" \
+  --memory="2Gi" \
   --region="$REGION" \
   --project="$PROJECT_ID" \
   --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest" \

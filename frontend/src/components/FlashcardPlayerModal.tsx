@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Flashcard, FlashcardReviewRating } from '../types';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import {
@@ -46,9 +46,15 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [ratings, setRatings] = useState<Record<string, FlashcardReviewRating>>({});
   const [isFinished, setIsFinished] = useState<boolean>(false);
+  const [isNavigating, setIsNavigating] = useState<boolean>(false);
+  const navigationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize or re-shuffle deck
   const setupDeck = useCallback((cards: Flashcard[], shuffle: boolean, startIdx: number = 0) => {
+    if (navigationTimeoutRef.current) {
+      clearTimeout(navigationTimeoutRef.current);
+    }
+    setIsNavigating(false);
     if (!cards || cards.length === 0) {
       setDeck([]);
       return;
@@ -75,33 +81,81 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
     }
   }, [isOpen, flashcards, isShuffle, setupDeck, initialIndex]);
 
+  // Clean up pending animation timeout on unmount or close
+  useEffect(() => {
+    if (!isOpen) {
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+      }
+      setIsNavigating(false);
+    }
+    return () => {
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+      }
+    };
+  }, [isOpen]);
+
   const currentCard = deck[currentIndex];
 
   const handleFlip = useCallback(() => {
+    if (isNavigating) return;
     setIsFlipped(prev => !prev);
-  }, []);
+  }, [isNavigating]);
 
   const handleNext = useCallback(() => {
+    if (isNavigating) return;
+
     if (currentIndex < deck.length - 1) {
-      setCurrentIndex(prev => prev + 1);
-      setIsFlipped(false);
-      setShowHint(false);
+      if (isFlipped) {
+        // D'abord retourner la carte du côté question sur la question en cours,
+        // avant de passer à la carte suivante pour ne jamais dévoiler la réponse suivante
+        setIsNavigating(true);
+        setIsFlipped(false);
+        setShowHint(false);
+
+        if (navigationTimeoutRef.current) {
+          clearTimeout(navigationTimeoutRef.current);
+        }
+        navigationTimeoutRef.current = setTimeout(() => {
+          setCurrentIndex(prev => prev + 1);
+          setIsNavigating(false);
+        }, 320);
+      } else {
+        setCurrentIndex(prev => prev + 1);
+        setShowHint(false);
+      }
     } else {
       setIsFinished(true);
     }
-  }, [currentIndex, deck.length]);
+  }, [currentIndex, deck.length, isFlipped, isNavigating]);
 
   const handlePrev = useCallback(() => {
-    if (currentIndex > 0) {
-      setCurrentIndex(prev => prev - 1);
+    if (isNavigating || currentIndex <= 0) return;
+
+    if (isFlipped) {
+      // D'abord retourner la carte du côté question avant de revenir en arrière
+      setIsNavigating(true);
       setIsFlipped(false);
       setShowHint(false);
       setIsFinished(false);
+
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+      }
+      navigationTimeoutRef.current = setTimeout(() => {
+        setCurrentIndex(prev => prev - 1);
+        setIsNavigating(false);
+      }, 320);
+    } else {
+      setCurrentIndex(prev => prev - 1);
+      setShowHint(false);
+      setIsFinished(false);
     }
-  }, [currentIndex]);
+  }, [currentIndex, isFlipped, isNavigating]);
 
   const handleRating = async (rating: FlashcardReviewRating) => {
-    if (!currentCard) return;
+    if (!currentCard || isNavigating) return;
     setRatings(prev => ({ ...prev, [currentCard.id]: rating }));
     try {
       await onRecordReview(currentCard.id, rating);
@@ -194,7 +248,7 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isFinished, isFlipped, handleFlip, handleNext, handlePrev, handleToggleFav]);
+  }, [isOpen, isFinished, isFlipped, isNavigating, handleFlip, handleNext, handlePrev, handleRating, handleToggleFav]);
 
   if (!isOpen) return null;
 
@@ -203,11 +257,19 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
 
   // Restart handlers
   const handleRestartAll = () => {
+    if (navigationTimeoutRef.current) {
+      clearTimeout(navigationTimeoutRef.current);
+    }
+    setIsNavigating(false);
     setupDeck(flashcards, isShuffle, 0);
     setRatings({});
   };
 
   const handleRestartFailed = () => {
+    if (navigationTimeoutRef.current) {
+      clearTimeout(navigationTimeoutRef.current);
+    }
+    setIsNavigating(false);
     const failedCards = flashcards.filter(c => ratings[c.id] === 'AGAIN' || ratings[c.id] === 'HARD');
     if (failedCards.length > 0) {
       setupDeck(failedCards, isShuffle, 0);
@@ -371,7 +433,7 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
                 onClick={handleFlip}
               >
                 <div
-                  className="w-full min-h-[260px] sm:min-h-[360px] md:min-h-[420px] rounded-2xl sm:rounded-3xl relative transition-transform duration-500 shadow-xl sm:shadow-2xl"
+                  className="w-full min-h-[260px] sm:min-h-[360px] md:min-h-[420px] rounded-2xl sm:rounded-3xl relative transition-transform duration-300 shadow-xl sm:shadow-2xl"
                   style={{
                     transformStyle: 'preserve-3d',
                     transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)'
@@ -405,7 +467,7 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
                       <button
                         type="button"
                         onClick={handleToggleFav}
-                        className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:text-amber-500 transition-colors"
+                        className="p-1.5 sm:p-2 text-slate-400 hover:text-amber-500 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         title={currentCard.isFavorite ? 'Retirer des favoris' : 'Marquer comme favori (F)'}
                       >
                         <Star className={`w-5 h-5 sm:w-6 sm:h-6 ${currentCard.isFavorite ? 'fill-amber-400 text-amber-500' : ''}`} />
@@ -475,7 +537,7 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
                       <button
                         type="button"
                         onClick={handleToggleFav}
-                        className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:text-amber-500 transition-colors"
+                        className="p-1.5 sm:p-2 text-slate-400 hover:text-amber-500 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         title={currentCard.isFavorite ? 'Retirer des favoris' : 'Marquer comme favori (F)'}
                       >
                         <Star className={`w-5 h-5 sm:w-6 sm:h-6 ${currentCard.isFavorite ? 'fill-amber-400 text-amber-500' : ''}`} />
@@ -498,7 +560,8 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
                         <button
                           type="button"
                           onClick={() => handleRating('AGAIN')}
-                          className="py-1 sm:py-1.5 px-1 sm:px-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-900 dark:text-rose-300 border border-rose-300 dark:border-rose-800/40 transition-all cursor-pointer shadow-2xs"
+                          disabled={isNavigating}
+                          className="py-1 sm:py-1.5 px-1 sm:px-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-900 dark:text-rose-300 border border-rose-300 dark:border-rose-800/40 transition-all cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Touche 1"
                         >
                           À revoir
@@ -506,7 +569,8 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
                         <button
                           type="button"
                           onClick={() => handleRating('HARD')}
-                          className="py-1 sm:py-1.5 px-1 sm:px-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-800/40 transition-all cursor-pointer shadow-2xs"
+                          disabled={isNavigating}
+                          className="py-1 sm:py-1.5 px-1 sm:px-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/40 dark:hover:bg-amber-900/60 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-800/40 transition-all cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Touche 2"
                         >
                           Difficile
@@ -514,7 +578,8 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
                         <button
                           type="button"
                           onClick={() => handleRating('GOOD')}
-                          className="py-1 sm:py-1.5 px-1 sm:px-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold bg-sky-100 hover:bg-sky-200 dark:bg-sky-950/40 dark:hover:bg-sky-900/60 text-sky-900 dark:text-sky-300 border border-sky-300 dark:border-sky-800/40 transition-all cursor-pointer shadow-2xs"
+                          disabled={isNavigating}
+                          className="py-1 sm:py-1.5 px-1 sm:px-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold bg-sky-100 hover:bg-sky-200 dark:bg-sky-950/40 dark:hover:bg-sky-900/60 text-sky-900 dark:text-sky-300 border border-sky-300 dark:border-sky-800/40 transition-all cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Touche 3"
                         >
                           Bon
@@ -522,7 +587,8 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
                         <button
                           type="button"
                           onClick={() => handleRating('EASY')}
-                          className="py-1 sm:py-1.5 px-1 sm:px-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-900 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/40 transition-all cursor-pointer shadow-2xs"
+                          disabled={isNavigating}
+                          className="py-1 sm:py-1.5 px-1 sm:px-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-emerald-900 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/40 transition-all cursor-pointer shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Touche 4"
                         >
                           Facile
@@ -539,7 +605,7 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
                 <button
                   type="button"
                   onClick={handlePrev}
-                  disabled={currentIndex === 0}
+                  disabled={currentIndex === 0 || isNavigating}
                   className="flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
                 >
                   <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -549,7 +615,8 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
                 <button
                   type="button"
                   onClick={handleFlip}
-                  className="flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-1.5 sm:py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-amber-900 dark:text-amber-400 border border-slate-300 dark:border-slate-700 transition-all cursor-pointer shadow-2xs"
+                  disabled={isNavigating}
+                  className="flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-1.5 sm:py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-amber-900 dark:text-amber-400 border border-slate-300 dark:border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
                 >
                   <RotateCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 dark:text-amber-400" />
                   <span>{isFlipped ? 'Voir Question' : 'Retourner'}</span>
@@ -558,7 +625,8 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="flex items-center gap-1 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-950/20 transition-all cursor-pointer"
+                  disabled={isNavigating}
+                  className="flex items-center gap-1 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-950/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
                 >
                   <span>{currentIndex === deck.length - 1 ? 'Terminer' : 'Suivante'}</span>
                   <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
