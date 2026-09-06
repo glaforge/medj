@@ -185,7 +185,7 @@ export const EditCourseModal: React.FC<EditCourseModalProps> = ({
             <div>
               <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1 flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-sky-500" />
-                <span>Date du cours dispensé (J0) :</span>
+                <span>Date du cours dispensé (APP) :</span>
               </label>
               <input
                 type="date"

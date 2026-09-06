@@ -11,7 +11,12 @@ import {
   Calendar,
   Sparkles,
   Tag,
-  FileText
+  FileText,
+  Brain,
+  CircleHelp,
+  AlertTriangle,
+  Layers,
+  Infinity
 } from 'lucide-react';
 
 interface NewCourseModalProps {
@@ -198,7 +203,7 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
             </div>
 
             <div>
-              <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Date du cours dispensé (J0) :</label>
+              <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Date du cours dispensé (APP) :</label>
               <input
                 type="date"
                 value={taughtDate}
@@ -267,34 +272,58 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
             />
           </div>
 
-          {/* Programme de révision automatique */}
-          <div className="p-3.5 rounded-2xl bg-sky-50/80 dark:bg-sky-950/30 border border-sky-200/80 dark:border-sky-800/50 space-y-2">
+          {/* Programme de révision automatique - 5 Paliers Cognitifs */}
+          <div className="p-3.5 rounded-2xl bg-sky-50/80 dark:bg-sky-950/30 border border-sky-200/80 dark:border-sky-800/50 space-y-2.5">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
               <span className="font-bold text-xs text-sky-900 dark:text-sky-200">
-                Méthode des J personnalisée (Automatique)
+                Paliers cognitifs de révision (Planification automatique)
               </span>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px]">
-              <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-sky-100 dark:border-sky-900/40 text-center shadow-2xs">
-                <span className="font-mono font-extrabold text-sky-600 dark:text-sky-400 block text-xs">J0</span>
-                <span className="text-[10px] text-slate-500 font-medium">Jour même</span>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-[11px]">
+              <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-sky-200 dark:border-sky-800/40 text-center shadow-2xs flex flex-col items-center">
+                <div className="flex items-center gap-1 text-sky-600 dark:text-sky-400 font-extrabold text-xs">
+                  <Brain className="w-3.5 h-3.5" />
+                  <span>APP</span>
+                </div>
+                <span className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold truncate">Apprentissage</span>
+                <span className="text-[9px] text-slate-400 font-medium">Jour même</span>
               </div>
-              <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-sky-100 dark:border-sky-900/40 text-center shadow-2xs">
-                <span className="font-mono font-extrabold text-sky-600 dark:text-sky-400 block text-xs">J1</span>
-                <span className="text-[10px] text-slate-500 font-medium">Lendemain</span>
+              <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-emerald-200 dark:border-emerald-800/40 text-center shadow-2xs flex flex-col items-center">
+                <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">
+                  <CircleHelp className="w-3.5 h-3.5" />
+                  <span>QCM</span>
+                </div>
+                <span className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold truncate">Révision & QCMs</span>
+                <span className="text-[9px] text-slate-400 font-medium">Lendemain</span>
               </div>
-              <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-sky-100 dark:border-sky-900/40 text-center shadow-2xs">
-                <span className="font-bold text-amber-600 dark:text-amber-400 block text-xs">Samedi</span>
-                <span className="text-[10px] text-slate-500 font-medium">Suivant J1</span>
+              <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-amber-200 dark:border-amber-800/40 text-center shadow-2xs flex flex-col items-center">
+                <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-extrabold text-xs">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>ERR</span>
+                </div>
+                <span className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold truncate">Consolidation</span>
+                <span className="text-[9px] text-slate-400 font-medium">J+2 (ou Ven.)</span>
               </div>
-              <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-sky-100 dark:border-sky-900/40 text-center shadow-2xs">
-                <span className="font-bold text-emerald-600 dark:text-emerald-400 block text-xs">Dimanches</span>
-                <span className="text-[10px] text-slate-500 font-medium">Jusqu'à fin sem.</span>
+              <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-indigo-200 dark:border-indigo-800/40 text-center shadow-2xs flex flex-col items-center">
+                <div className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-extrabold text-xs">
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>SAM</span>
+                </div>
+                <span className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold truncate">Samedi</span>
+                <span className="text-[9px] text-slate-400 font-medium">Cours semaine</span>
+              </div>
+              <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-fuchsia-200 dark:border-fuchsia-800/40 text-center shadow-2xs flex flex-col items-center col-span-2 sm:col-span-1">
+                <div className="flex items-center gap-1 text-fuchsia-600 dark:text-fuchsia-400 font-extrabold text-xs">
+                  <Infinity className="w-3.5 h-3.5" />
+                  <span>DIM</span>
+                </div>
+                <span className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold truncate">Dimanches</span>
+                <span className="text-[9px] text-slate-400 font-medium">Jusqu'à fin sem.</span>
               </div>
             </div>
             <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-              Toutes les séances de révision sont planifiées automatiquement chaque dimanche jusqu'au 31 décembre (S1) ou 31 mai (S2).
+              Planification automatique : apprentissage le jour même, QCMs, carnet d'erreurs (regroupés le vendredi si cours le jeudi), synthèse le samedi et révisions cumulatives chaque dimanche.
             </p>
           </div>
 
