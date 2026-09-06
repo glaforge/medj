@@ -786,10 +786,14 @@ public class GeminiMedicalService {
      * Interactive PASS AI Tutor for student Q&A with LangChain4j @Tool QCM & Illustration generation support and Google Search Grounding.
      */
     public TutorResponse askTutor(String question, String courseContext, List<AiTutorMessage> history) {
-        return askTutor(question, courseContext, null, null, history);
+        return askTutor(question, courseContext, null, null, history, List.of());
     }
 
     public TutorResponse askTutor(String question, String courseContext, String courseId, String courseTitle, List<AiTutorMessage> history) {
+        return askTutor(question, courseContext, courseId, courseTitle, history, List.of());
+    }
+
+    public TutorResponse askTutor(String question, String courseContext, String courseId, String courseTitle, List<AiTutorMessage> history, List<TutorAttachment> attachments) {
         medicalQcmTools.pollRecentlyCreatedQcms(); // Clear any previous
         medicalIllustrationTools.pollRecentlyCreatedIllustrations();
         medicalFlashcardTools.getAndClearRecentlyCreatedFlashcards();
@@ -854,6 +858,61 @@ public class GeminiMedicalService {
                 .append("\n================================================================================\n");
         }
 
+        List<TutorAttachment> safeAttachments = attachments != null ? attachments : List.of();
+        List<byte[]> attachedPdfs = new ArrayList<>();
+        List<Map.Entry<byte[], String>> attachedImages = new ArrayList<>();
+        List<Map.Entry<byte[], String>> attachedTexts = new ArrayList<>();
+
+        if (!safeAttachments.isEmpty()) {
+            courseContextBlock.append("\n\n================================================================================")
+                .append("\nDOCUMENTS & PIÈCES JOINTES FOURNIS PAR L'ÉTUDIANT POUR CETTE QUESTION :")
+                .append("\n================================================================================\n");
+
+            for (TutorAttachment att : safeAttachments) {
+                try {
+                    byte[] fileBytes = storageService.readFileBytes(att.storageUrl());
+                    if (fileBytes == null || fileBytes.length == 0) continue;
+
+                    String mime = att.mimeType() != null ? att.mimeType().toLowerCase() : "";
+                    String fn = att.filename() != null ? att.filename() : "fichier";
+
+                    if (mime.contains("pdf") || fn.toLowerCase().endsWith(".pdf")) {
+                        attachedPdfs.add(fileBytes);
+                        String pdfText = courseKnowledgeBaseService.extractTextFromPdf(fileBytes, 25);
+                        courseContextBlock.append("\n[Document PDF joint : \"").append(fn).append("\" (")
+                            .append(fileBytes.length / 1024).append(" Ko)] :\n");
+                        if (pdfText != null && !pdfText.isBlank()) {
+                            courseContextBlock.append(pdfText).append("\n");
+                        } else {
+                            courseContextBlock.append("(Contenu PDF transmis pour analyse visuelle/multimodale)\n");
+                        }
+                    } else if (mime.startsWith("image/") || fn.toLowerCase().matches(".*\\.(png|jpg|jpeg|webp|gif|svg)")) {
+                        String imageMime = mime.isBlank() ? "image/jpeg" : mime;
+                        attachedImages.add(Map.entry(fileBytes, imageMime));
+                        courseContextBlock.append("\n[Image / Schéma médical joint : \"").append(fn).append("\" (")
+                            .append(fileBytes.length / 1024).append(" Ko, type ").append(imageMime).append(")]\n")
+                            .append("(Image haute résolution transmise visuellement au modèle Gemini)\n");
+                    } else {
+                        // Text / Markdown / CSV
+                        attachedTexts.add(Map.entry(fileBytes, mime.isBlank() ? "text/plain" : mime));
+                        String text = new String(fileBytes, java.nio.charset.StandardCharsets.UTF_8);
+                        if (text.length() > 50_000) {
+                            text = text.substring(0, 50_000) + "\n... [Texte tronqué à 50 000 caractères]";
+                        }
+                        courseContextBlock.append("\n[Document texte joint : \"").append(fn).append("\"] :\n")
+                            .append(text).append("\n");
+                    }
+                } catch (Exception ex) {
+                    LOG.warn("Could not read tutor attachment '{}': {}", att.filename(), ex.getMessage());
+                }
+            }
+
+            courseContextBlock.append("\nConsignes pour les pièces jointes ci-dessus :\n")
+                .append("1. Analyse scrupuleusement le contenu des documents, schémas ou images fournis par l'étudiant.\n")
+                .append("2. Réponds avec précision en te basant sur ces documents/illustrations et apporte les explications médicales attendues en PASS.\n")
+                .append("================================================================================\n");
+        }
+
         if (tutorAiService != null) {
             try {
                 StringBuilder promptBuilder = new StringBuilder();
@@ -870,7 +929,19 @@ public class GeminiMedicalService {
 
                 promptBuilder.append("Question / Demande de l'étudiant : ").append(question);
 
-                Result<String> result = tutorAiService.chat(promptBuilder.toString());
+                Result<String> result;
+                if (!attachedImages.isEmpty()) {
+                    List<dev.langchain4j.data.message.Content> contents = new ArrayList<>();
+                    contents.add(dev.langchain4j.data.message.TextContent.from(promptBuilder.toString()));
+                    for (Map.Entry<byte[], String> img : attachedImages) {
+                        String b64 = java.util.Base64.getEncoder().encodeToString(img.getKey());
+                        contents.add(dev.langchain4j.data.message.ImageContent.from(b64, img.getValue()));
+                    }
+                    dev.langchain4j.data.message.UserMessage userMsg = dev.langchain4j.data.message.UserMessage.from(contents);
+                    result = tutorAiService.chat(userMsg);
+                } else {
+                    result = tutorAiService.chat(promptBuilder.toString());
+                }
                 List<QcmQuestion> generatedQcms = medicalQcmTools.pollRecentlyCreatedQcms();
                 QcmQuestion createdQcm = generatedQcms.isEmpty() ? null : generatedQcms.get(0);
 
@@ -970,12 +1041,32 @@ public class GeminiMedicalService {
                 promptBuilder.append("\nQuestion de l'étudiant : ").append(question).append("\nRéponse du tuteur :");
 
                 GenerateContentResponse response;
-                if (kb != null && kb.rawPdfAttachments() != null && !kb.rawPdfAttachments().isEmpty()) {
+                boolean hasMedia = (!attachedPdfs.isEmpty()) || (!attachedImages.isEmpty()) || (!attachedTexts.isEmpty())
+                    || (kb != null && kb.rawPdfAttachments() != null && !kb.rawPdfAttachments().isEmpty());
+
+                if (hasMedia) {
                     List<Part> parts = new ArrayList<>();
                     parts.add(Part.fromText(promptBuilder.toString()));
-                    for (byte[] pdfBytes : kb.rawPdfAttachments()) {
+
+                    // Add course knowledge base PDFs
+                    if (kb != null && kb.rawPdfAttachments() != null) {
+                        for (byte[] pdfBytes : kb.rawPdfAttachments()) {
+                            parts.add(Part.fromBytes(pdfBytes, "application/pdf"));
+                        }
+                    }
+                    // Add student attached PDFs
+                    for (byte[] pdfBytes : attachedPdfs) {
                         parts.add(Part.fromBytes(pdfBytes, "application/pdf"));
                     }
+                    // Add student attached images
+                    for (Map.Entry<byte[], String> img : attachedImages) {
+                        parts.add(Part.fromBytes(img.getKey(), img.getValue()));
+                    }
+                    // Add student attached text files
+                    for (Map.Entry<byte[], String> txt : attachedTexts) {
+                        parts.add(Part.fromBytes(txt.getKey(), txt.getValue()));
+                    }
+
                     Content contentPayload = Content.builder().parts(parts).build();
                     response = genAiClient.models.generateContent(
                         modelName,
@@ -1154,6 +1245,16 @@ public class GeminiMedicalService {
             + "tandis que les structures postérieures assurent l'extension et la posture. "
             + "Au concours, fais particulièrement attention aux inversions de termes (ex: agoniste/antagoniste, médial/latéral) qui représentent 40% des pièges de QCM !\n\n"
             + "💡 *Astuce : Vous pouvez me demander : « Fais-moi une flashcard sur ce cours » pour créer une fiche mémo, « Fais-moi un schéma à trous » pour vous entraîner à légender, ou « Crée-moi un QCM » pour tester vos connaissances.*";
+
+        if (!safeAttachments.isEmpty()) {
+            StringBuilder attInfo = new StringBuilder("📎 *Pièce(s) jointe(s) analysée(s) :* ");
+            for (int i = 0; i < safeAttachments.size(); i++) {
+                if (i > 0) attInfo.append(", ");
+                attInfo.append("**").append(safeAttachments.get(i).filename()).append("** (").append(safeAttachments.get(i).fileSize() / 1024).append(" Ko)");
+            }
+            attInfo.append("\n\n");
+            rawAnswer = attInfo.toString() + rawAnswer;
+        }
 
         return new TutorResponse(
             appendGroundingLinksToAnswer(rawAnswer, demoSources),

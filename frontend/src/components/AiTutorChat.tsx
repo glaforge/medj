@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Course, AiTutorMessage, TutorConversationThread, QcmQuestion, MedicalIllustration, CourseKnowledgeSource } from '../types';
+import { Course, AiTutorMessage, TutorConversationThread, QcmQuestion, MedicalIllustration, CourseKnowledgeSource, TutorAttachment } from '../types';
 import { api } from '../services/api';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { MedicalIllustrationModal } from './MedicalIllustrationModal';
@@ -7,6 +7,7 @@ import { CourseCombobox } from './CourseCombobox';
 import { printMedicalWorksheet } from '../utils/printWorksheet';
 import { formatDate, formatTime } from '../utils/dateUtils';
 import { getContrastTextColor } from '../utils/colorUtils';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 import {
   Bot,
   Send,
@@ -33,8 +34,29 @@ import {
   ExternalLink,
   Image as ImageIcon,
   Layers,
-  Star
+  Star,
+  Paperclip,
+  FileText,
+  UploadCloud,
+  X,
+  Loader2
 } from 'lucide-react';
+
+interface StagedAttachment {
+  id: string;
+  file: File;
+  previewUrl?: string;
+  attachment?: TutorAttachment;
+  isUploading: boolean;
+  error?: string;
+}
+
+const formatFileSize = (bytes: number): string => {
+  if (!bytes || bytes === 0) return '0 o';
+  if (bytes < 1024) return bytes + ' o';
+  if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' Ko';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' Mo';
+};
 
 interface AiTutorChatProps {
   courses: Course[];
@@ -70,6 +92,111 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
   });
   const [revealedQcmIds, setRevealedQcmIds] = useState<Set<string>>(new Set());
   const [selectedIllustration, setSelectedIllustration] = useState<MedicalIllustration | null>(null);
+
+  const [stagedAttachments, setStagedAttachments] = useState<StagedAttachment[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [previewModalAttachment, setPreviewModalAttachment] = useState<TutorAttachment | null>(null);
+
+  useEscapeKey(!!previewModalAttachment, () => setPreviewModalAttachment(null));
+
+  const clearStagedAttachments = () => {
+    setStagedAttachments(prev => {
+      prev.forEach(item => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+      return [];
+    });
+  };
+
+  const handleFilesSelected = (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    if (fileArray.length === 0) return;
+
+    fileArray.forEach(file => {
+      if (file.size > 25 * 1024 * 1024) {
+        alert(`Le fichier "${file.name}" dépasse la taille maximale autorisée de 25 Mo.`);
+        return;
+      }
+
+      const tempId = 'staged-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+      const isImage = file.type.startsWith('image/') || /\.(png|jpg|jpeg|webp|gif|svg)$/i.test(file.name);
+      const previewUrl = isImage ? URL.createObjectURL(file) : undefined;
+
+      const stagedItem: StagedAttachment = {
+        id: tempId,
+        file,
+        previewUrl,
+        isUploading: true,
+      };
+
+      setStagedAttachments(prev => [...prev, stagedItem]);
+
+      api.uploadTutorFile(file)
+        .then(uploaded => {
+          setStagedAttachments(prev => prev.map(item =>
+            item.id === tempId
+              ? { ...item, isUploading: false, attachment: uploaded }
+              : item
+          ));
+        })
+        .catch(err => {
+          console.error('Failed to upload file for tutor', err);
+          setStagedAttachments(prev => prev.map(item =>
+            item.id === tempId
+              ? { ...item, isUploading: false, error: 'Échec du téléversement' }
+              : item
+          ));
+        });
+    });
+  };
+
+  const removeStagedAttachment = (id: string) => {
+    setStagedAttachments(prev => {
+      const item = prev.find(i => i.id === id);
+      if (item?.previewUrl) {
+        URL.revokeObjectURL(item.previewUrl);
+      }
+      return prev.filter(i => i.id !== id);
+    });
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current += 1;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current -= 1;
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current = 0;
+    setIsDragging(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFilesSelected(e.dataTransfer.files);
+      e.dataTransfer.clearData();
+    }
+  };
 
   const [courseSources, setCourseSources] = useState<CourseKnowledgeSource[]>([]);
   const [isLoadingSources, setIsLoadingSources] = useState(false);
@@ -165,6 +292,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
   };
 
   const selectThread = (thread: TutorConversationThread) => {
+    clearStagedAttachments();
     setActiveThreadId(thread.id);
     setSelectedCourseId(thread.courseId || '');
     setMessages(thread.messages && thread.messages.length > 0 ? thread.messages : [DEFAULT_WELCOME_MSG]);
@@ -174,6 +302,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
   };
 
   const startNewConversation = (courseIdOverride?: string) => {
+    clearStagedAttachments();
     const cId = courseIdOverride !== undefined ? courseIdOverride : selectedCourseId;
     setActiveThreadId(null);
     setSelectedCourseId(cId);
@@ -207,20 +336,35 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
   const currentCourse = courses.find(c => c.id === selectedCourseId);
 
   const handleSendMessage = async (textToSend?: string) => {
-    const q = textToSend || inputQuestion;
-    if (!q.trim() || isLoading) return;
+    const q = textToSend !== undefined ? textToSend : inputQuestion;
+    const hasAttachments = stagedAttachments.length > 0;
+    if ((!q.trim() && !hasAttachments) || isLoading) return;
+
+    // Check if any attachment is still uploading
+    if (stagedAttachments.some(a => a.isUploading)) {
+      alert("Veuillez patienter pendant la fin du téléversement du fichier...");
+      return;
+    }
+
+    const readyAttachments = stagedAttachments
+      .map(a => a.attachment)
+      .filter((a): a is TutorAttachment => !!a);
+
+    const effectiveText = q.trim() || "Peux-tu analyser ce document joint et m'en faire une explication détaillée pour le concours PASS ?";
 
     const userMsg: AiTutorMessage = {
       id: 'usr-' + Date.now(),
       role: 'user',
-      content: q,
+      content: effectiveText,
       courseId: currentCourse?.id,
       courseTitle: currentCourse?.title,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      attachments: readyAttachments.length > 0 ? readyAttachments : undefined
     };
 
     setMessages(prev => [...prev, userMsg]);
     setInputQuestion('');
+    clearStagedAttachments();
     setIsLoading(true);
 
     try {
@@ -229,11 +373,12 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
         : 'Cours général PASS médecine';
 
       const res = await api.askTutor(
-        q,
+        effectiveText,
         courseContext,
         currentCourse?.id,
         currentCourse?.title,
-        activeThreadId || undefined
+        activeThreadId || undefined,
+        readyAttachments.length > 0 ? readyAttachments : undefined
       );
 
       const modelMsg: AiTutorMessage = {
@@ -448,7 +593,29 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
       </div>
 
       {/* MAIN CHAT AREA */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-100/40 dark:bg-slate-900/30 min-w-0">
+      <div
+        className="flex-1 flex flex-col h-full overflow-hidden bg-slate-100/40 dark:bg-slate-900/30 min-w-0 relative"
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {/* Drag & Drop Visual Overlay */}
+        {isDragging && (
+          <div className="absolute inset-0 z-50 bg-sky-500/15 dark:bg-sky-500/25 backdrop-blur-xs border-2 border-dashed border-sky-500 m-3 rounded-3xl flex flex-col items-center justify-center gap-3 p-6 text-center pointer-events-none animate-fadeIn">
+            <div className="w-16 h-16 rounded-2xl bg-sky-600 text-white flex items-center justify-center shadow-xl shadow-sky-600/40 animate-bounce">
+              <UploadCloud className="w-8 h-8" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base sm:text-lg font-extrabold text-sky-950 dark:text-white">
+                Déposez votre document ici
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 font-medium max-w-sm">
+                Images (PNG, JPG, WEBP), Polycopiés de cours PDF, Fiches texte (TXT, MD)
+              </p>
+            </div>
+          </div>
+        )}
         
         {/* Tutor Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 sm:px-6 border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/60">
@@ -655,6 +822,67 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
                   />
                 ) : (
                   <p className="whitespace-pre-wrap">{msg.content}</p>
+                )}
+
+                {/* Attached Files & Documents */}
+                {msg.attachments && msg.attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {msg.attachments.map((att) => {
+                      const isImg = att.mimeType.startsWith('image/') || /\.(png|jpg|jpeg|webp|gif|svg)$/i.test(att.filename);
+                      const isPdf = att.mimeType.includes('pdf') || att.filename.toLowerCase().endsWith('.pdf');
+
+                      if (isImg) {
+                        return (
+                          <div
+                            key={att.id}
+                            onClick={() => setPreviewModalAttachment(att)}
+                            className="group relative rounded-xl overflow-hidden cursor-pointer border border-white/30 dark:border-slate-700 bg-black/20 hover:border-white transition-all shadow-xs max-w-[220px]"
+                            title="Cliquer pour agrandir l'image"
+                          >
+                            <img
+                              src={att.storageUrl}
+                              alt={att.filename}
+                              className="max-h-36 w-auto object-cover group-hover:scale-105 transition-transform duration-200"
+                            />
+                            <div className="p-1.5 bg-black/60 backdrop-blur-xs text-[10px] text-white truncate flex items-center gap-1">
+                              <ImageIcon className="w-3 h-3 shrink-0" />
+                              <span className="truncate">{att.filename}</span>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <a
+                          key={att.id}
+                          href={att.storageUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`flex items-center gap-2 p-2 rounded-xl transition-all shadow-2xs group ${
+                            msg.role === 'user'
+                              ? 'bg-sky-700/80 hover:bg-sky-700 text-white border border-sky-400/40'
+                              : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
+                          }`}
+                          title="Consulter le fichier joint (ouvre dans un nouvel onglet)"
+                        >
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                            isPdf
+                              ? 'bg-rose-500 text-white shadow-xs'
+                              : 'bg-sky-500 text-white shadow-xs'
+                          }`}>
+                            <FileText className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0 max-w-[180px]">
+                            <div className="text-[11px] font-semibold truncate leading-snug">{att.filename}</div>
+                            <div className="text-[9px] opacity-80 flex items-center gap-1">
+                              <span>{formatFileSize(att.fileSize)}</span>
+                              <ExternalLink className="w-2.5 h-2.5 opacity-70 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                            </div>
+                          </div>
+                        </a>
+                      );
+                    })}
+                  </div>
                 )}
 
                 {/* Embedded Interactive Created QCM Card */}
@@ -1009,17 +1237,111 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Staged Attachments Preview Bar */}
+        {stagedAttachments.length > 0 && (
+          <div className="px-4 pt-3 pb-1 border-t border-slate-200 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-950/90 flex flex-wrap gap-2 items-center">
+            {stagedAttachments.map((item) => {
+              const isImg = item.file.type.startsWith('image/') || /\.(png|jpg|jpeg|webp|gif|svg)$/i.test(item.file.name);
+              const isPdf = item.file.type.includes('pdf') || item.file.name.toLowerCase().endsWith('.pdf');
+
+              return (
+                <div
+                  key={item.id}
+                  className="group relative flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xs max-w-xs transition-all"
+                >
+                  {/* Thumbnail or File Icon */}
+                  {isImg && item.previewUrl ? (
+                    <img
+                      src={item.previewUrl}
+                      alt={item.file.name}
+                      className="w-9 h-9 object-cover rounded-lg border border-slate-200 dark:border-slate-700 shrink-0"
+                    />
+                  ) : isPdf ? (
+                    <div className="w-9 h-9 rounded-lg bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-200 dark:border-rose-800/50">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                  ) : (
+                    <div className="w-9 h-9 rounded-lg bg-sky-100 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 border border-sky-200 dark:border-sky-800/50">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                  )}
+
+                  {/* Details */}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate" title={item.file.name}>
+                      {item.file.name}
+                    </div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
+                      <span>{formatFileSize(item.file.size)}</span>
+                      {item.isUploading && (
+                        <span className="text-sky-600 dark:text-sky-400 flex items-center gap-1 font-medium">
+                          <Loader2 className="w-2.5 h-2.5 animate-spin" /> Téléversement...
+                        </span>
+                      )}
+                      {item.attachment && !item.isUploading && (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-0.5">
+                          <CheckCircle2 className="w-2.5 h-2.5" /> Prêt
+                        </span>
+                      )}
+                      {item.error && (
+                        <span className="text-rose-600 dark:text-rose-400 font-medium">
+                          {item.error}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Remove Button */}
+                  <button
+                    type="button"
+                    onClick={() => removeStagedAttachment(item.id)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors"
+                    title="Retirer ce fichier"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Chat Input Box */}
         <form
           onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }}
-          className="p-4 border-t border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/60 flex items-center gap-2"
+          className="p-3 sm:p-4 border-t border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-950/60 flex items-center gap-2"
         >
+          {/* Hidden File Input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,application/pdf,.txt,.md,.csv,text/*"
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files) handleFilesSelected(e.target.files);
+              e.target.value = '';
+            }}
+          />
+
+          {/* Plus / Attach Button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            title="Joindre un fichier (Image, PDF, Document texte)..."
+            className="p-3 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-all active:scale-95 shrink-0 flex items-center justify-center shadow-2xs hover:shadow-xs group"
+          >
+            <Plus className="w-4 h-4 group-hover:scale-110 transition-transform text-slate-600 dark:text-slate-300" />
+          </button>
+
           <input
             type="text"
             placeholder={
-              currentCourse
+              stagedAttachments.length > 0
+                ? "Posez une question sur ce document ou appuyez sur Entrée pour l'analyser..."
+                : currentCourse
                 ? `Poser une question ou demander un QCM sur ${currentCourse.title}...`
-                : "Poser une question ou demander : « Crée-moi un QCM sur les récepteurs RCPG »..."
+                : "Poser une question, joindre un document (+), ou glisser-déposer un fichier..."
             }
             value={inputQuestion}
             onChange={(e) => setInputQuestion(e.target.value)}
@@ -1028,7 +1350,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
 
           <button
             type="submit"
-            disabled={!inputQuestion.trim() || isLoading}
+            disabled={(!inputQuestion.trim() && stagedAttachments.length === 0) || isLoading || stagedAttachments.some(a => a.isUploading)}
             className="p-3 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-bold disabled:opacity-40 transition-all shadow-md shadow-sky-950/20 active:scale-95 shrink-0"
           >
             <Send className="w-4 h-4" />
@@ -1062,6 +1384,52 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
             }));
           }}
         />
+      )}
+
+      {/* Fullscreen Attached Image Viewer Modal */}
+      {previewModalAttachment && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
+          onClick={() => setPreviewModalAttachment(null)}
+        >
+          <div
+            className="relative max-w-4xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-2xl flex flex-col border border-slate-200 dark:border-slate-800"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-3.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                <ImageIcon className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
+                <span className="truncate">{previewModalAttachment.filename}</span>
+                <span className="text-[10px] text-slate-400 font-mono">({formatFileSize(previewModalAttachment.fileSize)})</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewModalAttachment.storageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1.5 rounded-lg text-slate-500 hover:text-sky-600 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                  title="Ouvrir l'image en taille réelle dans un nouvel onglet"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+                <button
+                  onClick={() => setPreviewModalAttachment(null)}
+                  className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                  title="Fermer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="p-3 overflow-auto max-h-[calc(90vh-60px)] flex items-center justify-center bg-slate-950">
+              <img
+                src={previewModalAttachment.storageUrl}
+                alt={previewModalAttachment.filename}
+                className="max-h-[78vh] w-auto object-contain rounded-lg shadow-lg"
+              />
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

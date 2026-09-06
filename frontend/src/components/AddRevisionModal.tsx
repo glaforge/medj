@@ -5,6 +5,7 @@ import { useEscapeKey } from '../hooks/useEscapeKey';
 import { CourseCombobox } from './CourseCombobox';
 import { formatDate, getLocalTodayString } from '../utils/dateUtils';
 import { getContrastTextColor } from '../utils/colorUtils';
+import { getStepInfo, REVISION_STEPS } from '../utils/stepUtils';
 import {
   X,
   CalendarPlus,
@@ -14,7 +15,10 @@ import {
   CheckCircle2,
   Layers,
   ArrowRight,
-  AlertTriangle
+  AlertTriangle,
+  Brain,
+  CircleHelp,
+  Infinity
 } from 'lucide-react';
 
 interface AddRevisionModalProps {
@@ -42,7 +46,7 @@ export const AddRevisionModal: React.FC<AddRevisionModalProps> = ({
     initialCourseId || (courses[0]?.id || '')
   );
   const [mode, setMode] = useState<'step' | 'date'>('step');
-  const [jStepInput, setJStepInput] = useState<number>(90);
+  const [jStepInput, setJStepInput] = useState<number>(1);
   const [customDate, setCustomDate] = useState<string>(
     initialDate || getLocalTodayString()
   );
@@ -67,25 +71,41 @@ export const AddRevisionModal: React.FC<AddRevisionModalProps> = ({
   if (!isOpen) return null;
 
   const selectedCourse = courses.find(c => c.id === selectedCourseId) || courses[0];
-  const subject = selectedCourse
-    ? subjects.find(
-        s => s.id.toLowerCase() === selectedCourse.ueId.toLowerCase() ||
-             s.code.toLowerCase() === selectedCourse.ueId.toLowerCase()
-      )
-    : undefined;
-
-  const courseColor = selectedCourse?.color || subject?.color || '#0284c7';
+  const courseUe = selectedCourse ? subjects.find(s => s.id === selectedCourse.ueId) : null;
+  const courseColor = (courseUe?.color && courseUe.color.trim() !== '')
+    ? courseUe.color
+    : (selectedCourse?.color && selectedCourse.color.trim() !== '' ? selectedCourse.color : '#0284c7');
 
   // Calculate dates and steps
   const taughtDateStr = selectedCourse?.taughtDate || getLocalTodayString();
   const taughtDate = new Date(taughtDateStr + 'T00:00:00');
 
-  const SUGGESTED_J_STEPS = [15, 45, 90, 120, 180, 365];
-
-  // If in step mode, compute date
+  // Compute date according to cognitive steps (0..4) or general offset
   const computeDateFromStep = (step: number): string => {
     const d = new Date(taughtDate);
-    d.setDate(d.getDate() + step);
+    const dayOfWeek = d.getDay(); // 0 = Sunday, 1 = Monday, ..., 4 = Thursday, 5 = Friday, 6 = Saturday
+
+    if (step === 0) {
+      // APP: Jour même
+    } else if (step === 1) {
+      // QCM: J+1
+      d.setDate(d.getDate() + 1);
+    } else if (step === 2) {
+      // ERR: J+1 si Jeudi (4) ou Vendredi (5), sinon J+2
+      const offset = (dayOfWeek === 4 || dayOfWeek === 5) ? 1 : 2;
+      d.setDate(d.getDate() + offset);
+    } else if (step === 3) {
+      // SAM: Samedi de la même semaine
+      const daysUntilSaturday = (6 - dayOfWeek + 7) % 7;
+      d.setDate(d.getDate() + daysUntilSaturday);
+    } else if (step === 4) {
+      // DIM: Dimanche suivant
+      const daysUntilSaturday = (6 - dayOfWeek + 7) % 7;
+      d.setDate(d.getDate() + daysUntilSaturday + 1);
+    } else {
+      d.setDate(d.getDate() + step);
+    }
+
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
@@ -228,38 +248,50 @@ export const AddRevisionModal: React.FC<AddRevisionModalProps> = ({
           {mode === 'step' && (
             <div className="space-y-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800">
               <label className="font-bold text-slate-700 dark:text-slate-300 block">
-                Nombre de jours après le cours (J+) :
+                Palier cognitif ou délai (J+) :
               </label>
 
-              {/* Quick suggestions */}
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
-                {SUGGESTED_J_STEPS.map(step => (
-                  <button
-                    key={step}
-                    type="button"
-                    onClick={() => setJStepInput(step)}
-                    className={`py-1.5 rounded-lg font-mono font-bold text-xs border transition-all cursor-pointer ${
-                      jStepInput === step
-                        ? 'bg-sky-500/20 text-sky-700 dark:text-sky-300 border-sky-500/50 shadow-xs'
-                        : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    J{step}
-                  </button>
-                ))}
+              {/* 5 Cognitive Steps Presets */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {[
+                  { step: 0, code: 'APP', label: 'Compréhension', icon: Brain },
+                  { step: 1, code: 'QCM', label: 'QCMs', icon: CircleHelp },
+                  { step: 2, code: 'ERR', label: 'Erreurs', icon: AlertTriangle },
+                  { step: 3, code: 'SAM', label: 'Samedi', icon: Layers },
+                  { step: 4, code: 'DIM', label: 'Dimanche', icon: Infinity },
+                ].map(item => {
+                  const PresetIcon = item.icon;
+                  const isSelected = jStepInput === item.step;
+                  return (
+                    <button
+                      key={item.step}
+                      type="button"
+                      onClick={() => setJStepInput(item.step)}
+                      className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer flex flex-col items-center gap-1 text-center ${
+                        isSelected
+                          ? 'bg-sky-500/20 text-sky-700 dark:text-sky-300 border-sky-500/60 shadow-xs ring-2 ring-sky-500/30'
+                          : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <PresetIcon className="w-4 h-4" />
+                      <span className="font-mono text-xs">{item.code}</span>
+                      <span className="text-[9px] font-medium opacity-80 truncate w-full">{item.label}</span>
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Custom number input */}
               <div className="pt-2 flex items-center gap-3">
-                <span className="text-slate-500 dark:text-slate-400 font-medium">Ou valeur libre :</span>
+                <span className="text-slate-500 dark:text-slate-400 font-medium">Ou J+ personnalisé :</span>
                 <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-1.5 focus-within:border-sky-500">
                   <span className="font-mono font-bold text-sky-600 dark:text-sky-400 text-xs">J +</span>
                   <input
                     type="number"
-                    min="1"
+                    min="0"
                     max="1000"
                     value={jStepInput}
-                    onChange={(e) => setJStepInput(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    onChange={(e) => setJStepInput(Math.max(0, parseInt(e.target.value, 10) || 0))}
                     className="w-20 bg-transparent text-slate-900 dark:text-white font-mono font-bold focus:outline-none text-xs"
                   />
                 </div>
@@ -283,30 +315,36 @@ export const AddRevisionModal: React.FC<AddRevisionModalProps> = ({
           )}
 
           {/* Dynamic Summary Preview Banner */}
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-50 dark:from-sky-950/40 via-indigo-50 dark:via-indigo-950/40 to-slate-50 dark:to-slate-900/40 border border-sky-200 dark:border-sky-800/40 flex items-center gap-3.5">
-            <div
-              className="w-12 h-12 rounded-2xl flex flex-col items-center justify-center font-mono font-extrabold shadow-md shrink-0"
-              style={{
-                backgroundColor: courseColor,
-                color: getContrastTextColor(courseColor)
-              }}
-            >
-              <span className="text-[10px] leading-none opacity-80">RÉV</span>
-              <span className="text-sm leading-none">J{finalJStep}</span>
-            </div>
+          {(() => {
+            const previewStep = getStepInfo({ jStep: finalJStep, scheduledDate: finalDateStr });
+            const PreviewIcon = previewStep.icon;
+            return (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-50 dark:from-sky-950/40 via-indigo-50 dark:via-indigo-950/40 to-slate-50 dark:to-slate-900/40 border border-sky-200 dark:border-sky-800/40 flex items-center gap-3.5">
+                <div
+                  className="w-12 h-12 rounded-2xl flex flex-col items-center justify-center font-mono font-extrabold shadow-md shrink-0"
+                  style={{
+                    backgroundColor: courseColor,
+                    color: getContrastTextColor(courseColor)
+                  }}
+                >
+                  <PreviewIcon className="w-4 h-4 mb-0.5" />
+                  <span className="text-xs leading-none font-bold">{previewStep.code}</span>
+                </div>
 
-            <div className="flex-1 min-w-0">
-              <div className="text-[11px] font-semibold text-sky-700 dark:text-sky-300">
-                Séance planifiée le :
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] font-semibold text-sky-700 dark:text-sky-300">
+                    {previewStep.title} ({previewStep.code})
+                  </div>
+                  <div className="text-sm font-extrabold text-slate-900 dark:text-white capitalize truncate">
+                    {formattedFinalDate}
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    {previewStep.description}
+                  </div>
+                </div>
               </div>
-              <div className="text-sm font-extrabold text-slate-900 dark:text-white capitalize truncate">
-                {formattedFinalDate}
-              </div>
-              <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                Calculé à partir du J0 ({taughtDateStr})
-              </div>
-            </div>
-          </div>
+            );
+          })()}
 
         </form>
 
@@ -326,7 +364,7 @@ export const AddRevisionModal: React.FC<AddRevisionModalProps> = ({
             className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg shadow-sky-950/20 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
           >
             <CalendarPlus className="w-4 h-4" />
-            <span>{isSubmitting ? 'Planification...' : `Ajouter la révision J${finalJStep}`}</span>
+            <span>{isSubmitting ? 'Planification...' : `Ajouter la séance (${formattedFinalDate})`}</span>
           </button>
         </div>
 

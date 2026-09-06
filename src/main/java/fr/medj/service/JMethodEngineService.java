@@ -34,7 +34,10 @@ public class JMethodEngineService {
     }
 
     private boolean isDefaultIntervals(List<Integer> intervals) {
-        return intervals != null && intervals.equals(List.of(0, 1, 3, 7, 14, 30, 60));
+        return intervals != null && (
+            intervals.equals(List.of(0, 1, 3, 7, 14, 30, 60)) ||
+            intervals.equals(List.of(0, 1, 2, 3, 4))
+        );
     }
 
     public List<RevisionSession> generateSessionsForCourse(Course course, List<Integer> customIntervals) {
@@ -50,7 +53,7 @@ public class JMethodEngineService {
             ? ue.color()
             : (course.color() != null && !course.color().isBlank() ? course.color() : "#0284c7");
 
-        // If explicit custom intervals are provided (and distinct from default [0, 1, 3, 7, 14, 30, 60]), use them
+        // If explicit custom intervals are provided (and distinct from defaults), use them
         if (customIntervals != null && !customIntervals.isEmpty() && !isDefaultIntervals(customIntervals)) {
             for (int j : customIntervals) {
                 LocalDate scheduledDate = taughtDate.plusDays(j);
@@ -74,6 +77,7 @@ public class JMethodEngineService {
                     ue.code(),
                     sessionColor,
                     j,
+                    RevisionSession.inferStepType(j, scheduledDate),
                     scheduledDate,
                     completedDate,
                     status,
@@ -86,44 +90,49 @@ public class JMethodEngineService {
                 sessions.add(session);
             }
         } else {
-            // Standard Customized PASS Schedule:
-            // 1. J0 : Jour même (taughtDate)
-            LocalDate j0Date = taughtDate;
-            String j0Status = j0Date.isBefore(today) ? "VALIDE" : "A_FAIRE";
-            LocalDate j0Completed = j0Date.isBefore(today) ? j0Date : null;
-            String j0Eval = j0Date.isBefore(today) ? "FACILE" : null;
+            // Standard Personalized PASS Schedule (5 Cognitive Steps):
+            DayOfWeek dayOfWeek = taughtDate.getDayOfWeek();
+
+            // 0. APP : Compréhension et apprentissage (Jour du cours)
+            LocalDate appDate = taughtDate;
+            String appStatus = appDate.isBefore(today) ? "VALIDE" : "A_FAIRE";
+            LocalDate appCompleted = appDate.isBefore(today) ? appDate : null;
+            String appEval = appDate.isBefore(today) ? "FACILE" : null;
             sessions.add(new RevisionSession(
-                "rev-" + course.id() + "-j0",
+                "rev-" + course.id() + "-app",
                 course.id(),
                 course.title(),
                 ue.id(),
                 ue.code(),
                 sessionColor,
                 0,
-                j0Date,
-                j0Completed,
-                j0Status,
-                j0Eval,
+                "APP",
+                appDate,
+                appCompleted,
+                appStatus,
+                appEval,
                 null,
                 null,
                 null,
                 ""
             ));
 
-            // 2. J1 : Lendemain (taughtDate + 1)
-            LocalDate j1Date = taughtDate.plusDays(1);
-            String j1Status = j1Date.isBefore(today) ? "EN_RETARD" : "A_FAIRE";
+            // 1. QCM : Révision et QCMs (Lendemain du cours)
+            // Si Jeudi -> Vendredi. Si Vendredi -> Samedi.
+            LocalDate qcmDate = taughtDate.plusDays(1);
+            String qcmStatus = qcmDate.isBefore(today) ? "EN_RETARD" : "A_FAIRE";
             sessions.add(new RevisionSession(
-                "rev-" + course.id() + "-j1",
+                "rev-" + course.id() + "-qcm",
                 course.id(),
                 course.title(),
                 ue.id(),
                 ue.code(),
                 sessionColor,
                 1,
-                j1Date,
+                "QCM",
+                qcmDate,
                 null,
-                j1Status,
+                qcmStatus,
                 null,
                 null,
                 null,
@@ -131,18 +140,45 @@ public class JMethodEngineService {
                 ""
             ));
 
-            // 3. Samedi suivant le J1
-            LocalDate saturdayDate = j1Date.with(TemporalAdjusters.next(DayOfWeek.SATURDAY));
-            int satJStep = (int) ChronoUnit.DAYS.between(taughtDate, saturdayDate);
-            String satStatus = saturdayDate.isBefore(today) ? "EN_RETARD" : "A_FAIRE";
+            // 2. ERR : Consolidation et carnet d'erreurs
+            // Règle du Jeudi : condensé le Vendredi (taughtDate + 1)
+            // Règle du Vendredi : condensé le Samedi (taughtDate + 1)
+            // Sinon : taughtDate + 2 (Lundi -> Mercredi, Mardi -> Jeudi, Mercredi -> Vendredi)
+            LocalDate errDate = (dayOfWeek == DayOfWeek.THURSDAY || dayOfWeek == DayOfWeek.FRIDAY)
+                ? taughtDate.plusDays(1)
+                : taughtDate.plusDays(2);
+            String errStatus = errDate.isBefore(today) ? "EN_RETARD" : "A_FAIRE";
             sessions.add(new RevisionSession(
-                "rev-" + course.id() + "-j" + satJStep,
+                "rev-" + course.id() + "-err",
                 course.id(),
                 course.title(),
                 ue.id(),
                 ue.code(),
                 sessionColor,
-                satJStep,
+                2,
+                "ERR",
+                errDate,
+                null,
+                errStatus,
+                null,
+                null,
+                null,
+                null,
+                ""
+            ));
+
+            // 3. SAM : Révision du samedi (tous les cours de la semaine en cours)
+            LocalDate saturdayDate = taughtDate.with(TemporalAdjusters.nextOrSame(DayOfWeek.SATURDAY));
+            String satStatus = saturdayDate.isBefore(today) ? "EN_RETARD" : "A_FAIRE";
+            sessions.add(new RevisionSession(
+                "rev-" + course.id() + "-sam",
+                course.id(),
+                course.title(),
+                ue.id(),
+                ue.code(),
+                sessionColor,
+                3,
+                "SAM",
                 saturdayDate,
                 null,
                 satStatus,
@@ -153,7 +189,8 @@ public class JMethodEngineService {
                 ""
             ));
 
-            // 4. Dimanches suivants jusqu'à la fin du semestre (31 mai pour S2 / mois 1-5, sinon 31 décembre pour S1)
+            // 4. DIM : Révision du dimanche (tous les cours depuis le début)
+            // Première session le dimanche suivant le samedi, puis chaque dimanche jusqu'à fin du semestre
             LocalDate semesterEndDate;
             if (taughtDate.getMonthValue() >= 1 && taughtDate.getMonthValue() <= 5) {
                 semesterEndDate = LocalDate.of(taughtDate.getYear(), 5, 31);
@@ -163,16 +200,16 @@ public class JMethodEngineService {
 
             LocalDate currentSunday = saturdayDate.plusDays(1);
             while (!currentSunday.isAfter(semesterEndDate)) {
-                int sunJStep = (int) ChronoUnit.DAYS.between(taughtDate, currentSunday);
                 String sunStatus = currentSunday.isBefore(today) ? "EN_RETARD" : "A_FAIRE";
                 sessions.add(new RevisionSession(
-                    "rev-" + course.id() + "-j" + sunJStep,
+                    "rev-" + course.id() + "-dim-" + currentSunday,
                     course.id(),
                     course.title(),
                     ue.id(),
                     ue.code(),
                     sessionColor,
-                    sunJStep,
+                    4,
+                    "DIM",
                     currentSunday,
                     null,
                     sunStatus,
@@ -204,6 +241,7 @@ public class JMethodEngineService {
             s.ueCode(),
             s.ueColor(),
             s.jStep(),
+            s.stepType(),
             s.scheduledDate(),
             LocalDate.now(),
             "VALIDE",
@@ -233,6 +271,7 @@ public class JMethodEngineService {
             s.ueCode(),
             s.ueColor(),
             s.jStep(),
+            s.stepType(),
             s.scheduledDate(),
             null,
             status,
@@ -262,6 +301,7 @@ public class JMethodEngineService {
             s.ueCode(),
             s.ueColor(),
             s.jStep(),
+            s.stepType(),
             newDate,
             null,
             "REPORTE",
@@ -290,6 +330,7 @@ public class JMethodEngineService {
                     s.ueCode(),
                     s.ueColor(),
                     s.jStep(),
+                    s.stepType(),
                     s.scheduledDate().plusDays(daysToAdd),
                     null,
                     "REPORTE",
@@ -411,6 +452,7 @@ public class JMethodEngineService {
                     toMove.ueCode(),
                     toMove.ueColor(),
                     toMove.jStep(),
+                    toMove.stepType(),
                     targetDate,
                     null,
                     "REPORTE",

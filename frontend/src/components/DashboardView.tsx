@@ -9,6 +9,7 @@ import {
 import { api } from '../services/api';
 import { ProgressionChart } from './ProgressionChart';
 import { getContrastTextColor } from '../utils/colorUtils';
+import { getStepInfo } from '../utils/stepUtils';
 import { DeleteRevisionModal } from './DeleteRevisionModal';
 import {
   CheckCircle2,
@@ -328,9 +329,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 sm:p-3.5 rounded-xl bg-white dark:bg-slate-950/70 border border-rose-200/80 dark:border-rose-900/30 text-xs shadow-xs"
                     >
                       <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                        <span className="px-2 py-0.5 rounded font-mono font-extrabold text-rose-700 dark:text-rose-400 bg-rose-100 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800/40 shrink-0">
-                          J{session.jStep}
-                        </span>
+                        {(() => {
+                          const stepInfo = getStepInfo(session);
+                          const StepIcon = stepInfo.icon;
+                          return (
+                            <span
+                              className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded border text-[11px] shrink-0 ${stepInfo.chipClass}`}
+                              title={`${stepInfo.title} : ${stepInfo.description}`}
+                            >
+                              <StepIcon className="w-3 h-3" />
+                              <span>{stepInfo.code}</span>
+                            </span>
+                          );
+                        })()}
                         <span
                           className="font-bold px-2 py-0.5 rounded text-[10px] shrink-0 shadow-2xs"
                           style={{
@@ -453,9 +464,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     {/* Top row: J badge, UE badge & Difficulty */}
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-0.5 rounded-md font-mono font-extrabold text-xs bg-sky-950 text-sky-300 border border-sky-800/50">
-                          J{session.jStep}
-                        </span>
+                        {(() => {
+                          const stepInfo = getStepInfo(session);
+                          const StepIcon = stepInfo.icon;
+                          return (
+                            <span
+                              className={`inline-flex items-center gap-1.5 font-bold px-2.5 py-0.5 rounded-md border text-xs ${stepInfo.chipClass}`}
+                              title={`${stepInfo.title} : ${stepInfo.description}`}
+                            >
+                              <StepIcon className="w-3.5 h-3.5" />
+                              <span>{stepInfo.code}</span>
+                              <span className="hidden sm:inline font-normal opacity-80 text-[11px]">— {stepInfo.subtitle}</span>
+                            </span>
+                          );
+                        })()}
                         <span
                           className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shadow-xs"
                           style={{ backgroundColor: color, color: getContrastTextColor(color) }}
@@ -587,7 +609,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 className="flex items-center justify-between p-3 rounded-xl bg-slate-950/40 border border-slate-800/40 text-xs gap-2"
               >
                 <div className="flex items-center gap-2 truncate min-w-0 flex-1">
-                  <span className="font-mono font-bold text-emerald-400 shrink-0">J{s.jStep}</span>
+                  {(() => {
+                    const stepInfo = getStepInfo(s);
+                    const StepIcon = stepInfo.icon;
+                    return (
+                      <span
+                        className={`inline-flex items-center gap-1 font-bold px-1.5 py-0.5 rounded border text-[10px] shrink-0 ${stepInfo.chipClass}`}
+                        title={stepInfo.title}
+                      >
+                        <StepIcon className="w-2.5 h-2.5" />
+                        <span>{stepInfo.code}</span>
+                      </span>
+                    );
+                  })()}
                   <span className="text-slate-300 truncate font-medium">{s.courseTitle}</span>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">

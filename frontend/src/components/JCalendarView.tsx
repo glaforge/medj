@@ -6,6 +6,7 @@ import {
 } from '../types';
 import { formatDate, getLocalTodayString } from '../utils/dateUtils';
 import { getContrastTextColor } from '../utils/colorUtils';
+import { getStepInfo } from '../utils/stepUtils';
 import { DeleteRevisionModal } from './DeleteRevisionModal';
 import { api } from '../services/api';
 import {
@@ -462,31 +463,38 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
 
                     {/* Pills preview (Draggable) */}
                     <div className="space-y-1 my-1 overflow-hidden">
-                      {dayRevs.slice(0, 2).map((r, rIdx) => (
-                        <div
-                          key={rIdx}
-                          draggable={true}
-                          onDragStart={(e) => {
-                            e.stopPropagation();
-                            e.dataTransfer.setData('text/plain', JSON.stringify({ sessionId: r.id, fromDate: r.scheduledDate }));
-                            e.dataTransfer.effectAllowed = 'move';
-                            setDraggedSessionId(r.id);
-                          }}
-                          onDragEnd={() => {
-                            setDraggedSessionId(null);
-                            setDragOverDate(null);
-                          }}
-                          className={`text-[9px] font-semibold px-1 py-0.5 rounded truncate shadow-2xs cursor-grab active:cursor-grabbing transition-opacity ${
-                            draggedSessionId === r.id ? 'opacity-30' : ''
-                          }`}
-                          style={{
-                            backgroundColor: getCourseOrUeColor(r),
-                            color: getContrastTextColor(getCourseOrUeColor(r))
-                          }}
-                        >
-                          J{r.jStep} {r.courseTitle}
-                        </div>
-                      ))}
+                      {dayRevs.slice(0, 2).map((r, rIdx) => {
+                        const stepInfo = getStepInfo(r);
+                        const StepIcon = stepInfo.icon;
+                        return (
+                          <div
+                            key={rIdx}
+                            draggable={true}
+                            onDragStart={(e) => {
+                              e.stopPropagation();
+                              e.dataTransfer.setData('text/plain', JSON.stringify({ sessionId: r.id, fromDate: r.scheduledDate }));
+                              e.dataTransfer.effectAllowed = 'move';
+                              setDraggedSessionId(r.id);
+                            }}
+                            onDragEnd={() => {
+                              setDraggedSessionId(null);
+                              setDragOverDate(null);
+                            }}
+                            title={`${stepInfo.title} (${stepInfo.code}) : ${r.courseTitle}`}
+                            className={`text-[9px] font-semibold px-1.5 py-0.5 rounded truncate shadow-2xs cursor-grab active:cursor-grabbing transition-opacity flex items-center gap-1 ${
+                              draggedSessionId === r.id ? 'opacity-30' : ''
+                            }`}
+                            style={{
+                              backgroundColor: getCourseOrUeColor(r),
+                              color: getContrastTextColor(getCourseOrUeColor(r))
+                            }}
+                          >
+                            <StepIcon className="w-2.5 h-2.5 shrink-0 opacity-90" />
+                            <span className="shrink-0 font-bold opacity-90">{stepInfo.code}</span>
+                            <span className="truncate">{r.courseTitle}</span>
+                          </div>
+                        );
+                      })}
                       {dayRevs.length > 2 && (
                         <div className="text-[8px] text-slate-500 dark:text-slate-400 font-bold px-1">
                           +{dayRevs.length - 2} autre(s)
@@ -575,9 +583,19 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-mono font-bold text-sky-700 dark:text-sky-400 bg-sky-50 dark:bg-sky-950 px-1.5 py-0.5 rounded border border-sky-200 dark:border-sky-800/40 text-[10px]">
-                              J{s.jStep}
-                            </span>
+                            {(() => {
+                              const stepInfo = getStepInfo(s);
+                              const StepIcon = stepInfo.icon;
+                              return (
+                                <span
+                                  className={`inline-flex items-center gap-1 font-bold px-1.5 py-0.5 rounded border text-[10px] ${stepInfo.chipClass}`}
+                                  title={`${stepInfo.title} : ${stepInfo.description}`}
+                                >
+                                  <StepIcon className="w-3 h-3" />
+                                  <span>{stepInfo.code}</span>
+                                </span>
+                              );
+                            })()}
                             <span
                               className="font-bold px-1.5 py-0.5 rounded text-[9px]"
                               style={{
@@ -980,9 +998,19 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
                             <div className="flex items-center justify-between gap-1">
                               <div className="flex items-center gap-1">
                                 <GripVertical className="w-3 h-3 text-slate-300 dark:text-slate-600 group-hover:text-slate-500 dark:group-hover:text-slate-400 transition-colors shrink-0" />
-                                <span className="font-mono font-black text-sky-800 dark:text-sky-300 bg-sky-100 dark:bg-sky-950 px-1.5 py-0.2 rounded border border-sky-200 dark:border-sky-800 text-[10px]">
-                                  J{s.jStep}
-                                </span>
+                                {(() => {
+                                  const stepInfo = getStepInfo(s);
+                                  const StepIcon = stepInfo.icon;
+                                  return (
+                                    <span
+                                      className={`inline-flex items-center gap-1 font-black px-1.5 py-0.5 rounded border text-[10px] ${stepInfo.chipClass}`}
+                                      title={`${stepInfo.title} : ${stepInfo.description}`}
+                                    >
+                                      <StepIcon className="w-2.5 h-2.5" />
+                                      <span>{stepInfo.code}</span>
+                                    </span>
+                                  );
+                                })()}
                                 <span
                                   className="font-bold px-1.5 py-0.2 rounded text-[9px] shadow-2xs"
                                   style={{

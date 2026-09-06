@@ -48,23 +48,34 @@ public class JMethodEngineServiceTest {
         List<RevisionSession> sessions = jMethodEngineService.generateSessionsForCourse(course, course.customIntervals());
         Assertions.assertFalse(sessions.isEmpty());
 
-        // J0: Jour même (Monday 2026-09-07)
+        // APP: Jour même (Monday 2026-09-07)
         Assertions.assertEquals(mondaySept7, sessions.get(0).scheduledDate());
         Assertions.assertEquals(0, sessions.get(0).jStep());
+        Assertions.assertEquals("APP", sessions.get(0).stepType());
 
-        // J1: Lendemain (Tuesday 2026-09-08)
+        // QCM: Lendemain (Tuesday 2026-09-08)
         Assertions.assertEquals(mondaySept7.plusDays(1), sessions.get(1).scheduledDate());
         Assertions.assertEquals(1, sessions.get(1).jStep());
+        Assertions.assertEquals("QCM", sessions.get(1).stepType());
 
-        // Samedi suivant (Saturday 2026-09-12)
-        Assertions.assertEquals(LocalDate.of(2026, 9, 12), sessions.get(2).scheduledDate());
-        Assertions.assertEquals(DayOfWeek.SATURDAY, sessions.get(2).scheduledDate().getDayOfWeek());
+        // ERR: Consolidation & carnet d'erreurs (Wednesday 2026-09-09)
+        Assertions.assertEquals(mondaySept7.plusDays(2), sessions.get(2).scheduledDate());
+        Assertions.assertEquals(2, sessions.get(2).jStep());
+        Assertions.assertEquals("ERR", sessions.get(2).stepType());
 
-        // All subsequent sessions must be Sundays up to 2026-12-31
+        // SAM: Samedi suivant (Saturday 2026-09-12)
+        Assertions.assertEquals(LocalDate.of(2026, 9, 12), sessions.get(3).scheduledDate());
+        Assertions.assertEquals(DayOfWeek.SATURDAY, sessions.get(3).scheduledDate().getDayOfWeek());
+        Assertions.assertEquals(3, sessions.get(3).jStep());
+        Assertions.assertEquals("SAM", sessions.get(3).stepType());
+
+        // All subsequent sessions must be Sundays up to 2026-12-31 (DIM)
         LocalDate lastSunday = null;
-        for (int i = 3; i < sessions.size(); i++) {
+        for (int i = 4; i < sessions.size(); i++) {
             RevisionSession s = sessions.get(i);
             Assertions.assertEquals(DayOfWeek.SUNDAY, s.scheduledDate().getDayOfWeek(), "Session " + i + " must be a Sunday");
+            Assertions.assertEquals(4, s.jStep());
+            Assertions.assertEquals("DIM", s.stepType());
             Assertions.assertFalse(s.scheduledDate().isAfter(LocalDate.of(2026, 12, 31)), "Sunday cannot exceed Dec 31");
             if (lastSunday != null) {
                 Assertions.assertEquals(lastSunday.plusWeeks(1), s.scheduledDate(), "Sundays must be spaced by exactly 1 week");
@@ -72,6 +83,56 @@ public class JMethodEngineServiceTest {
             lastSunday = s.scheduledDate();
         }
         Assertions.assertEquals(LocalDate.of(2026, 12, 27), lastSunday, "Last Sunday of S1 should be Dec 27, 2026");
+    }
+
+    @Test
+    void testThursdayCondensedSchedule() {
+        LocalDate thursdaySept10 = LocalDate.of(2026, 9, 10); // Thursday in S1
+        Course course = new Course(
+            "test-course-thursday",
+            "ue3",
+            "UE3",
+            "Biophysique : Rayonnements",
+            "#8b5cf6",
+            "Pr. Test",
+            thursdaySept10,
+            4,
+            "EN_COURS",
+            List.of("Biophysique"),
+            "",
+            List.of(),
+            List.of(),
+            LocalDateTime.now(),
+            LocalDateTime.now()
+        );
+
+        List<RevisionSession> sessions = jMethodEngineService.generateSessionsForCourse(course, course.customIntervals());
+        Assertions.assertFalse(sessions.isEmpty());
+
+        // APP: Jour même (Thursday 2026-09-10)
+        Assertions.assertEquals(thursdaySept10, sessions.get(0).scheduledDate());
+        Assertions.assertEquals(0, sessions.get(0).jStep());
+        Assertions.assertEquals("APP", sessions.get(0).stepType());
+
+        // QCM: Vendredi (2026-09-11)
+        Assertions.assertEquals(LocalDate.of(2026, 9, 11), sessions.get(1).scheduledDate());
+        Assertions.assertEquals(1, sessions.get(1).jStep());
+        Assertions.assertEquals("QCM", sessions.get(1).stepType());
+
+        // ERR: Vendredi aussi (2026-09-11, condensé le vendredi libre)
+        Assertions.assertEquals(LocalDate.of(2026, 9, 11), sessions.get(2).scheduledDate());
+        Assertions.assertEquals(2, sessions.get(2).jStep());
+        Assertions.assertEquals("ERR", sessions.get(2).stepType());
+
+        // SAM: Samedi de la même semaine (2026-09-12)
+        Assertions.assertEquals(LocalDate.of(2026, 9, 12), sessions.get(3).scheduledDate());
+        Assertions.assertEquals(3, sessions.get(3).jStep());
+        Assertions.assertEquals("SAM", sessions.get(3).stepType());
+
+        // DIM: Dimanches suivants (2026-09-13...)
+        Assertions.assertEquals(LocalDate.of(2026, 9, 13), sessions.get(4).scheduledDate());
+        Assertions.assertEquals(4, sessions.get(4).jStep());
+        Assertions.assertEquals("DIM", sessions.get(4).stepType());
     }
 
     @Test
@@ -98,23 +159,33 @@ public class JMethodEngineServiceTest {
         List<RevisionSession> sessions = jMethodEngineService.generateSessionsForCourse(course, course.customIntervals());
         Assertions.assertFalse(sessions.isEmpty());
 
-        // J0: Jour même (Friday 2027-01-15)
+        // APP: Jour même (Friday 2027-01-15)
         Assertions.assertEquals(fridayJan15, sessions.get(0).scheduledDate());
         Assertions.assertEquals(0, sessions.get(0).jStep());
+        Assertions.assertEquals("APP", sessions.get(0).stepType());
 
-        // J1: Lendemain (Saturday 2027-01-16)
+        // QCM: Samedi 2027-01-16
         Assertions.assertEquals(fridayJan15.plusDays(1), sessions.get(1).scheduledDate());
         Assertions.assertEquals(1, sessions.get(1).jStep());
+        Assertions.assertEquals("QCM", sessions.get(1).stepType());
 
-        // Samedi suivant (Saturday 2027-01-23)
-        Assertions.assertEquals(LocalDate.of(2027, 1, 23), sessions.get(2).scheduledDate());
-        Assertions.assertEquals(DayOfWeek.SATURDAY, sessions.get(2).scheduledDate().getDayOfWeek());
+        // ERR: Samedi 2027-01-16 (condensé avec QCM et SAM)
+        Assertions.assertEquals(LocalDate.of(2027, 1, 16), sessions.get(2).scheduledDate());
+        Assertions.assertEquals(2, sessions.get(2).jStep());
+        Assertions.assertEquals("ERR", sessions.get(2).stepType());
+
+        // SAM: Samedi 2027-01-16 (samedi de la même semaine)
+        Assertions.assertEquals(LocalDate.of(2027, 1, 16), sessions.get(3).scheduledDate());
+        Assertions.assertEquals(3, sessions.get(3).jStep());
+        Assertions.assertEquals("SAM", sessions.get(3).stepType());
 
         // All subsequent sessions must be Sundays up to 2027-05-31
         LocalDate lastSunday = null;
-        for (int i = 3; i < sessions.size(); i++) {
+        for (int i = 4; i < sessions.size(); i++) {
             RevisionSession s = sessions.get(i);
             Assertions.assertEquals(DayOfWeek.SUNDAY, s.scheduledDate().getDayOfWeek());
+            Assertions.assertEquals(4, s.jStep());
+            Assertions.assertEquals("DIM", s.stepType());
             Assertions.assertFalse(s.scheduledDate().isAfter(LocalDate.of(2027, 5, 31)), "Sunday cannot exceed May 31 for S2");
             lastSunday = s.scheduledDate();
         }
@@ -223,27 +294,37 @@ public class JMethodEngineServiceTest {
         List<RevisionSession> sessions = jMethodEngineService.generateSessionsForCourse(course, course.customIntervals());
         Assertions.assertFalse(sessions.isEmpty());
 
-        // 1. J0: Monday 2026-08-24
+        // 1. APP: Monday 2026-08-24
         Assertions.assertEquals(LocalDate.of(2026, 8, 24), sessions.get(0).scheduledDate());
         Assertions.assertEquals(0, sessions.get(0).jStep());
+        Assertions.assertEquals("APP", sessions.get(0).stepType());
 
-        // 2. J1: Tuesday 2026-08-25
+        // 2. QCM: Tuesday 2026-08-25
         Assertions.assertEquals(LocalDate.of(2026, 8, 25), sessions.get(1).scheduledDate());
         Assertions.assertEquals(1, sessions.get(1).jStep());
+        Assertions.assertEquals("QCM", sessions.get(1).stepType());
 
-        // 3. Samedi suivant: Saturday 2026-08-29 (J5)
-        Assertions.assertEquals(LocalDate.of(2026, 8, 29), sessions.get(2).scheduledDate());
-        Assertions.assertEquals(5, sessions.get(2).jStep());
-        Assertions.assertEquals(DayOfWeek.SATURDAY, sessions.get(2).scheduledDate().getDayOfWeek());
+        // 3. ERR: Wednesday 2026-08-26
+        Assertions.assertEquals(LocalDate.of(2026, 8, 26), sessions.get(2).scheduledDate());
+        Assertions.assertEquals(2, sessions.get(2).jStep());
+        Assertions.assertEquals("ERR", sessions.get(2).stepType());
 
-        // 4. Dimanches suivants jusqu'au 31 décembre 2026
-        Assertions.assertEquals(LocalDate.of(2026, 8, 30), sessions.get(3).scheduledDate());
-        Assertions.assertEquals(6, sessions.get(3).jStep());
-        Assertions.assertEquals(DayOfWeek.SUNDAY, sessions.get(3).scheduledDate().getDayOfWeek());
+        // 4. SAM: Saturday 2026-08-29
+        Assertions.assertEquals(LocalDate.of(2026, 8, 29), sessions.get(3).scheduledDate());
+        Assertions.assertEquals(3, sessions.get(3).jStep());
+        Assertions.assertEquals("SAM", sessions.get(3).stepType());
+        Assertions.assertEquals(DayOfWeek.SATURDAY, sessions.get(3).scheduledDate().getDayOfWeek());
 
-        Assertions.assertEquals(LocalDate.of(2026, 9, 6), sessions.get(4).scheduledDate());
-        Assertions.assertEquals(13, sessions.get(4).jStep());
+        // 5. DIM: Dimanches suivants jusqu'au 31 décembre 2026
+        Assertions.assertEquals(LocalDate.of(2026, 8, 30), sessions.get(4).scheduledDate());
+        Assertions.assertEquals(4, sessions.get(4).jStep());
+        Assertions.assertEquals("DIM", sessions.get(4).stepType());
         Assertions.assertEquals(DayOfWeek.SUNDAY, sessions.get(4).scheduledDate().getDayOfWeek());
+
+        Assertions.assertEquals(LocalDate.of(2026, 9, 6), sessions.get(5).scheduledDate());
+        Assertions.assertEquals(4, sessions.get(5).jStep());
+        Assertions.assertEquals("DIM", sessions.get(5).stepType());
+        Assertions.assertEquals(DayOfWeek.SUNDAY, sessions.get(5).scheduledDate().getDayOfWeek());
 
         // Last session is Sunday Dec 27, 2026
         RevisionSession last = sessions.get(sessions.size() - 1);

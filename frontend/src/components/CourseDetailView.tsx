@@ -28,6 +28,7 @@ import { DeleteCourseModal } from './DeleteCourseModal';
 import { KnowledgeGenerationModal } from './KnowledgeGenerationModal';
 import { getLocalTodayString, parseDate } from '../utils/dateUtils';
 import { getContrastTextColor } from '../utils/colorUtils';
+import { getStepInfo } from '../utils/stepUtils';
 import { printMedicalWorksheet } from '../utils/printWorksheet';
 import {
   ArrowLeft,
@@ -771,11 +772,8 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
             const dateObj = parseDate(session.scheduledDate);
             const dayName = dateObj.toLocaleDateString('fr-FR', { weekday: 'short' });
 
-            const sessionBadgeLabel = session.jStep === 0
-              ? 'J0'
-              : session.jStep === 1
-              ? 'J1'
-              : `J${session.jStep} • ${dayName.charAt(0).toUpperCase() + dayName.slice(1)}`;
+            const stepInfo = getStepInfo(session);
+            const StepIcon = stepInfo.icon;
 
             return (
               <div
@@ -789,16 +787,23 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                 }`}
               >
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-mono font-extrabold text-xs px-2 py-0.5 rounded bg-slate-950/80 border border-slate-800">
-                      {sessionBadgeLabel}
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span
+                      className={`inline-flex items-center gap-1 font-bold text-xs px-2 py-0.5 rounded border ${stepInfo.chipClass}`}
+                      title={`${stepInfo.title} : ${stepInfo.description}`}
+                    >
+                      <StepIcon className="w-3.5 h-3.5" />
+                      <span>{stepInfo.code}</span>
                     </span>
                     <span className="text-[10px] font-bold">
                       {isDone ? '✓ Fait' : isOverdue ? '⚠️ Retard' : 'Prévu'}
                     </span>
                   </div>
-                  <div className="text-[11px] text-slate-400 font-medium">
-                    {session.scheduledDate}
+                  <div className="text-[11px] font-semibold text-slate-200 truncate" title={stepInfo.title}>
+                    {stepInfo.title}
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-medium">
+                    {dayName.charAt(0).toUpperCase() + dayName.slice(1)} • {session.scheduledDate}
                   </div>
                 </div>
 

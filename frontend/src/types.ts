@@ -38,6 +38,8 @@ export interface Course {
   updatedAt: string;
 }
 
+export type RevisionStepType = 'APP' | 'QCM' | 'ERR' | 'SAM' | 'DIM';
+
 export interface RevisionSession {
   id: string;
   courseId: string;
@@ -46,6 +48,7 @@ export interface RevisionSession {
   ueCode: string;
   ueColor: string;
   jStep: number;
+  stepType?: RevisionStepType;
   scheduledDate: string; // YYYY-MM-DD
   completedDate?: string;
   status: 'A_FAIRE' | 'VALIDE' | 'REPORTE' | 'EN_RETARD';
@@ -174,6 +177,14 @@ export interface Flashcard {
 
 export type FlashcardReviewRating = 'AGAIN' | 'HARD' | 'GOOD' | 'EASY';
 
+export interface TutorAttachment {
+  id: string;
+  filename: string;
+  mimeType: string;
+  storageUrl: string;
+  fileSize: number;
+}
+
 export interface AiTutorMessage {
   id: string;
   role: 'user' | 'model';
@@ -185,6 +196,7 @@ export interface AiTutorMessage {
   createdIllustration?: MedicalIllustration;
   createdFlashcard?: Flashcard;
   groundingSources?: GroundingSource[];
+  attachments?: TutorAttachment[];
 }
 
 export interface TutorConversationThread {

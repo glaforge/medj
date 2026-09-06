@@ -352,12 +352,27 @@ export const api = {
     return res.json();
   },
 
+  async uploadTutorFile(file: File): Promise<import('../types').TutorAttachment> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await authFetch(`${API_BASE}/gemini/tutor/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(`Failed to upload file to AI Tutor: ${res.status} ${errText}`);
+    }
+    return res.json();
+  },
+
   async askTutor(
     question: string,
     courseContext?: string,
     courseId?: string,
     courseTitle?: string,
-    threadId?: string
+    threadId?: string,
+    attachments?: import('../types').TutorAttachment[]
   ): Promise<{
     answer: string;
     messageId: string;
@@ -372,7 +387,7 @@ export const api = {
     const res = await authFetch(`${API_BASE}/gemini/tutor`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, courseContext, courseId, courseTitle, threadId }),
+      body: JSON.stringify({ question, courseContext, courseId, courseTitle, threadId, attachments }),
     });
     if (!res.ok) throw new Error('Failed to reach AI Tutor');
     return res.json();

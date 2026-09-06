@@ -3,6 +3,7 @@ import { RevisionSession } from '../types';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { formatDate } from '../utils/dateUtils';
 import { getContrastTextColor } from '../utils/colorUtils';
+import { getStepInfo } from '../utils/stepUtils';
 import {
   X,
   Trash2,
@@ -94,9 +95,20 @@ export const DeleteRevisionModal: React.FC<DeleteRevisionModalProps> = ({
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-2.5">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <span className="font-mono font-black text-sky-800 dark:text-sky-300 bg-sky-100 dark:bg-sky-950 px-2 py-0.5 rounded border border-sky-200 dark:border-sky-800 text-xs">
-                  J{session.jStep}
-                </span>
+                {(() => {
+                  const stepInfo = getStepInfo(session);
+                  const StepIcon = stepInfo.icon;
+                  return (
+                    <span
+                      className={`inline-flex items-center gap-1 font-bold text-xs px-2 py-0.5 rounded border ${stepInfo.chipClass}`}
+                      title={`${stepInfo.title} : ${stepInfo.description}`}
+                    >
+                      <StepIcon className="w-3.5 h-3.5" />
+                      <span>{stepInfo.code}</span>
+                      <span className="font-normal opacity-80 truncate max-w-[150px]">({stepInfo.title})</span>
+                    </span>
+                  );
+                })()}
                 <span
                   className="font-bold px-2 py-0.5 rounded text-[10px] shadow-2xs"
                   style={{

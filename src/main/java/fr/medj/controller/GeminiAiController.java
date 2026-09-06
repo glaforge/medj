@@ -7,6 +7,7 @@ import fr.medj.service.GeminiMedicalService;
 import fr.medj.service.StorageService;
 import io.micronaut.core.annotation.Nullable;
 import io.micronaut.http.HttpResponse;
+import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.*;
 import io.micronaut.http.multipart.CompletedFileUpload;
@@ -428,8 +429,13 @@ public class GeminiAiController {
         if (filename.endsWith(".png")) return "image/png";
         if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) return "image/jpeg";
         if (filename.endsWith(".webp")) return "image/webp";
+        if (filename.endsWith(".gif")) return "image/gif";
+        if (filename.endsWith(".svg")) return "image/svg+xml";
         if (filename.endsWith(".heic")) return "image/heic";
         if (filename.endsWith(".heif")) return "image/heif";
+        if (filename.endsWith(".txt")) return "text/plain";
+        if (filename.endsWith(".md") || filename.endsWith(".markdown")) return "text/markdown";
+        if (filename.endsWith(".csv")) return "text/csv";
 
         // 2. Magic bytes inspection
         if (bytes != null && bytes.length >= 4) {
@@ -455,7 +461,7 @@ public class GeminiAiController {
             }
         }
 
-        return "application/pdf";
+        return "application/octet-stream";
     }
 
     @Get("/tutor/threads{?courseId}")
@@ -515,20 +521,69 @@ public class GeminiAiController {
         return HttpResponse.notFound();
     }
 
+    @Post(value = "/tutor/upload", consumes = MediaType.MULTIPART_FORM_DATA)
+    public HttpResponse<TutorAttachment> uploadTutorAttachment(@Part("file") CompletedFileUpload file) {
+        if (file == null) {
+            return HttpResponse.badRequest();
+        }
+        try {
+            byte[] bytes = file.getBytes();
+            if (bytes == null || bytes.length == 0) {
+                return HttpResponse.badRequest();
+            }
+            if (bytes.length > 25 * 1024 * 1024) {
+                LOG.warn("Uploaded tutor file exceeds 25MB limit: {} bytes", bytes.length);
+                return HttpResponse.status(HttpStatus.REQUEST_ENTITY_TOO_LARGE);
+            }
+            String originalFilename = (file.getFilename() != null && !file.getFilename().isBlank())
+                ? file.getFilename()
+                : "document_" + UUID.randomUUID();
+            String mimeType = detectMimeType(file, bytes);
+            String storageUrl = storageService.storeFile(originalFilename, mimeType, new ByteArrayInputStream(bytes));
+
+            TutorAttachment attachment = new TutorAttachment(
+                "att-" + UUID.randomUUID(),
+                originalFilename,
+                mimeType,
+                storageUrl,
+                bytes.length
+            );
+            LOG.info("Uploaded tutor attachment: name='{}', mime='{}', size={} bytes, url='{}'",
+                originalFilename, mimeType, bytes.length, storageUrl);
+
+            return HttpResponse.ok(attachment);
+        } catch (IOException e) {
+            LOG.error("Failed to store tutor attachment: {}", e.getMessage(), e);
+            return HttpResponse.serverError();
+        }
+    }
+
     @Serdeable
     public record AskTutorRequest(
         String threadId,
         String question,
         String courseContext,
         String courseId,
-        String courseTitle
+        String courseTitle,
+        @Nullable List<TutorAttachment> attachments
     ) {}
 
     @Post("/tutor")
     public HttpResponse<Map<String, Object>> askTutor(@Body AskTutorRequest request) {
-        if (request == null || request.question() == null || request.question().isBlank()) {
+        if (request == null) {
             return HttpResponse.badRequest();
         }
+        List<TutorAttachment> attachments = request.attachments() != null ? request.attachments() : List.of();
+        boolean hasQuestion = request.question() != null && !request.question().isBlank();
+        boolean hasAttachments = !attachments.isEmpty();
+
+        if (!hasQuestion && !hasAttachments) {
+            return HttpResponse.badRequest();
+        }
+
+        String effectiveQuestion = hasQuestion
+            ? request.question().trim()
+            : "Peux-tu analyser ce document joint et m'en faire une explication détaillée pour le concours PASS ?";
 
         String threadId = request.threadId();
         TutorConversationThread thread = null;
@@ -556,18 +611,24 @@ public class GeminiAiController {
         AiTutorMessage userMsg = new AiTutorMessage(
             "msg-" + UUID.randomUUID(),
             "user",
-            request.question(),
+            effectiveQuestion,
             effectiveCourseId,
             effectiveCourseTitle,
-            LocalDateTime.now()
+            LocalDateTime.now(),
+            null,
+            null,
+            null,
+            List.of(),
+            attachments
         );
 
         GeminiMedicalService.TutorResponse tutorResponse = geminiMedicalService.askTutor(
-            request.question(),
+            effectiveQuestion,
             request.courseContext(),
             effectiveCourseId,
             effectiveCourseTitle,
-            history
+            history,
+            attachments
         );
 
         AiTutorMessage modelMsg = new AiTutorMessage(

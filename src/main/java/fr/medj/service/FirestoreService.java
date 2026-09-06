@@ -1094,13 +1094,28 @@ public class FirestoreService {
             if (msgsRaw != null) {
                 for (Map<String, Object> mm : msgsRaw) {
                     String ts = (String) mm.get("timestamp");
+                    List<TutorAttachment> atts = new ArrayList<>();
+                    List<Map<String, Object>> attsRaw = (List<Map<String, Object>>) mm.get("attachments");
+                    if (attsRaw != null) {
+                        for (Map<String, Object> am : attsRaw) {
+                            Number fs = (Number) am.get("fileSize");
+                            atts.add(new TutorAttachment(
+                                (String) am.get("id"),
+                                (String) am.get("filename"),
+                                (String) am.get("mimeType"),
+                                (String) am.get("storageUrl"),
+                                fs != null ? fs.longValue() : 0L
+                            ));
+                        }
+                    }
                     msgs.add(new AiTutorMessage(
                         (String) mm.get("id"),
                         (String) mm.get("role"),
                         (String) mm.get("content"),
                         (String) mm.get("courseId"),
                         (String) mm.get("courseTitle"),
-                        ts != null ? LocalDateTime.parse(ts) : LocalDateTime.now()
+                        ts != null ? LocalDateTime.parse(ts) : LocalDateTime.now(),
+                        atts
                     ));
                 }
             }

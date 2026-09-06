@@ -840,7 +840,8 @@ export const App: React.FC = () => {
             }));
           }
           setRevisionUpdateTrigger(prev => prev + 1);
-          showToast(`✓ Révision J${session.jStep} ajoutée (${session.scheduledDate}) !`);
+          const stepCode = session.stepType || `J${session.jStep}`;
+          showToast(`✓ Séance ${stepCode} ajoutée (${session.scheduledDate}) !`);
           loadAllData();
         }}
       />

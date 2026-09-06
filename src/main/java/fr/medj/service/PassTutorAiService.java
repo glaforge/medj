@@ -36,4 +36,6 @@ public interface PassTutorAiService {
         Dans ton message de réponse, explique la notion anatomique/médicale et confirme à l'étudiant que l'élément (QCM, schéma ou flashcard) a bien été généré et enregistré.
         """)
     Result<String> chat(@UserMessage String userMessage);
+
+    Result<String> chat(dev.langchain4j.data.message.UserMessage userMessage);
 }
