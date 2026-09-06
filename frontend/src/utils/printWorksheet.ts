@@ -371,7 +371,7 @@ export function printMedicalWorksheet(illustration: MedicalIllustration, include
         </div>
 
         <div class="footer-tag">
-          Document généré avec MedJ (Méthode des J) • Illustration propulsée par Gemini 3 Pro Image (Nano Banana Pro) (Google GenAI)
+          Document généré avec MedJ • Illustration propulsée par Gemini 3 Pro Image (Nano Banana Pro) (Google GenAI)
         </div>
       </div>
     </body>

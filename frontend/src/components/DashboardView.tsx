@@ -316,7 +316,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </span>
               </div>
               <p className="text-xs text-rose-800/80 dark:text-rose-200/70 mt-1 leading-relaxed">
-                La répétition espacée est plus efficace quand les J sont réguliers. Décalez d'un clic pour réajuster votre planning.
+                La répétition espacée est plus efficace avec un rythme régulier. Décalez d'un clic pour réajuster votre planning.
               </p>
 
               {/* Overdue items list */}

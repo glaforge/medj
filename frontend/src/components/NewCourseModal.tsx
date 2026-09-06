@@ -356,7 +356,7 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
             disabled={!title.trim() || isSubmitting}
             className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg shadow-sky-950/20 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
           >
-            {isSubmitting ? 'Création en cours...' : 'Créer le cours & planifier les J'}
+            {isSubmitting ? 'Création en cours...' : 'Créer le cours & planifier les révisions'}
           </button>
         </div>
 

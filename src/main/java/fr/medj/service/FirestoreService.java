@@ -144,7 +144,7 @@ public class FirestoreService {
                     ivs != null ? ivs.stream().map(Long::intValue).collect(Collectors.toList()) : List.of(),
                     thresh != null ? thresh.intValue() : 6,
                     autoSm != null ? autoSm : true,
-                    fac != null ? fac : "Méthode PASS Personnalisée (J0, J1, Samedi, Dimanches)",
+                    fac != null ? fac : "Paliers Cognitifs PASS (APP, QCM, ERR, SAM, DIM)",
                     gCalId != null ? gCalId : "",
                     calSync != null ? calSync : true
                 );

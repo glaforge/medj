@@ -252,7 +252,7 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
         <div>
           <h1 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             <CalendarIcon className="w-5 h-5 text-sky-500 dark:text-sky-400 shrink-0" />
-            <span>Planning Dynamique des J</span>
+            <span>Planning Dynamique des Révisions</span>
           </h1>
           <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
             Visualisez vos courbes d'espacement et ajustez vos révisions par glisser-déposer (Drag & Drop) ou décalage

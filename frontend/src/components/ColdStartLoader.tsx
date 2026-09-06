@@ -19,8 +19,8 @@ interface ColdStartLoaderProps {
 const MEDICAL_TIPS = [
   {
     icon: '💡',
-    title: 'Méthode des J & Répétition Espacée',
-    text: 'Revoir un cours à J₀, J₁, J₃, J₇, J₁₄, J₃₀ permet d\'ancrer durablement plus de 80% des notions dans la mémoire à long terme.'
+    title: 'Paliers Cognitifs & Répétition Espacée',
+    text: 'Structurer vos révisions en 5 paliers (APP, QCM, ERR, SAM, DIM) permet d\'ancrer durablement plus de 80% des notions dans la mémoire à long terme.'
   },
   {
     icon: '🧠',

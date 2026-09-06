@@ -46,6 +46,7 @@ public class GoogleCalendarService {
                 s.ueCode(),
                 s.ueColor(),
                 s.jStep(),
+                s.stepType(),
                 s.scheduledDate(),
                 s.completedDate(),
                 s.status(),
@@ -88,16 +89,18 @@ public class GoogleCalendarService {
             String dateStr = d.format(dtf);
             String nextDateStr = d.plusDays(1).format(dtf);
 
+            String stepLabel = s.stepType() != null && !s.stepType().isBlank() ? s.stepType() : ("J" + s.jStep());
+
             sb.append("BEGIN:VEVENT\r\n");
             sb.append("UID:").append(s.id()).append("@medj.pass\r\n");
             sb.append("DTSTAMP:").append(LocalDate.now().format(dtf)).append("T080000Z\r\n");
             sb.append("DTSTART;VALUE=DATE:").append(dateStr).append("\r\n");
             sb.append("DTEND;VALUE=DATE:").append(nextDateStr).append("\r\n");
-            sb.append("SUMMARY:[J").append(s.jStep()).append("] ").append(s.ueCode()).append(" - ").append(s.courseTitle()).append("\r\n");
-            sb.append("DESCRIPTION:Révision Méthode des J pour le cours ").append(s.courseTitle())
+            sb.append("SUMMARY:[").append(stepLabel).append("] ").append(s.ueCode()).append(" - ").append(s.courseTitle()).append("\r\n");
+            sb.append("DESCRIPTION:Séance de révision (").append(stepLabel).append(") pour le cours ").append(s.courseTitle())
               .append(" (").append(s.ueCode()).append(")\\nStatut: ").append(s.status())
               .append("\\nOuvrir MedJ pour lancer le quiz ou décaler la date.\r\n");
-            sb.append("CATEGORIES:PASS,Médecine,Révision,J").append(s.jStep()).append("\r\n");
+            sb.append("CATEGORIES:PASS,Médecine,Révision,").append(stepLabel).append("\r\n");
             sb.append("STATUS:CONFIRMED\r\n");
             sb.append("END:VEVENT\r\n");
         }

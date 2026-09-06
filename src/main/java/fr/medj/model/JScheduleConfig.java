@@ -17,7 +17,7 @@ public record JScheduleConfig(
             List.of(),
             6,
             true,
-            "Méthode PASS Personnalisée (J0, J1, Samedi, Dimanches)",
+            "Paliers Cognitifs PASS (APP, QCM, ERR, SAM, DIM)",
             "",
             true
         );

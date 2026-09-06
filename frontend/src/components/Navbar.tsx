@@ -157,7 +157,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Settings Button */}
             <button
               onClick={onOpenSettings}
-              title="Paramètres & Intervalles des J"
+              title="Paramètres & Paliers de révision"
               className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 transition-all"
             >
               <Settings className="w-4 h-4" />
