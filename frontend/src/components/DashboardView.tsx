@@ -9,7 +9,7 @@ import {
 import { api } from '../services/api';
 import { ProgressionChart } from './ProgressionChart';
 import { getContrastTextColor } from '../utils/colorUtils';
-import { getStepInfo } from '../utils/stepUtils';
+import { getStepInfo, compareRevisionsByStepPriority } from '../utils/stepUtils';
 import { DeleteRevisionModal } from './DeleteRevisionModal';
 import {
   CheckCircle2,
@@ -115,39 +115,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return '#0284c7';
   };
 
-  // Sort sessions: Highest course difficulty first (5 -> 1), then UE weight, then lowest J-step
+  // Sort sessions: Pedagogical step priority first (APP -> QCM -> ERR -> SAM -> DIM), then course difficulty (5 -> 1), UE weight, title
   const dueSessions = useMemo(() => {
     const list = [...(todaySummary.dueToday || [])];
-    return list.sort((a, b) => {
-      const courseA = getCourseForSession(a.courseId);
-      const courseB = getCourseForSession(b.courseId);
-      const diffA = courseA?.difficulty ?? 3;
-      const diffB = courseB?.difficulty ?? 3;
-      if (diffB !== diffA) return diffB - diffA;
-
-      const ueA = getSubjectForSession(a.ueId);
-      const ueB = getSubjectForSession(b.ueId);
-      const coeffA = ueA?.coefficient ?? 10;
-      const coeffB = ueB?.coefficient ?? 10;
-      if (coeffB !== coeffA) return coeffB - coeffA;
-
-      return a.jStep - b.jStep;
-    });
+    return list.sort((a, b) => compareRevisionsByStepPriority(a, b, courses, subjects));
   }, [todaySummary.dueToday, courses, subjects]);
 
   const overdueSessions = useMemo(() => {
     const list = [...(todaySummary.overdue || [])];
-    return list.sort((a, b) => {
-      const courseA = getCourseForSession(a.courseId);
-      const courseB = getCourseForSession(b.courseId);
-      const diffA = courseA?.difficulty ?? 3;
-      const diffB = courseB?.difficulty ?? 3;
-      if (diffB !== diffA) return diffB - diffA;
-      return a.jStep - b.jStep;
-    });
-  }, [todaySummary.overdue, courses]);
+    return list.sort((a, b) => compareRevisionsByStepPriority(a, b, courses, subjects));
+  }, [todaySummary.overdue, courses, subjects]);
 
-  const completedSessions = todaySummary.completedToday || [];
+  const completedSessions = useMemo(() => {
+    const list = [...(todaySummary.completedToday || [])];
+    return list.sort((a, b) => compareRevisionsByStepPriority(a, b, courses, subjects));
+  }, [todaySummary.completedToday, courses, subjects]);
   const totalDue = dueSessions.length + overdueSessions.length;
   const completedCount = completedSessions.length;
   const progressPercent = (totalDue + completedCount) > 0

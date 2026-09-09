@@ -468,4 +468,80 @@ public class JMethodEngineServiceTest {
         Assertions.assertTrue(easyAfter.get().scheduledDate().isAfter(targetOverloadedDate), "Le cours facile (1/5) doit être relégué à un jour ultérieur");
         Assertions.assertEquals("REPORTE", easyAfter.get().status());
     }
+
+    @Test
+    void testDailyPriorityComparatorRespectsStepPriorityOrder() {
+        LocalDate testDate = LocalDate.of(2026, 9, 9);
+
+        Course cEasy = new Course(
+            "c-easy", "ue1", "UE1", "Cours Facile", "#0284c7", "Pr. A",
+            testDate, 1, "EN_COURS", List.of(), "", List.of(), List.of(),
+            LocalDateTime.now(), LocalDateTime.now()
+        );
+        Course cHard = new Course(
+            "c-hard", "ue2", "UE2", "Cours Difficile", "#10b981", "Pr. B",
+            testDate, 5, "EN_COURS", List.of(), "", List.of(), List.of(),
+            LocalDateTime.now(), LocalDateTime.now()
+        );
+
+        java.util.Map<String, Course> courseMap = java.util.Map.of(
+            cEasy.id(), cEasy,
+            cHard.id(), cHard
+        );
+        java.util.Map<String, fr.medj.model.SubjectUE> subjectMap = java.util.Collections.emptyMap();
+
+        // Create sessions in deliberately scrambled order with mixed difficulties
+        RevisionSession dimHard = new RevisionSession(
+            "s-dim", cHard.id(), cHard.title(), cHard.ueId(), cHard.ueCode(), cHard.color(),
+            4, "DIM", testDate, null, "A_FAIRE", null, null, null, null, ""
+        );
+        RevisionSession samEasy = new RevisionSession(
+            "s-sam", cEasy.id(), cEasy.title(), cEasy.ueId(), cEasy.ueCode(), cEasy.color(),
+            3, "SAM", testDate, null, "A_FAIRE", null, null, null, null, ""
+        );
+        RevisionSession errHard = new RevisionSession(
+            "s-err", cHard.id(), cHard.title(), cHard.ueId(), cHard.ueCode(), cHard.color(),
+            2, "ERR", testDate, null, "A_FAIRE", null, null, null, null, ""
+        );
+        RevisionSession qcmEasy = new RevisionSession(
+            "s-qcm-easy", cEasy.id(), cEasy.title(), cEasy.ueId(), cEasy.ueCode(), cEasy.color(),
+            1, "QCM", testDate, null, "A_FAIRE", null, null, null, null, ""
+        );
+        RevisionSession qcmHard = new RevisionSession(
+            "s-qcm-hard", cHard.id(), cHard.title(), cHard.ueId(), cHard.ueCode(), cHard.color(),
+            1, "QCM", testDate, null, "A_FAIRE", null, null, null, null, ""
+        );
+        RevisionSession appEasy = new RevisionSession(
+            "s-app", cEasy.id(), cEasy.title(), cEasy.ueId(), cEasy.ueCode(), cEasy.color(),
+            0, "APP", testDate, null, "A_FAIRE", null, null, null, null, ""
+        );
+
+        List<RevisionSession> unorganized = List.of(dimHard, samEasy, errHard, qcmEasy, qcmHard, appEasy);
+
+        List<RevisionSession> sorted = unorganized.stream()
+            .sorted(jMethodEngineService.getDailyPriorityComparator(courseMap, subjectMap))
+            .toList();
+
+        // 1. APP must be first (even though cEasy has difficulty 1 vs dimHard with difficulty 5)
+        Assertions.assertEquals("APP", sorted.get(0).stepType());
+        Assertions.assertEquals("s-app", sorted.get(0).id());
+
+        // 2. QCM comes second (between two QCMs, difficulty 5 comes before difficulty 1)
+        Assertions.assertEquals("QCM", sorted.get(1).stepType());
+        Assertions.assertEquals("s-qcm-hard", sorted.get(1).id());
+        Assertions.assertEquals("QCM", sorted.get(2).stepType());
+        Assertions.assertEquals("s-qcm-easy", sorted.get(2).id());
+
+        // 3. ERR comes third
+        Assertions.assertEquals("ERR", sorted.get(3).stepType());
+        Assertions.assertEquals("s-err", sorted.get(3).id());
+
+        // 4. SAM comes fourth
+        Assertions.assertEquals("SAM", sorted.get(4).stepType());
+        Assertions.assertEquals("s-sam", sorted.get(4).id());
+
+        // 5. DIM comes fifth
+        Assertions.assertEquals("DIM", sorted.get(5).stepType());
+        Assertions.assertEquals("s-dim", sorted.get(5).id());
+    }
 }

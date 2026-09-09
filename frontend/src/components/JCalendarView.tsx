@@ -6,7 +6,7 @@ import {
 } from '../types';
 import { formatDate, getLocalTodayString } from '../utils/dateUtils';
 import { getContrastTextColor } from '../utils/colorUtils';
-import { getStepInfo } from '../utils/stepUtils';
+import { getStepInfo, compareRevisionsByStepPriority } from '../utils/stepUtils';
 import { DeleteRevisionModal } from './DeleteRevisionModal';
 import { api } from '../services/api';
 import {
@@ -56,7 +56,7 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
   onSelectCourse,
   onOpenAddRevisionModal
 }) => {
-  const [viewMode, setViewMode] = useState<'month' | 'week'>('week');
+  const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('week');
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [currentWeekDate, setCurrentWeekDate] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<string>(getLocalTodayString());
@@ -125,6 +125,27 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
     const d = new Date(currentWeekDate);
     d.setDate(d.getDate() + 7);
     setCurrentWeekDate(d);
+  };
+
+  // Day navigation
+  const prevDay = () => {
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    date.setDate(date.getDate() - 1);
+    const newDateStr = formatYMD(date.getFullYear(), date.getMonth(), date.getDate());
+    setSelectedDate(newDateStr);
+    setCurrentMonth(date);
+    setCurrentWeekDate(date);
+  };
+
+  const nextDay = () => {
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    date.setDate(date.getDate() + 1);
+    const newDateStr = formatYMD(date.getFullYear(), date.getMonth(), date.getDate());
+    setSelectedDate(newDateStr);
+    setCurrentMonth(date);
+    setCurrentWeekDate(date);
   };
 
   const mondayOfWeek = getMonday(currentWeekDate);
@@ -233,16 +254,15 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
   const weeklyCompletionRate = totalWeeklySessions > 0 ? Math.round((totalWeeklyCompleted / totalWeeklySessions) * 100) : 0;
   const weeklyOverloadedDays = weekDays.filter(wd => (revisionsByDate[wd.dateStr]?.length || 0) > 5).length;
 
-  // Selected date's revisions sorted by priority
+  // Selected date's revisions sorted by priority (APP -> QCM -> ERR -> SAM -> DIM)
   const rawSelectedDayRevisions = revisionsByDate[selectedDate] || [];
-  const selectedDayRevisions = [...rawSelectedDayRevisions].sort((a, b) => {
-    const courseA = courses.find(c => c.id === a.courseId);
-    const courseB = courses.find(c => c.id === b.courseId);
-    const diffA = courseA?.difficulty ?? 3;
-    const diffB = courseB?.difficulty ?? 3;
-    if (diffB !== diffA) return diffB - diffA;
-    return a.jStep - b.jStep;
-  });
+  const selectedDayRevisions = [...rawSelectedDayRevisions].sort((a, b) =>
+    compareRevisionsByStepPriority(a, b, courses, subjects)
+  );
+  const dayTotalCount = selectedDayRevisions.length;
+  const dayCompletedCount = selectedDayRevisions.filter(r => r.status === 'VALIDE').length;
+  const dayCompletionRate = dayTotalCount > 0 ? Math.round((dayCompletedCount / dayTotalCount) * 100) : 0;
+  const dayHasOverload = dayTotalCount > 5;
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -259,10 +279,10 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
           </p>
         </div>
 
-        {/* View Mode Switcher + Month/Week Controls */}
+        {/* View Mode Switcher + Month/Week/Day Controls */}
         <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
           
-          {/* Mode Switcher: Mois / Semaine */}
+          {/* Mode Switcher: Mois / Semaine / Jour */}
           <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold">
             <button
               onClick={() => setViewMode('month')}
@@ -287,27 +307,41 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
               <CalendarRange className="w-3.5 h-3.5" />
               <span>Semaine</span>
             </button>
+
+            <button
+              onClick={() => setViewMode('day')}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'day'
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <CalendarIcon className="w-3.5 h-3.5" />
+              <span>Jour</span>
+            </button>
           </div>
 
           {/* Navigation Controls */}
           <div className="flex items-center bg-slate-100 dark:bg-slate-900 rounded-xl p-1 border border-slate-200 dark:border-slate-800">
             <button
-              onClick={viewMode === 'month' ? prevMonth : prevWeek}
-              title={viewMode === 'month' ? 'Mois précédent' : 'Semaine précédente'}
+              onClick={viewMode === 'month' ? prevMonth : viewMode === 'week' ? prevWeek : prevDay}
+              title={viewMode === 'month' ? 'Mois précédent' : viewMode === 'week' ? 'Semaine précédente' : 'Jour précédent'}
               className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            <span className="px-3 text-xs font-bold text-slate-800 dark:text-slate-200 capitalize min-w-32 text-center select-none">
+            <span className="px-3 text-xs font-bold text-slate-800 dark:text-slate-200 capitalize min-w-36 text-center select-none">
               {viewMode === 'month'
                 ? currentMonth.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
-                : `${mondayOfWeek.getDate()} ${mondayOfWeek.toLocaleDateString('fr-FR', { month: 'short' })} — ${sundayOfWeek.getDate()} ${sundayOfWeek.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}`}
+                : viewMode === 'week'
+                ? `${mondayOfWeek.getDate()} ${mondayOfWeek.toLocaleDateString('fr-FR', { month: 'short' })} — ${sundayOfWeek.getDate()} ${sundayOfWeek.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}`
+                : formatDate(selectedDate, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
             </span>
 
             <button
-              onClick={viewMode === 'month' ? nextMonth : nextWeek}
-              title={viewMode === 'month' ? 'Mois suivant' : 'Semaine suivante'}
+              onClick={viewMode === 'month' ? nextMonth : viewMode === 'week' ? nextWeek : nextDay}
+              title={viewMode === 'month' ? 'Mois suivant' : viewMode === 'week' ? 'Semaine suivante' : 'Jour suivant'}
               className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer"
             >
               <ChevronRight className="w-4 h-4" />
@@ -400,6 +434,9 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
             <div className="grid grid-cols-7 gap-1.5">
               {daysInGrid.map((dayItem, idx) => {
                 const dayRevs = revisionsByDate[dayItem.dateStr] || [];
+                const sortedDayRevs = [...dayRevs].sort((a, b) =>
+                  compareRevisionsByStepPriority(a, b, courses, subjects)
+                );
                 const isSelected = dayItem.dateStr === selectedDate;
                 const hasOverload = dayRevs.length > 5;
                 const completedInDay = dayRevs.filter(r => r.status === 'VALIDE').length;
@@ -463,7 +500,7 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
 
                     {/* Pills preview (Draggable) */}
                     <div className="space-y-1 my-1 overflow-hidden">
-                      {dayRevs.slice(0, 2).map((r, rIdx) => {
+                      {sortedDayRevs.slice(0, 2).map((r, rIdx) => {
                         const stepInfo = getStepInfo(r);
                         const StepIcon = stepInfo.icon;
                         return (
@@ -849,14 +886,9 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-3 items-start overflow-x-auto pb-2">
             {weekDays.map(wd => {
               const dayRevs = revisionsByDate[wd.dateStr] || [];
-              const sortedRevs = [...dayRevs].sort((a, b) => {
-                const courseA = courses.find(c => c.id === a.courseId);
-                const courseB = courses.find(c => c.id === b.courseId);
-                const diffA = courseA?.difficulty ?? 3;
-                const diffB = courseB?.difficulty ?? 3;
-                if (diffB !== diffA) return diffB - diffA;
-                return a.jStep - b.jStep;
-              });
+              const sortedRevs = [...dayRevs].sort((a, b) =>
+                compareRevisionsByStepPriority(a, b, courses, subjects)
+              );
 
               const completedInDay = dayRevs.filter(r => r.status === 'VALIDE').length;
               const hasOverload = dayRevs.length > 5;
@@ -1142,6 +1174,326 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
           </div>
 
           {/* Quick Bulk Shift Banner in Weekly View */}
+          <div className="glass-panel rounded-2xl p-4 border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 backdrop-blur-md shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                Décaler toute une matière :
+              </span>
+              <div className="w-48">
+                <select
+                  value={selectedBulkUeId || (subjects[0]?.id ?? '')}
+                  onChange={(e) => setSelectedBulkUeId(e.target.value)}
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-2.5 py-1 text-xs font-semibold text-slate-800 dark:text-slate-200 truncate focus:border-sky-500 outline-none transition-all cursor-pointer"
+                >
+                  {subjects.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.code} — {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const ueId = selectedBulkUeId || subjects[0]?.id;
+                  if (ueId) onShiftSubject(ueId, -1);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-sky-100 dark:hover:bg-sky-950/70 border border-slate-200 dark:border-slate-700/60 text-sky-700 dark:text-sky-300 text-xs font-bold font-mono transition-all active:scale-95 cursor-pointer shadow-2xs"
+              >
+                -1j
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const ueId = selectedBulkUeId || subjects[0]?.id;
+                  if (ueId) onShiftSubject(ueId, 1);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-100 dark:hover:bg-amber-950/70 border border-slate-200 dark:border-slate-700/60 text-amber-700 dark:text-amber-300 text-xs font-bold font-mono transition-all active:scale-95 cursor-pointer shadow-2xs"
+              >
+                +1j
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const ueId = selectedBulkUeId || subjects[0]?.id;
+                  if (ueId) onShiftSubject(ueId, 3);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-950/70 border border-slate-200 dark:border-slate-700/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold font-mono transition-all active:scale-95 cursor-pointer shadow-2xs"
+              >
+                +3j
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const ueId = selectedBulkUeId || subjects[0]?.id;
+                  if (ueId) onShiftSubject(ueId, 7);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-purple-100 dark:hover:bg-purple-950/70 border border-slate-200 dark:border-slate-700/60 text-purple-700 dark:text-purple-300 text-xs font-bold font-mono transition-all active:scale-95 cursor-pointer shadow-2xs"
+              >
+                +1 sem
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 3: DAILY FOCUSED PLANNING VIEW */}
+      {viewMode === 'day' && (
+        <div className="space-y-4 animate-fadeIn">
+          {/* Day Summary Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3.5 rounded-2xl glass-panel border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 shadow-xs flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Date consultée</span>
+                <div className="text-sm font-black text-slate-900 dark:text-white mt-0.5 capitalize">
+                  {formatDate(selectedDate, { weekday: 'short', day: 'numeric', month: 'short' })}
+                  {selectedDate === todayStr && (
+                    <span className="ml-1.5 px-1.5 py-0.2 rounded-full text-[9px] bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 font-bold border border-sky-300 dark:border-sky-800">
+                      Aujourd'hui
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center font-bold text-xs">
+                📅
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl glass-panel border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 shadow-xs flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Total révisions</span>
+                <div className="text-lg font-black text-slate-900 dark:text-white mt-0.5">{dayTotalCount} J prévu{dayTotalCount > 1 ? 's' : ''}</div>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-xs">
+                🎯
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl glass-panel border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 shadow-xs flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase text-emerald-600 dark:text-emerald-400">Validées</span>
+                <div className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
+                  {dayCompletedCount} / {dayTotalCount} ({dayCompletionRate}%)
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs">
+                ✓
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl glass-panel border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 shadow-xs flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">Charge ({dayTotalCount}/5)</span>
+                <div className={`text-lg font-black mt-0.5 ${dayHasOverload ? 'text-rose-600 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
+                  {dayHasOverload ? 'Surcharge (>5)' : 'Équilibrée'}
+                </div>
+              </div>
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${dayHasOverload ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                {dayHasOverload ? '⚠️' : '👌'}
+              </div>
+            </div>
+          </div>
+
+          {/* Day Cards Container */}
+          <div className="glass-panel rounded-2xl p-5 border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 backdrop-blur-md shadow-sm">
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-200 dark:border-slate-800 flex-wrap gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base font-extrabold text-slate-900 dark:text-white capitalize flex items-center gap-2">
+                  <span>{formatDate(selectedDate, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                  {selectedDate === todayStr && (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-800">
+                      Aujourd'hui
+                    </span>
+                  )}
+                </h2>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                  {dayTotalCount} révision{dayTotalCount > 1 ? 's' : ''} (Priorité APP → DIM)
+                </span>
+              </div>
+
+              <button
+                onClick={() => onOpenAddRevisionModal(selectedDate)}
+                className="flex items-center gap-1.5 py-1.5 px-3 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/70 dark:hover:bg-sky-900 text-sky-700 dark:text-sky-300 hover:text-sky-600 border border-sky-300 dark:border-sky-500/30 text-xs font-bold transition-all shadow-2xs cursor-pointer"
+              >
+                <CalendarPlus className="w-3.5 h-3.5" />
+                <span>+ Planifier un J sur cette date</span>
+              </button>
+            </div>
+
+            {/* List of Day Revisions sorted by Priority */}
+            {selectedDayRevisions.length === 0 ? (
+              <div className="text-center py-16 text-slate-400 dark:text-slate-500 space-y-2">
+                <div className="text-3xl">☕</div>
+                <div className="text-sm font-bold text-slate-700 dark:text-slate-300">Aucune révision programmée pour cette journée</div>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Profitez de ce temps pour consolider vos acquis ou planifiez une séance supplémentaire.
+                </p>
+                <button
+                  onClick={() => onOpenAddRevisionModal(selectedDate)}
+                  className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold cursor-pointer transition-all shadow-xs"
+                >
+                  <CalendarPlus className="w-3.5 h-3.5" />
+                  <span>+ Planifier une révision</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {selectedDayRevisions.map(s => {
+                  const course = courses.find(c => c.id === s.courseId);
+                  const isDone = s.status === 'VALIDE';
+                  const ueColor = getCourseOrUeColor(s);
+                  const stepInfo = getStepInfo(s);
+                  const StepIcon = stepInfo.icon;
+
+                  return (
+                    <div
+                      key={s.id}
+                      style={{ borderLeftColor: ueColor }}
+                      className={`p-3.5 rounded-xl border-t border-r border-b border-l-4 text-xs space-y-2.5 transition-all bg-white dark:bg-slate-950 shadow-2xs hover:shadow-sm ${
+                        isDone
+                          ? 'bg-slate-50/80 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800/40 opacity-75'
+                          : s.status === 'EN_RETARD'
+                          ? 'border-rose-200 dark:border-rose-900/40 bg-rose-50/30 dark:bg-rose-950/10'
+                          : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                      }`}
+                    >
+                      {/* Top row */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span
+                            className={`inline-flex items-center gap-1 font-black px-2 py-0.5 rounded border text-[11px] ${stepInfo.chipClass}`}
+                            title={`${stepInfo.title} : ${stepInfo.description}`}
+                          >
+                            <StepIcon className="w-3 h-3" />
+                            <span>{stepInfo.code}</span>
+                          </span>
+
+                          <span
+                            className="font-bold px-2 py-0.5 rounded text-[10px] shadow-2xs"
+                            style={{
+                              backgroundColor: ueColor,
+                              color: getContrastTextColor(ueColor)
+                            }}
+                          >
+                            {s.ueCode}
+                          </span>
+
+                          {course && (
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                course.difficulty >= 4
+                                  ? 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                              }`}
+                              title={`Difficulté : ${course.difficulty}/5`}
+                            >
+                              {'★'.repeat(course.difficulty || 3)}
+                            </span>
+                          )}
+
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                              isDone
+                                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-400'
+                                : s.status === 'EN_RETARD'
+                                ? 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-400'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                            }`}
+                          >
+                            {s.status}
+                          </span>
+                        </div>
+
+                        {/* Validation button */}
+                        <button
+                          onClick={() => {
+                            if (isDone && onUncompleteRevision) {
+                              onUncompleteRevision(s.id);
+                            } else {
+                              onCompleteRevision(s.id, 'FACILE');
+                            }
+                          }}
+                          title={isDone ? 'Marquer comme non-validé' : 'Valider cette révision'}
+                          className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                            isDone
+                              ? 'bg-emerald-500 border border-emerald-600 text-white shadow-2xs active:scale-90'
+                              : 'border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-transparent hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-500 active:scale-90'
+                          }`}
+                        >
+                          <Check className={`w-4 h-4 ${isDone ? 'stroke-[3]' : 'stroke-[2]'}`} />
+                        </button>
+                      </div>
+
+                      {/* Course Title */}
+                      <div
+                        onClick={() => course && onSelectCourse(course)}
+                        className={`font-bold text-xs hover:text-sky-600 dark:hover:text-sky-300 cursor-pointer line-clamp-2 ${
+                          isDone
+                            ? 'line-through text-slate-500 dark:text-slate-400'
+                            : 'text-slate-900 dark:text-slate-100'
+                        }`}
+                        title={s.courseTitle}
+                      >
+                        {s.courseTitle}
+                      </div>
+
+                      {/* Step description subtitle */}
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1">
+                        {stepInfo.description}
+                      </p>
+
+                      {/* Action buttons */}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => onShiftRevision(s.id, -1)}
+                            title="Avancer de 1 jour (-1j)"
+                            className="px-2 py-0.5 rounded bg-slate-100 hover:bg-sky-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300 text-[10px] font-bold font-mono transition-colors cursor-pointer"
+                          >
+                            -1j
+                          </button>
+                          <button
+                            onClick={() => onShiftRevision(s.id, 1)}
+                            title="Décaler de +1 jour (+1j)"
+                            className="px-2 py-0.5 rounded bg-slate-100 hover:bg-amber-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-amber-700 dark:text-amber-300 text-[10px] font-bold font-mono transition-colors cursor-pointer"
+                          >
+                            +1j
+                          </button>
+                          <button
+                            onClick={() => onShiftRevision(s.id, 3)}
+                            title="Décaler de +3 jours (+3j)"
+                            className="px-2 py-0.5 rounded bg-slate-100 hover:bg-indigo-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-semibold transition-colors cursor-pointer"
+                          >
+                            +3j
+                          </button>
+                          <button
+                            onClick={() => onShiftRevision(s.id, 7)}
+                            title="Décaler de 1 semaine (+7j)"
+                            className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-semibold transition-colors cursor-pointer"
+                          >
+                            +7j
+                          </button>
+                        </div>
+
+                        <button
+                          onClick={() => setSessionToDelete(s)}
+                          title="Supprimer cette séance"
+                          className="p-1.5 rounded hover:bg-rose-100 dark:hover:bg-rose-950/60 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Quick Bulk Shift Banner in Daily View */}
           <div className="glass-panel rounded-2xl p-4 border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 backdrop-blur-md shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-800 dark:text-slate-200">

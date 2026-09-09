@@ -1,5 +1,5 @@
 import { Brain, CircleHelp, AlertTriangle, Layers, Infinity, LucideIcon } from 'lucide-react';
-import { RevisionSession, RevisionStepType } from '../types';
+import { RevisionSession, RevisionStepType, Course, SubjectUE } from '../types';
 
 export interface StepDefinition {
   type: RevisionStepType;
@@ -72,6 +72,67 @@ export const REVISION_STEPS: Record<RevisionStepType, StepDefinition> = {
 };
 
 export const ALL_REVISION_STEPS: RevisionStepType[] = ['APP', 'QCM', 'ERR', 'SAM', 'DIM'];
+
+export const REVISION_STEP_PRIORITY: Record<RevisionStepType, number> = {
+  APP: 0,
+  QCM: 1,
+  ERR: 2,
+  SAM: 3,
+  DIM: 4
+};
+
+export function getRevisionStepPriority(session: { stepType?: RevisionStepType | string; jStep?: number; scheduledDate?: string }): number {
+  const stepInfo = getStepInfo(session);
+  return REVISION_STEP_PRIORITY[stepInfo.type] ?? 99;
+}
+
+/**
+ * Compare two revision sessions following pedagogical priority:
+ * 1. Step priority: APP (0) -> QCM (1) -> ERR (2) -> SAM (3) -> DIM (4)
+ * 2. Course difficulty descending (5 -> 1)
+ * 3. Subject UE coefficient descending
+ * 4. Course title alphabetical
+ * 5. J-step ascending
+ */
+export function compareRevisionsByStepPriority(
+  a: RevisionSession,
+  b: RevisionSession,
+  courses?: Course[],
+  subjects?: SubjectUE[]
+): number {
+  const prioA = getRevisionStepPriority(a);
+  const prioB = getRevisionStepPriority(b);
+  if (prioA !== prioB) {
+    return prioA - prioB;
+  }
+
+  // Secondary priority 1: Course difficulty descending (5 -> 1)
+  if (courses && courses.length > 0) {
+    const courseA = courses.find(c => c.id === a.courseId);
+    const courseB = courses.find(c => c.id === b.courseId);
+    const diffA = courseA?.difficulty ?? 3;
+    const diffB = courseB?.difficulty ?? 3;
+    if (diffB !== diffA) return diffB - diffA;
+  }
+
+  // Secondary priority 2: UE coefficient descending
+  if (subjects && subjects.length > 0) {
+    const ueA = subjects.find(sub => sub.id.toLowerCase() === a.ueId.toLowerCase() || sub.code.toLowerCase() === a.ueId.toLowerCase());
+    const ueB = subjects.find(sub => sub.id.toLowerCase() === b.ueId.toLowerCase() || sub.code.toLowerCase() === b.ueId.toLowerCase());
+    const coeffA = ueA?.coefficient ?? 10;
+    const coeffB = ueB?.coefficient ?? 10;
+    if (coeffB !== coeffA) return coeffB - coeffA;
+  }
+
+  // Secondary priority 3: Course title alphabetical (French locale)
+  const titleA = a.courseTitle || '';
+  const titleB = b.courseTitle || '';
+  const titleComp = titleA.localeCompare(titleB, 'fr', { sensitivity: 'base' });
+  if (titleComp !== 0) return titleComp;
+
+  // Secondary priority 4: J-step ascending
+  return (a.jStep ?? 0) - (b.jStep ?? 0);
+}
 
 export function getStepInfo(session: { stepType?: RevisionStepType | string; jStep?: number; scheduledDate?: string }): StepDefinition {
   if (session.stepType && (session.stepType in REVISION_STEPS)) {

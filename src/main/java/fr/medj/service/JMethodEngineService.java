@@ -379,14 +379,39 @@ public class JMethodEngineService {
     }
 
     /**
+     * Retourne la priorité pédagogique du palier de révision :
+     * 0: APP (Compréhension initiale)
+     * 1: QCM (Entraînement actif J+1)
+     * 2: ERR (Consolidation & carnet d'erreurs)
+     * 3: SAM (Synthèse hebdomadaire)
+     * 4: DIM (Révision cumulative)
+     */
+    public static int getStepPriority(RevisionSession session) {
+        String type = session.stepType();
+        if (type == null || type.isBlank()) {
+            type = RevisionSession.inferStepType(session.jStep(), session.scheduledDate());
+        }
+        return switch (type) {
+            case "APP" -> 0;
+            case "QCM" -> 1;
+            case "ERR" -> 2;
+            case "SAM" -> 3;
+            case "DIM" -> 4;
+            default -> 5;
+        };
+    }
+
+    /**
      * Retourne un comparateur pour ordonner les révisions du jour par ordre de priorité :
-     * 1. Cours les plus difficiles en premier (difficulté 5 -> 1)
-     * 2. Matières à plus fort coefficient / ECTS
-     * 3. Cycles J les plus précoces (J0, J1, J3 avant J30, J60)
+     * 1. Palier pédagogique prioritaire (APP -> QCM -> ERR -> SAM -> DIM)
+     * 2. Cours les plus difficiles en premier (difficulté 5 -> 1)
+     * 3. Matières à plus fort coefficient / ECTS
+     * 4. Cycles J les plus précoces (J0, J1, J3 avant J30, J60)
      */
     public Comparator<RevisionSession> getDailyPriorityComparator(Map<String, Course> courseMap, Map<String, SubjectUE> subjectMap) {
         return Comparator
-            .comparingInt((RevisionSession r) -> getCourseDifficulty(r, courseMap)).reversed()
+            .comparingInt(JMethodEngineService::getStepPriority)
+            .thenComparing(Comparator.comparingInt((RevisionSession r) -> getCourseDifficulty(r, courseMap)).reversed())
             .thenComparing(Comparator.comparingDouble((RevisionSession r) -> getUeCoefficient(r, subjectMap)).reversed())
             .thenComparingInt(RevisionSession::jStep);
     }
