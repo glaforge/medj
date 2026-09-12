@@ -221,24 +221,28 @@ export const QcmBankView: React.FC<QcmBankViewProps> = ({
   };
 
   const filteredQcms = qcms.filter(q => {
-    const qText = searchQuery.toLowerCase();
+    if (!q) return false;
+    const qText = searchQuery.trim().toLowerCase();
     const matchesSearch =
-      !searchQuery.trim() ||
-      q.questionStem.toLowerCase().includes(qText) ||
-      (q.courseTitle && q.courseTitle.toLowerCase().includes(qText)) ||
-      (q.ueCode && q.ueCode.toLowerCase().includes(qText)) ||
-      (q.tags && q.tags.some(t => t.toLowerCase().includes(qText))) ||
-      (q.items && q.items.some(it => it.text.toLowerCase().includes(qText) || (it.explanation && it.explanation.toLowerCase().includes(qText))));
+      !qText ||
+      (typeof q.questionStem === 'string' && q.questionStem.toLowerCase().includes(qText)) ||
+      (typeof q.courseTitle === 'string' && q.courseTitle.toLowerCase().includes(qText)) ||
+      (typeof q.ueCode === 'string' && q.ueCode.toLowerCase().includes(qText)) ||
+      (Array.isArray(q.tags) && q.tags.some(t => typeof t === 'string' && t.toLowerCase().includes(qText))) ||
+      (Array.isArray(q.items) && q.items.some(it => 
+        (typeof it?.text === 'string' && it.text.toLowerCase().includes(qText)) || 
+        (typeof it?.explanation === 'string' && it.explanation.toLowerCase().includes(qText))
+      ));
 
-    const matchesUe = selectedUe === 'ALL' || q.ueCode?.toLowerCase() === selectedUe.toLowerCase();
+    const matchesUe = selectedUe === 'ALL' || (q.ueCode && q.ueCode.toLowerCase() === selectedUe.toLowerCase());
     const matchesCourse = selectedCourseId === 'ALL' || q.courseId === selectedCourseId;
     const matchesDiff = difficultyFilter === 'ALL' || q.difficulty === difficultyFilter;
 
-    return matchesSearch && matchesUe && matchesCourse && matchesDiff;
+    return Boolean(matchesSearch && matchesUe && matchesCourse && matchesDiff);
   });
 
   const getCourse = (courseId: string) => courses.find(c => c.id === courseId);
-  const getSubject = (ueCode?: string) => subjects.find(s => s.code.toLowerCase() === ueCode?.toLowerCase());
+  const getSubject = (ueCode?: string) => ueCode ? subjects.find(s => s.code?.toLowerCase() === ueCode.toLowerCase()) : undefined;
 
   return (
     <div className="space-y-6 animate-fadeIn">

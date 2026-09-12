@@ -49,13 +49,22 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
   const [subjectToDelete, setSubjectToDelete] = useState<SubjectUE | null>(null);
 
-  const getSubject = (ueId: string) => {
-    if (!ueId) return undefined;
-    return subjects.find(s => s.id.toLowerCase() === ueId.toLowerCase() || s.code.toLowerCase() === ueId.toLowerCase());
+  const getSubject = (ueId?: string) => {
+    if (!ueId || ueId === 'ALL') return undefined;
+    const cleanId = ueId.trim().toLowerCase();
+    return subjects.find(
+      s => (s.id && s.id.toLowerCase() === cleanId) || (s.code && s.code.toLowerCase() === cleanId)
+    );
   };
 
   const getCoursesCountForUe = (ue: SubjectUE) => {
-    return courses.filter(c => c.ueId.toLowerCase() === ue.id.toLowerCase() || c.ueCode?.toLowerCase() === ue.code.toLowerCase()).length;
+    if (!ue) return 0;
+    const ueIdClean = ue.id?.toLowerCase();
+    const ueCodeClean = ue.code?.toLowerCase();
+    return courses.filter(
+      c => (c?.ueId && ueIdClean && c.ueId.toLowerCase() === ueIdClean) ||
+           (c?.ueCode && ueCodeClean && c.ueCode.toLowerCase() === ueCodeClean)
+    ).length;
   };
 
   const handleFilterBySubject = (subject: SubjectUE) => {
@@ -66,23 +75,31 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
   };
 
   const filteredCourses = courses.filter(c => {
-    const matchesSearch = c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (c.professor && c.professor.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      c.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+    if (!c) return false;
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch = !q ||
+      (typeof c.title === 'string' && c.title.toLowerCase().includes(q)) ||
+      (typeof c.professor === 'string' && c.professor.toLowerCase().includes(q)) ||
+      (typeof c.ueCode === 'string' && c.ueCode.toLowerCase().includes(q)) ||
+      (Array.isArray(c.tags) && c.tags.some(t => typeof t === 'string' && t.toLowerCase().includes(q)));
 
     const targetSubject = getSubject(selectedUe);
+    const selectedUeClean = selectedUe.toLowerCase();
+    const cUeIdClean = c.ueId?.toLowerCase();
+    const cUeCodeClean = c.ueCode?.toLowerCase();
+
     const matchesUe = selectedUe === 'ALL' ||
-      c.ueId.toLowerCase() === selectedUe.toLowerCase() ||
-      c.ueCode?.toLowerCase() === selectedUe.toLowerCase() ||
-      (targetSubject && (
-        c.ueId.toLowerCase() === targetSubject.id.toLowerCase() ||
-        c.ueId.toLowerCase() === targetSubject.code.toLowerCase() ||
-        c.ueCode?.toLowerCase() === targetSubject.code.toLowerCase()
+      (cUeIdClean !== undefined && cUeIdClean === selectedUeClean) ||
+      (cUeCodeClean !== undefined && cUeCodeClean === selectedUeClean) ||
+      (targetSubject !== undefined && (
+        (cUeIdClean !== undefined && targetSubject.id && cUeIdClean === targetSubject.id.toLowerCase()) ||
+        (cUeIdClean !== undefined && targetSubject.code && cUeIdClean === targetSubject.code.toLowerCase()) ||
+        (cUeCodeClean !== undefined && targetSubject.code && cUeCodeClean === targetSubject.code.toLowerCase())
       ));
 
     const matchesDiff = difficultyFilter === 'ALL' || c.difficulty === difficultyFilter;
 
-    return matchesSearch && matchesUe && matchesDiff;
+    return Boolean(matchesSearch && matchesUe && matchesDiff);
   });
 
   return (

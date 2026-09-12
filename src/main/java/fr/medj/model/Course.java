@@ -23,6 +23,15 @@ public record Course(
     LocalDateTime createdAt,
     LocalDateTime updatedAt
 ) {
+    public Course {
+        if (tags == null) tags = List.of();
+        if (documents == null) documents = List.of();
+        if (customIntervals == null) customIntervals = List.of();
+        if (professor == null) professor = "";
+        if (notes == null) notes = "";
+        if (status == null) status = "EN_COURS";
+    }
+
     @Serdeable
     public record DocumentAttachment(
         String id,

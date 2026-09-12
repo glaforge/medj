@@ -123,4 +123,42 @@ public class CourseCrudTest {
         assertEquals(HttpStatus.NO_CONTENT, deleteResponse.getStatus());
         assertTrue(firestoreService.getCourse("course-test-osteo").isEmpty());
     }
+
+    @Test
+    void testCourseNullSafety() {
+        // Create course with null tags, professor, documents, notes, customIntervals
+        Course courseWithNulls = new Course(
+            "course-nulls",
+            "ue-anat",
+            "UE5",
+            "Cours sans tags",
+            "#EC4899",
+            null, // professor
+            LocalDate.of(2026, 9, 12),
+            3,
+            null, // status
+            null, // tags
+            null, // notes
+            null, // documents
+            null, // customIntervals
+            null,
+            null
+        );
+
+        assertNotNull(courseWithNulls.tags(), "Tags should be non-null empty list");
+        assertTrue(courseWithNulls.tags().isEmpty());
+        assertNotNull(courseWithNulls.documents(), "Documents should be non-null empty list");
+        assertTrue(courseWithNulls.documents().isEmpty());
+        assertNotNull(courseWithNulls.customIntervals(), "CustomIntervals should be non-null empty list");
+        assertTrue(courseWithNulls.customIntervals().isEmpty());
+        assertEquals("", courseWithNulls.professor());
+        assertEquals("", courseWithNulls.notes());
+        assertEquals("EN_COURS", courseWithNulls.status());
+
+        HttpResponse<Course> response = courseController.createCourse(courseWithNulls);
+        assertEquals(HttpStatus.CREATED, response.getStatus());
+        assertNotNull(response.body());
+        assertNotNull(response.body().tags());
+        assertTrue(response.body().tags().isEmpty());
+    }
 }

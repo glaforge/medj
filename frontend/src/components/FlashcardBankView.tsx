@@ -236,25 +236,32 @@ export const FlashcardBankView: React.FC<FlashcardBankViewProps> = ({
   };
 
   const filteredCards = flashcards.filter(f => {
-    const qText = searchQuery.toLowerCase();
+    if (!f) return false;
+    const qText = searchQuery.trim().toLowerCase();
     const matchesSearch =
-      !searchQuery.trim() ||
-      f.front.toLowerCase().includes(qText) ||
-      f.back.toLowerCase().includes(qText) ||
-      (f.hint && f.hint.toLowerCase().includes(qText)) ||
-      (f.courseTitle && f.courseTitle.toLowerCase().includes(qText)) ||
-      (f.ueCode && f.ueCode.toLowerCase().includes(qText)) ||
-      (f.tags && f.tags.some(t => t.toLowerCase().includes(qText)));
+      !qText ||
+      (typeof f.front === 'string' && f.front.toLowerCase().includes(qText)) ||
+      (typeof f.back === 'string' && f.back.toLowerCase().includes(qText)) ||
+      (typeof f.hint === 'string' && f.hint.toLowerCase().includes(qText)) ||
+      (typeof f.courseTitle === 'string' && f.courseTitle.toLowerCase().includes(qText)) ||
+      (typeof f.ueCode === 'string' && f.ueCode.toLowerCase().includes(qText)) ||
+      (Array.isArray(f.tags) && f.tags.some(t => typeof t === 'string' && t.toLowerCase().includes(qText)));
 
-    const matchesUe = selectedUe === 'ALL' || f.ueCode?.toLowerCase() === selectedUe.toLowerCase() || f.ueId?.toLowerCase() === selectedUe.toLowerCase();
+    const fUeCodeClean = f.ueCode?.toLowerCase();
+    const fUeIdClean = f.ueId?.toLowerCase();
+    const selUeClean = selectedUe.toLowerCase();
+
+    const matchesUe = selectedUe === 'ALL' ||
+      (fUeCodeClean !== undefined && fUeCodeClean === selUeClean) ||
+      (fUeIdClean !== undefined && fUeIdClean === selUeClean);
     const matchesCourse = selectedCourseId === 'ALL' || f.courseId === selectedCourseId;
-    const matchesFav = !favoriteOnly || f.isFavorite;
+    const matchesFav = !favoriteOnly || Boolean(f.isFavorite);
     const matchesDiff = difficultyFilter === 'ALL' || f.difficulty === difficultyFilter;
 
-    return matchesSearch && matchesUe && matchesCourse && matchesFav && matchesDiff;
+    return Boolean(matchesSearch && matchesUe && matchesCourse && matchesFav && matchesDiff);
   });
 
-  const getSubject = (ueCode?: string) => subjects.find(s => s.code.toLowerCase() === ueCode?.toLowerCase());
+  const getSubject = (ueCode?: string) => ueCode ? subjects.find(s => s.code?.toLowerCase() === ueCode.toLowerCase()) : undefined;
   const favoriteCount = flashcards.filter(f => f.isFavorite).length;
 
   return (
