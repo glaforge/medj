@@ -56,6 +56,7 @@ export const QcmBankView: React.FC<QcmBankViewProps> = ({
   const [expandedQcmIds, setExpandedQcmIds] = useState<Set<string>>(new Set());
   const [globalShowAnswers, setGlobalShowAnswers] = useState(false);
   const [revealedQcmIds, setRevealedQcmIds] = useState<Set<string>>(new Set());
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const hasScrolledToTargetRef = useRef(false);
 
   // Gemini QCM Verification
@@ -198,6 +199,45 @@ export const QcmBankView: React.FC<QcmBankViewProps> = ({
     onShowToast(`✓ Lien direct copié : /qcms/${qcmId}`);
   };
 
+  const handleGenerateAiQcms = async () => {
+    let targetCourse: Course | undefined;
+    if (selectedCourseId !== 'ALL') {
+      targetCourse = courses.find(c => c.id === selectedCourseId);
+    } else if (selectedUe !== 'ALL') {
+      targetCourse = courses.find(c => c.ueCode?.toLowerCase() === selectedUe.toLowerCase() || c.ueId?.toLowerCase() === selectedUe.toLowerCase());
+    } else if (courses.length > 0) {
+      targetCourse = courses[0];
+    }
+
+    const courseId = targetCourse?.id || (selectedCourseId !== 'ALL' ? selectedCourseId : undefined);
+    const courseTitle = targetCourse?.title || (selectedUe !== 'ALL' ? `Entraînement QCM UE ${selectedUe}` : 'Médecine PASS - QCMs de Concours');
+    const ueCode = targetCourse?.ueCode || (selectedUe !== 'ALL' ? selectedUe : 'PASS');
+    const content = targetCourse?.notes || targetCourse?.title || `Questions types concours PASS, pièges classiques et notions fondamentales pour ${ueCode}`;
+
+    setIsGeneratingAi(true);
+    try {
+      const generated = await api.generateQcm(
+        courseId,
+        courseTitle,
+        ueCode,
+        content,
+        3
+      );
+      setQcms(prev => [...generated, ...prev]);
+      setExpandedQcmIds(prev => {
+        const next = new Set(prev);
+        generated.forEach(q => next.add(q.id));
+        return next;
+      });
+      onShowToast(`✨ ${generated.length} QCMs générés par IA pour [${ueCode}] ${courseTitle} !`);
+    } catch (e: any) {
+      console.error('Failed to generate QCMs by AI', e);
+      onShowToast('❌ Erreur lors de la génération IA des QCMs.');
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
+
   const availableCourses = selectedUe === 'ALL'
     ? courses
     : courses.filter(c =>
@@ -265,6 +305,26 @@ export const QcmBankView: React.FC<QcmBankViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+          {/* AI Generator button */}
+          <button
+            onClick={handleGenerateAiQcms}
+            disabled={isGeneratingAi}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 shadow-md shadow-amber-950/20 active:scale-95 transition-all disabled:opacity-50 cursor-pointer shrink-0"
+            title="Générer 3 QCMs pertinents au format officiel PASS avec Gemini pour le cours ou l'UE sélectionné(e)"
+          >
+            <Sparkles className={`w-3.5 h-3.5 ${isGeneratingAi ? 'animate-spin' : ''}`} />
+            <span>{isGeneratingAi ? 'Génération...' : 'Générer (IA)'}</span>
+          </button>
+
+          {/* New manual card */}
+          <button
+            onClick={() => onOpenEditModal()}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white shadow-md shadow-sky-900/20 active:scale-95 transition-all cursor-pointer shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Nouveau QCM</span>
+          </button>
+
           {/* Global Answers Toggle for whole bank */}
           <button
             onClick={() => {
@@ -276,7 +336,7 @@ export const QcmBankView: React.FC<QcmBankViewProps> = ({
                 setRevealedQcmIds(new Set());
               }
             }}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all shadow-2xs ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all shadow-2xs cursor-pointer shrink-0 ${
               globalShowAnswers
                 ? 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700'
                 : 'bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/70 dark:hover:bg-amber-900/80 text-amber-900 dark:text-amber-300 border-amber-300 dark:border-amber-700/60'
@@ -287,19 +347,12 @@ export const QcmBankView: React.FC<QcmBankViewProps> = ({
             <span>{globalShowAnswers ? 'Masquer les réponses' : 'Afficher les réponses'}</span>
           </button>
 
+          {/* Expand / Collapse All */}
           <button
             onClick={toggleExpandAll}
-            className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition-all"
+            className="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-800 transition-all cursor-pointer shrink-0"
           >
             {expandedQcmIds.size === filteredQcms.length ? 'Tout replier' : 'Tout déplier'}
-          </button>
-
-          <button
-            onClick={() => onOpenEditModal()}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white shadow-lg shadow-sky-900/30 active:scale-95 transition-all"
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>Nouveau QCM</span>
           </button>
         </div>
       </div>
@@ -376,18 +429,29 @@ export const QcmBankView: React.FC<QcmBankViewProps> = ({
           <span>Chargement de la banque de QCMs...</span>
         </div>
       ) : filteredQcms.length === 0 ? (
-        <div className="glass-panel rounded-2xl p-12 text-center border border-slate-800">
-          <Award className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-          <h3 className="text-sm font-bold text-slate-300">Aucun QCM ne correspond à vos critères</h3>
-          <p className="text-xs text-slate-500 mt-1">
-            Modifiez vos filtres ou créez votre premier QCM manuellement.
+        <div className="glass-panel rounded-2xl p-12 text-center border border-dashed border-slate-300 dark:border-slate-800 bg-white/40 dark:bg-slate-900/40 flex flex-col items-center justify-center">
+          <Award className="w-12 h-12 text-slate-400 dark:text-slate-600 mx-auto mb-3" />
+          <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">Aucun QCM ne correspond à vos critères</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mt-1 mb-6">
+            Aucun QCM ne correspond à votre recherche. Créez-en un manuellement ou générez des QCMs officiels PASS avec Gemini.
           </p>
-          <button
-            onClick={() => onOpenEditModal()}
-            className="mt-4 px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white"
-          >
-            + Créer un QCM
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={() => onOpenEditModal()}
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white shadow-md shadow-sky-900/20 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Créer un QCM</span>
+            </button>
+            <button
+              onClick={handleGenerateAiQcms}
+              disabled={isGeneratingAi}
+              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-amber-950/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${isGeneratingAi ? 'animate-spin' : ''}`} />
+              <span>{isGeneratingAi ? 'Génération en cours...' : '✨ Générer par IA'}</span>
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-4">

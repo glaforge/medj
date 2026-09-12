@@ -281,9 +281,9 @@ export const api = {
   },
 
   async generateQcm(
-    courseId: string,
-    courseTitle: string,
-    ueCode: string,
+    courseId?: string,
+    courseTitle?: string,
+    ueCode?: string,
     content?: string,
     count: number = 3,
     options?: {
@@ -297,9 +297,9 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        courseId,
-        courseTitle,
-        ueCode,
+        courseId: courseId || '',
+        courseTitle: courseTitle || '',
+        ueCode: ueCode || '',
         content: content || '',
         count,
         selectedSourceIds: options?.selectedSourceIds,
