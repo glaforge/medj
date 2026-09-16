@@ -32,8 +32,10 @@ interface FlashcardBankViewProps {
   courses: Course[];
   subjects: SubjectUE[];
   targetFlashcardId?: string | null;
+  refreshTrigger?: number;
+  lastSavedFlashcard?: Flashcard | null;
   onNavigate?: (path: string) => void;
-  onOpenEditModal: (flashcard?: Flashcard, defaultCourseId?: string) => void;
+  onOpenEditModal: (flashcard?: Flashcard, defaultCourseId?: string, onSaved?: (saved: Flashcard) => void) => void;
   onStartStudy: (flashcards: Flashcard[], initialIndex?: number, title?: string) => void;
   onShowToast: (msg: string) => void;
 }
@@ -42,6 +44,8 @@ export const FlashcardBankView: React.FC<FlashcardBankViewProps> = ({
   courses,
   subjects,
   targetFlashcardId,
+  refreshTrigger,
+  lastSavedFlashcard,
   onNavigate,
   onOpenEditModal,
   onStartStudy,
@@ -63,21 +67,51 @@ export const FlashcardBankView: React.FC<FlashcardBankViewProps> = ({
   const [verificationResult, setVerificationResult] = useState<FlashcardVerification | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
 
-  useEffect(() => {
-    loadFlashcards();
-  }, []);
+  // Immediate reactivity handler when a card is saved/edited
+  const handleCardSaved = (saved: Flashcard) => {
+    setFlashcards(prev => {
+      const index = prev.findIndex(f => f.id === saved.id);
+      if (index >= 0) {
+        const next = [...prev];
+        next[index] = saved;
+        return next;
+      } else {
+        return [saved, ...prev];
+      }
+    });
 
-  const loadFlashcards = async () => {
-    setIsLoading(true);
+    // If current filter would hide this updated card, reset filters so the user sees the card immediately!
+    if (saved.ueCode && selectedUe !== 'ALL' && selectedUe.toLowerCase() !== saved.ueCode.toLowerCase()) {
+      setSelectedUe('ALL');
+    }
+    if (saved.courseId && selectedCourseId !== 'ALL' && selectedCourseId !== saved.courseId) {
+      setSelectedCourseId('ALL');
+    }
+
+    setRevealedCardIds(prev => new Set([...prev, saved.id]));
+  };
+
+  const loadFlashcards = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const list = await api.getFlashcards();
       setFlashcards(list);
     } catch (e) {
       console.error('Failed to load flashcards', e);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadFlashcards(flashcards.length > 0);
+  }, [refreshTrigger]);
+
+  useEffect(() => {
+    if (lastSavedFlashcard) {
+      handleCardSaved(lastSavedFlashcard);
+    }
+  }, [lastSavedFlashcard]);
 
   // Scroll into view & reveal target flashcard if opened via direct URL (/flashcards/:id)
   useEffect(() => {
@@ -299,7 +333,7 @@ export const FlashcardBankView: React.FC<FlashcardBankViewProps> = ({
 
           {/* New manual card */}
           <button
-            onClick={() => onOpenEditModal()}
+            onClick={() => onOpenEditModal(undefined, undefined, handleCardSaved)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 active:scale-95 transition-all cursor-pointer shadow-2xs shrink-0"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -423,7 +457,7 @@ export const FlashcardBankView: React.FC<FlashcardBankViewProps> = ({
           </p>
           <div className="flex justify-center gap-2 pt-2">
             <button
-              onClick={() => onOpenEditModal()}
+              onClick={() => onOpenEditModal(undefined, undefined, handleCardSaved)}
               className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white border border-slate-300 dark:border-slate-700 transition-colors shadow-2xs"
             >
               + Créer manuellement
@@ -553,7 +587,7 @@ export const FlashcardBankView: React.FC<FlashcardBankViewProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => onOpenEditModal(card)}
+                      onClick={() => onOpenEditModal(card, undefined, handleCardSaved)}
                       className="p-1.5 text-slate-500 hover:text-sky-600 dark:text-slate-400 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                       title="Modifier la flashcard"
                     >

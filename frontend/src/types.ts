@@ -195,6 +195,7 @@ export interface AiTutorMessage {
   createdQcm?: QcmQuestion;
   createdIllustration?: MedicalIllustration;
   createdFlashcard?: Flashcard;
+  createdFlashcards?: Flashcard[];
   groundingSources?: GroundingSource[];
   attachments?: TutorAttachment[];
 }

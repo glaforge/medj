@@ -381,6 +381,7 @@ export const api = {
     createdQcm?: import('../types').QcmQuestion;
     createdIllustration?: import('../types').MedicalIllustration;
     createdFlashcard?: import('../types').Flashcard;
+    createdFlashcards?: import('../types').Flashcard[];
     groundingSources?: import('../types').GroundingSource[];
     knowledgeSources?: string[];
   }> {

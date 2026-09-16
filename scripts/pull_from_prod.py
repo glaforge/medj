@@ -143,6 +143,38 @@ def main():
         except Exception as e:
             pass
 
+    for i in illustrations:
+        body = json.dumps(i).encode("utf-8")
+        req = urllib.request.Request(f"{LOCAL_URL}/gemini/illustrations", data=body, headers=local_headers, method="POST")
+        try:
+            urllib.request.urlopen(req)
+        except Exception as e:
+            pass
+
+    for sc in scans:
+        body = json.dumps(sc).encode("utf-8")
+        req = urllib.request.Request(f"{LOCAL_URL}/gemini/scans", data=body, headers=local_headers, method="POST")
+        try:
+            urllib.request.urlopen(req)
+        except Exception as e:
+            pass
+
+    for th in threads:
+        body = json.dumps(th).encode("utf-8")
+        req = urllib.request.Request(f"{LOCAL_URL}/gemini/tutor/threads/import", data=body, headers=local_headers, method="POST")
+        try:
+            urllib.request.urlopen(req)
+        except Exception as e:
+            pass
+
+    # 6. Synchronize GCS assets to local uploads
+    print("\n📦 Synchronisation des fichiers et images (GCS -> ./uploads)...")
+    try:
+        subprocess.run(["gcloud", "storage", "rsync", "gs://medj-505807-assets", "./uploads"], check=False)
+        print("✔ Assets synchronisés dans ./uploads.")
+    except Exception as e:
+        print(f"  ⚠ Synchronisation des assets ignorée: {e}")
+
     print("\n==================================================================")
     print(" ✅ Rapatriement terminé avec succès !")
     print(" L'instance locale est maintenant parfaitement synchronisée avec la production.")

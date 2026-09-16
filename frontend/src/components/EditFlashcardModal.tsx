@@ -16,7 +16,7 @@ import {
 interface EditFlashcardModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (flashcard: Partial<Flashcard>) => Promise<void>;
+  onSave: (flashcard: Partial<Flashcard>) => Promise<Flashcard | void>;
   courses: Course[];
   subjects: SubjectUE[];
   editingFlashcard?: Flashcard | null;
@@ -96,6 +96,14 @@ export const EditFlashcardModal: React.FC<EditFlashcardModalProps> = ({
     }
   };
 
+  const handleCourseChange = (newCourseId: string) => {
+    setSelectedCourseId(newCourseId);
+    const course = courses.find(c => c.id === newCourseId);
+    if (course && course.ueCode) {
+      setSelectedUe(course.ueCode);
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!front.trim() || !back.trim()) {
@@ -110,8 +118,16 @@ export const EditFlashcardModal: React.FC<EditFlashcardModalProps> = ({
       .filter(t => t.length > 0);
 
     const ueCode = course?.ueCode || (selectedUe !== 'ALL' ? selectedUe : 'UE');
-    if (!tags.includes(ueCode)) {
-      tags.unshift(ueCode);
+    const ueId = course?.ueId || (selectedUe !== 'ALL' ? selectedUe.toLowerCase() : 'ue1');
+    const courseTitle = course?.title || (editingFlashcard?.courseTitle || 'Cours PASS');
+
+    // Remove old UE tag if it exists and changed
+    const cleanTags = tags.filter(t => 
+      t.toLowerCase() !== editingFlashcard?.ueCode?.toLowerCase() &&
+      t.toLowerCase() !== editingFlashcard?.ueId?.toLowerCase()
+    );
+    if (ueCode && !cleanTags.includes(ueCode)) {
+      cleanTags.unshift(ueCode);
     }
 
     setIsSaving(true);
@@ -119,15 +135,15 @@ export const EditFlashcardModal: React.FC<EditFlashcardModalProps> = ({
       const payload: Partial<Flashcard> = {
         id: editingFlashcard ? editingFlashcard.id : undefined,
         courseId: course ? course.id : (selectedCourseId || 'course-general'),
-        courseTitle: course ? course.title : 'Cours PASS',
+        courseTitle: courseTitle,
         ueCode: ueCode,
-        ueId: course ? course.ueId : 'ue1',
+        ueId: ueId,
         front: front.trim(),
         back: back.trim(),
         hint: hint.trim() ? hint.trim() : undefined,
         difficulty,
         isFavorite,
-        tags
+        tags: cleanTags
       };
 
       await onSave(payload);
@@ -196,7 +212,7 @@ export const EditFlashcardModal: React.FC<EditFlashcardModalProps> = ({
               </label>
               <select
                 value={selectedCourseId}
-                onChange={(e) => setSelectedCourseId(e.target.value)}
+                onChange={(e) => handleCourseChange(e.target.value)}
                 className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-sky-500 truncate shadow-2xs"
                 required
               >
@@ -213,15 +229,15 @@ export const EditFlashcardModal: React.FC<EditFlashcardModalProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-bold text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
-                <span>Face Recto (Question / Concept clé)</span>
+                <span>Face Recto (Question simple & ciblée)</span>
                 <span className="text-rose-500">*</span>
               </label>
-              <span className="text-[11px] text-slate-500 dark:text-slate-400">Supporte Markdown et formules LaTeX ($...$)</span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">1 seule notion clé • LaTeX ($...$)</span>
             </div>
             <textarea
               value={front}
               onChange={(e) => setFront(e.target.value)}
-              placeholder="Ex: Quelle est la formule de la clairance corporelle totale ? Ou : Quels sont les muscles innervés par le nerf musculocutané ?"
+              placeholder="Ex: Quelle est la formule de la clairance corporelle totale ? Ou : Quel transporteur assure l'entrée du glucose dans les érythrocytes ?"
               rows={3}
               className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl p-3 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-amber-500 leading-relaxed resize-none font-sans shadow-2xs"
               required
@@ -232,16 +248,16 @@ export const EditFlashcardModal: React.FC<EditFlashcardModalProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-bold text-emerald-800 dark:text-emerald-400 flex items-center gap-1.5">
-                <span>Face Verso (Réponse / Explication complète)</span>
+                <span>Face Verso (Réponse succincte & directe)</span>
                 <span className="text-rose-500">*</span>
               </label>
-              <span className="text-[11px] text-slate-500 dark:text-slate-400">Explication rigoureuse et concise</span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">1 à 2 phrases max, formule directe</span>
             </div>
             <textarea
               value={back}
               onChange={(e) => setBack(e.target.value)}
-              placeholder="Ex: Cl_tot = (Dose * F) / AUC. Volume virtuel de plasma totalement épuré d'un médicament par unité de temps..."
-              rows={4}
+              placeholder="Ex: Cl_tot = Dose / AUC. Volume virtuel de plasma totalement épuré d'une substance par unité de temps."
+              rows={3}
               className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl p-3 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 leading-relaxed resize-none font-sans shadow-2xs"
               required
             />

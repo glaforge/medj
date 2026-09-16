@@ -116,6 +116,8 @@ export const App: React.FC = () => {
   const [isEditFlashcardOpen, setIsEditFlashcardOpen] = useState(false);
   const [editingFlashcard, setEditingFlashcard] = useState<Flashcard | null>(null);
   const [editFlashcardCourseId, setEditFlashcardCourseId] = useState<string | undefined>(undefined);
+  const [editFlashcardOnSaved, setEditFlashcardOnSaved] = useState<((card: Flashcard) => void) | null>(null);
+  const [lastSavedFlashcard, setLastSavedFlashcard] = useState<Flashcard | null>(null);
   const [isFlashcardPlayerOpen, setIsFlashcardPlayerOpen] = useState(false);
   const [playerFlashcards, setPlayerFlashcards] = useState<Flashcard[]>([]);
   const [playerInitialIndex, setPlayerInitialIndex] = useState(0);
@@ -447,21 +449,32 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleOpenEditFlashcardModal = (flashcard?: Flashcard, defaultCourseId?: string) => {
+  const handleOpenEditFlashcardModal = (
+    flashcard?: Flashcard,
+    defaultCourseId?: string,
+    onSaved?: (card: Flashcard) => void
+  ) => {
     setEditingFlashcard(flashcard || null);
     setEditFlashcardCourseId(defaultCourseId);
+    setEditFlashcardOnSaved(onSaved ? () => onSaved : null);
     setIsEditFlashcardOpen(true);
   };
 
-  const handleSaveFlashcard = async (payload: Partial<Flashcard>) => {
+  const handleSaveFlashcard = async (payload: Partial<Flashcard>): Promise<Flashcard> => {
+    let saved: Flashcard;
     if (payload.id) {
-      await api.updateFlashcard(payload.id, payload);
+      saved = await api.updateFlashcard(payload.id, payload);
       showToast('✓ Flashcard modifiée avec succès !');
     } else {
-      await api.createFlashcard(payload);
+      saved = await api.createFlashcard(payload);
       showToast('✓ Nouvelle flashcard créée avec succès !');
     }
+    if (editFlashcardOnSaved) {
+      editFlashcardOnSaved(saved);
+    }
+    setLastSavedFlashcard(saved);
     setRevisionUpdateTrigger(prev => prev + 1);
+    return saved;
   };
 
   const handleStartStudyFlashcards = (cards: Flashcard[], initialIndex: number = 0, title?: string) => {
@@ -711,8 +724,10 @@ export const App: React.FC = () => {
                 courses={courses}
                 subjects={subjects}
                 targetFlashcardId={targetFlashcardId}
+                refreshTrigger={revisionUpdateTrigger}
+                lastSavedFlashcard={lastSavedFlashcard}
                 onNavigate={navigate}
-                onOpenEditModal={(card, cId) => handleOpenEditFlashcardModal(card, cId)}
+                onOpenEditModal={(card, cId, onSaved) => handleOpenEditFlashcardModal(card, cId, onSaved)}
                 onStartStudy={(cards, idx, title) => handleStartStudyFlashcards(cards, idx, title)}
                 onShowToast={showToast}
               />
@@ -906,6 +921,7 @@ export const App: React.FC = () => {
           setIsEditFlashcardOpen(false);
           setEditingFlashcard(null);
           setEditFlashcardCourseId(undefined);
+          setEditFlashcardOnSaved(null);
         }}
         onSave={handleSaveFlashcard}
         courses={courses}

@@ -513,6 +513,13 @@ public class GeminiAiController {
         return HttpResponse.created(thread);
     }
 
+    @Post("/tutor/threads/import")
+    public HttpResponse<TutorConversationThread> importTutorThread(@Body TutorConversationThread thread) {
+        if (thread == null) return HttpResponse.badRequest();
+        TutorConversationThread saved = firestoreService.saveTutorThread(thread);
+        return HttpResponse.ok(saved);
+    }
+
     @Delete("/tutor/threads/{id}")
     public HttpResponse<Void> deleteTutorThread(@PathVariable String id) {
         if (firestoreService.deleteTutorThread(id)) {
@@ -641,7 +648,9 @@ public class GeminiAiController {
             tutorResponse.createdQcm(),
             tutorResponse.createdIllustration(),
             tutorResponse.createdFlashcard(),
-            tutorResponse.groundingSources()
+            tutorResponse.groundingSources(),
+            List.of(),
+            tutorResponse.createdFlashcards()
         );
 
         List<AiTutorMessage> updatedMessages = new ArrayList<>(history);
@@ -698,6 +707,7 @@ public class GeminiAiController {
         response.put("createdQcm", tutorResponse.createdQcm());
         response.put("createdIllustration", tutorResponse.createdIllustration());
         response.put("createdFlashcard", tutorResponse.createdFlashcard());
+        response.put("createdFlashcards", tutorResponse.createdFlashcards());
         response.put("groundingSources", tutorResponse.groundingSources());
         response.put("knowledgeSources", tutorResponse.knowledgeSourcesUsed());
         response.put("messageId", modelMsg.id());
@@ -840,6 +850,13 @@ public class GeminiAiController {
         return firestoreService.getAllScans();
     }
 
+    @Post("/scans")
+    public HttpResponse<HandwrittenScanResult> saveScan(@Body HandwrittenScanResult scan) {
+        if (scan == null) return HttpResponse.badRequest();
+        HandwrittenScanResult saved = firestoreService.saveScan(scan);
+        return HttpResponse.created(saved);
+    }
+
     @Delete("/scans/{id}")
     public HttpResponse<Void> deleteScan(@PathVariable String id) {
         if (firestoreService.deleteScan(id)) {
@@ -941,6 +958,13 @@ public class GeminiAiController {
         return firestoreService.getAllIllustrations();
     }
 
+    @Post("/illustrations")
+    public HttpResponse<MedicalIllustration> saveIllustration(@Body MedicalIllustration illustration) {
+        if (illustration == null) return HttpResponse.badRequest();
+        MedicalIllustration saved = firestoreService.saveIllustration(illustration);
+        return HttpResponse.created(saved);
+    }
+
     @Get("/illustrations/{id}")
     public HttpResponse<MedicalIllustration> getIllustration(@PathVariable String id) {
         return firestoreService.getIllustration(id)
@@ -1023,12 +1047,25 @@ public class GeminiAiController {
     public HttpResponse<Flashcard> createFlashcard(@Body Flashcard flashcard) {
         if (flashcard == null) return HttpResponse.badRequest();
         String id = (flashcard.id() != null && !flashcard.id().isBlank()) ? flashcard.id() : "fc-" + UUID.randomUUID();
+        String courseId = (flashcard.courseId() != null && !flashcard.courseId().isBlank()) ? flashcard.courseId() : "course-general";
+        Optional<Course> courseOpt = firestoreService.getCourse(courseId);
+
+        String courseTitle = (flashcard.courseTitle() != null && !flashcard.courseTitle().isBlank())
+            ? flashcard.courseTitle()
+            : courseOpt.map(Course::title).orElse("Cours PASS");
+        String ueCode = (flashcard.ueCode() != null && !flashcard.ueCode().isBlank())
+            ? flashcard.ueCode()
+            : courseOpt.map(Course::ueCode).orElse("UE");
+        String ueId = (flashcard.ueId() != null && !flashcard.ueId().isBlank())
+            ? flashcard.ueId()
+            : courseOpt.map(Course::ueId).orElse("ue1");
+
         Flashcard toSave = new Flashcard(
             id,
-            flashcard.courseId() != null ? flashcard.courseId() : "course-general",
-            flashcard.courseTitle() != null ? flashcard.courseTitle() : "Cours PASS",
-            flashcard.ueCode() != null ? flashcard.ueCode() : "UE",
-            flashcard.ueId() != null ? flashcard.ueId() : "ue1",
+            courseId,
+            courseTitle,
+            ueCode,
+            ueId,
             flashcard.front() != null ? flashcard.front() : "Question",
             flashcard.back() != null ? flashcard.back() : "Réponse",
             flashcard.hint(),
@@ -1046,12 +1083,25 @@ public class GeminiAiController {
     @Put("/flashcards/{id}")
     public HttpResponse<Flashcard> updateFlashcard(@PathVariable String id, @Body Flashcard flashcard) {
         if (flashcard == null) return HttpResponse.badRequest();
+        String courseId = (flashcard.courseId() != null && !flashcard.courseId().isBlank()) ? flashcard.courseId() : "course-general";
+        Optional<Course> courseOpt = firestoreService.getCourse(courseId);
+
+        String courseTitle = (flashcard.courseTitle() != null && !flashcard.courseTitle().isBlank())
+            ? flashcard.courseTitle()
+            : courseOpt.map(Course::title).orElse("Cours PASS");
+        String ueCode = (flashcard.ueCode() != null && !flashcard.ueCode().isBlank())
+            ? flashcard.ueCode()
+            : courseOpt.map(Course::ueCode).orElse("UE");
+        String ueId = (flashcard.ueId() != null && !flashcard.ueId().isBlank())
+            ? flashcard.ueId()
+            : courseOpt.map(Course::ueId).orElse("ue1");
+
         Flashcard toSave = new Flashcard(
             id,
-            flashcard.courseId(),
-            flashcard.courseTitle(),
-            flashcard.ueCode(),
-            flashcard.ueId(),
+            courseId,
+            courseTitle,
+            ueCode,
+            ueId,
             flashcard.front(),
             flashcard.back(),
             flashcard.hint(),

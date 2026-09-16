@@ -196,11 +196,12 @@ public class TutorAttachmentMultimodalTest {
         String b64 = java.util.Base64.getEncoder().encodeToString(fakePng);
         dev.langchain4j.data.message.ImageContent imageContent = dev.langchain4j.data.message.ImageContent.from(b64, "image/png");
         dev.langchain4j.data.message.PdfFileContent pdfContent = dev.langchain4j.data.message.PdfFileContent.from(b64);
-        dev.langchain4j.data.message.UserMessage userMessage = dev.langchain4j.data.message.UserMessage.from(textContent, imageContent, pdfContent);
-        assertNotNull(userMessage);
 
         dev.langchain4j.model.chat.ChatModel mockModel = org.mockito.Mockito.mock(dev.langchain4j.model.chat.ChatModel.class);
-        org.mockito.Mockito.when(mockModel.chat(org.mockito.ArgumentMatchers.any(dev.langchain4j.model.chat.request.ChatRequest.class)))
+        org.mockito.ArgumentCaptor<dev.langchain4j.model.chat.request.ChatRequest> captor =
+            org.mockito.ArgumentCaptor.forClass(dev.langchain4j.model.chat.request.ChatRequest.class);
+
+        org.mockito.Mockito.when(mockModel.chat(captor.capture()))
             .thenReturn(dev.langchain4j.model.chat.response.ChatResponse.builder()
                 .aiMessage(dev.langchain4j.data.message.AiMessage.from("Reponse mockée"))
                 .build());
@@ -210,8 +211,145 @@ public class TutorAttachmentMultimodalTest {
             .build();
         assertNotNull(service);
 
-        dev.langchain4j.service.Result<String> res = service.chat(userMessage);
+        dev.langchain4j.service.Result<String> res = service.chat(List.of(textContent, imageContent, pdfContent));
         assertNotNull(res);
         assertEquals("Reponse mockée", res.content());
+
+        dev.langchain4j.model.chat.request.ChatRequest captured = captor.getValue();
+        assertNotNull(captured);
+        dev.langchain4j.data.message.ChatMessage userMsg = captured.messages().get(captured.messages().size() - 1);
+        assertTrue(userMsg instanceof dev.langchain4j.data.message.UserMessage);
+        dev.langchain4j.data.message.UserMessage um = (dev.langchain4j.data.message.UserMessage) userMsg;
+        assertEquals(3, um.contents().size());
+        assertTrue(um.contents().get(0) instanceof dev.langchain4j.data.message.TextContent);
+        assertTrue(um.contents().get(1) instanceof dev.langchain4j.data.message.ImageContent);
+        assertTrue(um.contents().get(2) instanceof dev.langchain4j.data.message.PdfFileContent);
+    }
+
+    @Test
+    void testBatchFlashcardCreationViaTool() {
+        MedicalFlashcardTools tools = new MedicalFlashcardTools(firestoreService, objectMapper);
+        tools.setActiveCourse("course-ue1-membranes", "Biochimie des Membranes", "UE1", "ue1");
+
+        String jsonPayload = """
+            [
+              {
+                "front": "Quelle est l'épaisseur moyenne d'une membrane plasmique ?",
+                "back": "Environ 7,5 nm (entre 7 et 10 nm).",
+                "hint": "Ordre de grandeur du nanomètre",
+                "difficulty": 2,
+                "tagsCsv": "UE1,Membranes,Biophysique"
+              },
+              {
+                "front": "Quels sont les deux principaux types de mouvements des lipides membranaires ?",
+                "back": "La diffusion latérale (très rapide) et le flip-flop (extrêmement lent sans flippase/scramblase).",
+                "hint": "Un mouvement dans le plan et un entre feuillets",
+                "difficulty": 4,
+                "tagsCsv": "UE1,Lipides,Dynamique"
+              }
+            ]
+            """;
+
+        String result = tools.createAndSaveFlashcards(jsonPayload, "UE1");
+        assertNotNull(result);
+        assertTrue(result.contains("2 flashcard(s) créée(s)"));
+
+        List<fr.medj.model.Flashcard> generated = tools.getAndClearRecentlyCreatedFlashcards();
+        assertEquals(2, generated.size());
+
+        fr.medj.model.Flashcard card1 = generated.get(0);
+        assertEquals("Quelle est l'épaisseur moyenne d'une membrane plasmique ?", card1.front());
+        assertEquals("course-ue1-membranes", card1.courseId());
+        assertEquals("UE1", card1.ueCode());
+        assertEquals(2, card1.difficulty());
+
+        fr.medj.model.Flashcard card2 = generated.get(1);
+        assertEquals("Quels sont les deux principaux types de mouvements des lipides membranaires ?", card2.front());
+        assertEquals(4, card2.difficulty());
+
+        // Verify stored in firestoreService
+        assertTrue(firestoreService.getFlashcard(card1.id()).isPresent());
+        assertTrue(firestoreService.getFlashcard(card2.id()).isPresent());
+    }
+
+    @Test
+    void testAskTutorInheritsAttachmentsFromPreviousTurn() throws IOException {
+        byte[] fakeTablePng = new byte[]{(byte) 0x89, 'P', 'N', 'G', 1, 2, 3};
+        CompletedFileUpload upload = createUpload("tableau_membranes.png", fakeTablePng, "image/png");
+        HttpResponse<TutorAttachment> uploadRes = geminiAiController.uploadTutorAttachment(upload);
+        TutorAttachment attachment = uploadRes.body();
+        assertNotNull(attachment);
+
+        // Turn 1: User uploads image with description
+        GeminiAiController.AskTutorRequest req1 = new GeminiAiController.AskTutorRequest(
+            null,
+            "Voici un tableau comparatif des transports membranaires.",
+            "UE1 Biologie Cellulaire",
+            "course-ue1-membranes",
+            "Transports Membranaires",
+            List.of(attachment)
+        );
+        HttpResponse<Map<String, Object>> res1 = geminiAiController.askTutor(req1);
+        assertEquals(HttpStatus.OK, res1.getStatus());
+        String threadId = (String) res1.body().get("threadId");
+        assertNotNull(threadId);
+
+        // Turn 2: User asks for flashcards WITHOUT re-uploading attachment
+        GeminiAiController.AskTutorRequest req2 = new GeminiAiController.AskTutorRequest(
+            threadId,
+            "Génère des flashcards sur les informations dans ce tableau.",
+            "UE1 Biologie Cellulaire",
+            "course-ue1-membranes",
+            "Transports Membranaires",
+            null // no attachments sent in this turn
+        );
+        HttpResponse<Map<String, Object>> res2 = geminiAiController.askTutor(req2);
+        assertEquals(HttpStatus.OK, res2.getStatus());
+
+        // Verify thread has both turns
+        Optional<TutorConversationThread> threadOpt = firestoreService.getTutorThread(threadId);
+        assertTrue(threadOpt.isPresent());
+        TutorConversationThread thread = threadOpt.get();
+        assertEquals(4, thread.messages().size()); // user1, model1, user2, model2
+    }
+
+    @Test
+    void testSerdeAiTutorMessageWithCreatedFlashcards() throws IOException {
+        fr.medj.model.Flashcard card1 = new fr.medj.model.Flashcard(
+            "fc-1", "c-1", "Cours 1", "UE1", "ue1",
+            "Q1", "R1", "H1", 2, false, List.of("UE1"), 0, null, LocalDateTime.now()
+        );
+        fr.medj.model.Flashcard card2 = new fr.medj.model.Flashcard(
+            "fc-2", "c-1", "Cours 1", "UE1", "ue1",
+            "Q2", "R2", "H2", 3, false, List.of("UE1"), 0, null, LocalDateTime.now()
+        );
+
+        AiTutorMessage msg = new AiTutorMessage(
+            "msg-test-fc",
+            "model",
+            "Voici vos flashcards créées",
+            "c-1",
+            "Cours 1",
+            LocalDateTime.now(),
+            null,
+            null,
+            card1,
+            List.of(),
+            List.of(),
+            List.of(card1, card2)
+        );
+
+        String json = objectMapper.writeValueAsString(msg);
+        assertNotNull(json);
+        assertTrue(json.contains("createdFlashcards"));
+        assertTrue(json.contains("Q1"));
+        assertTrue(json.contains("Q2"));
+
+        AiTutorMessage deserialized = objectMapper.readValue(json, AiTutorMessage.class);
+        assertNotNull(deserialized);
+        assertEquals("msg-test-fc", deserialized.id());
+        assertNotNull(deserialized.createdFlashcards());
+        assertEquals(2, deserialized.createdFlashcards().size());
+        assertEquals(2, deserialized.allFlashcards().size());
     }
 }

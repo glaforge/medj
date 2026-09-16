@@ -391,6 +391,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
         createdQcm: res.createdQcm,
         createdIllustration: res.createdIllustration,
         createdFlashcard: res.createdFlashcard,
+        createdFlashcards: res.createdFlashcards || (res.createdFlashcard ? [res.createdFlashcard] : undefined),
         groundingSources: res.groundingSources
       };
 
@@ -399,7 +400,8 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
       if (res.createdQcm && onQcmCreated) {
         onQcmCreated();
       }
-      if (res.createdFlashcard && onFlashcardCreated) {
+      const hasFlashcards = !!res.createdFlashcard || (!!res.createdFlashcards && res.createdFlashcards.length > 0);
+      if (hasFlashcards && onFlashcardCreated) {
         onFlashcardCreated();
       }
 
@@ -1094,53 +1096,129 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
                   </div>
                 )}
 
-                {/* Embedded Created Flashcard Card */}
-                {msg.createdFlashcard && (
-                  <div className="mt-3 p-4 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-500/40 shadow-md space-y-3">
-                    <div className="flex items-center justify-between gap-2 border-b border-amber-200 dark:border-amber-800/60 pb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="flex items-center gap-1 text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-700/60 uppercase tracking-wider">
-                          <Layers className="w-3 h-3" />
-                          <span>Flashcard Créée</span>
-                        </span>
-                        {msg.createdFlashcard.ueCode && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                            {msg.createdFlashcard.ueCode}
+                {/* Embedded Created Flashcard(s) */}
+                {(() => {
+                  const cards = (msg.createdFlashcards && msg.createdFlashcards.length > 0)
+                    ? msg.createdFlashcards
+                    : (msg.createdFlashcard ? [msg.createdFlashcard] : []);
+                  if (cards.length === 0) return null;
+
+                  if (cards.length === 1) {
+                    const card = cards[0];
+                    return (
+                      <div className="mt-3 p-4 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-500/40 shadow-md space-y-3">
+                        <div className="flex items-center justify-between gap-2 border-b border-amber-200 dark:border-amber-800/60 pb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="flex items-center gap-1 text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-700/60 uppercase tracking-wider">
+                              <Layers className="w-3 h-3" />
+                              <span>Flashcard Créée</span>
+                            </span>
+                            {card.ueCode && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                {card.ueCode}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold">
+                            ✓ Enregistrée dans le cours
                           </span>
-                        )}
+                        </div>
+
+                        <div className="space-y-2 text-xs">
+                          <div>
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                              Question (Recto)
+                            </div>
+                            <div className="font-semibold text-slate-900 dark:text-white mt-0.5">
+                              <MarkdownRenderer content={card.front} />
+                            </div>
+                          </div>
+
+                          {card.hint && (
+                            <div className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-100/60 dark:bg-amber-900/30 px-2.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700/40">
+                              💡 <strong>Indice :</strong> {card.hint}
+                            </div>
+                          )}
+
+                          <div className="pt-2 border-t border-amber-200/80 dark:border-amber-800/40">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                              Réponse (Verso)
+                            </div>
+                            <div className="text-slate-800 dark:text-slate-200 mt-0.5 leading-relaxed">
+                              <MarkdownRenderer content={card.back} />
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <span className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold">
-                        ✓ Enregistrée dans le cours
-                      </span>
+                    );
+                  }
+
+                  // Multiple flashcards layout
+                  return (
+                    <div className="mt-3 p-4 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-500/40 shadow-md space-y-3">
+                      <div className="flex items-center justify-between gap-2 border-b border-amber-200 dark:border-amber-800/60 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="flex items-center gap-1.5 text-[11px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-2.5 py-1 rounded-full border border-amber-300 dark:border-amber-700/60 uppercase tracking-wider">
+                            <Layers className="w-3.5 h-3.5" />
+                            <span>{cards.length} Flashcards Créées</span>
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold">
+                          ✓ Enregistrées dans la banque de fiches
+                        </span>
+                      </div>
+
+                      <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                        {cards.map((card, idx) => (
+                          <div
+                            key={card.id || `fc-${idx}`}
+                            className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/80 border border-amber-200 dark:border-amber-800/50 shadow-sm space-y-2 text-xs"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200">
+                                  #{idx + 1}
+                                </span>
+                                {card.ueCode && (
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                    {card.ueCode}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                                Difficulté : {'★'.repeat(card.difficulty || 3)}{'☆'.repeat(Math.max(0, 5 - (card.difficulty || 3)))}
+                              </span>
+                            </div>
+
+                            <div>
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                                Question (Recto)
+                              </div>
+                              <div className="font-semibold text-slate-900 dark:text-white mt-0.5">
+                                <MarkdownRenderer content={card.front} />
+                              </div>
+                            </div>
+
+                            {card.hint && (
+                              <div className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-100/60 dark:bg-amber-900/30 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800/40">
+                                💡 <strong>Indice :</strong> {card.hint}
+                              </div>
+                            )}
+
+                            <div className="pt-1.5 border-t border-slate-200/80 dark:border-slate-800">
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                                Réponse (Verso)
+                              </div>
+                              <div className="text-slate-800 dark:text-slate-200 mt-0.5 leading-relaxed">
+                                <MarkdownRenderer content={card.back} />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-
-                    <div className="space-y-2 text-xs">
-                      <div>
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                          Question (Recto)
-                        </div>
-                        <div className="font-semibold text-slate-900 dark:text-white mt-0.5">
-                          <MarkdownRenderer content={msg.createdFlashcard.front} />
-                        </div>
-                      </div>
-
-                      {msg.createdFlashcard.hint && (
-                        <div className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-100/60 dark:bg-amber-900/30 px-2.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700/40">
-                          💡 <strong>Indice :</strong> {msg.createdFlashcard.hint}
-                        </div>
-                      )}
-
-                      <div className="pt-2 border-t border-amber-200/80 dark:border-amber-800/40">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                          Réponse (Verso)
-                        </div>
-                        <div className="text-slate-800 dark:text-slate-200 mt-0.5 leading-relaxed">
-                          <MarkdownRenderer content={msg.createdFlashcard.back} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Google Search Grounding Sources Badges */}
                 {(() => {

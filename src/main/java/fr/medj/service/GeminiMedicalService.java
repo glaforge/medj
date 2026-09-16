@@ -205,8 +205,8 @@ public class GeminiMedicalService {
             .items(Schema.builder()
                 .type(Type.Known.OBJECT)
                 .properties(Map.of(
-                    "front", Schema.builder().type(Type.Known.STRING).description("Question précise ou concept clé au Recto").build(),
-                    "back", Schema.builder().type(Type.Known.STRING).description("Réponse détaillée, formule ou explication au Verso").build(),
+                    "front", Schema.builder().type(Type.Known.STRING).description("Question simple et ciblée au Recto portant sur un fait unique").build(),
+                    "back", Schema.builder().type(Type.Known.STRING).description("Réponse succincte et ciblée au Verso (1 à 2 phrases max, formule directe)").build(),
                     "hint", Schema.builder().type(Type.Known.STRING).description("Indice de mémorisation ou amorce (début de réponse)").build(),
                     "difficulty", Schema.builder().type(Type.Known.INTEGER).description("Niveau de difficulté de 1 à 5").build(),
                     "tags", Schema.builder().type(Type.Known.ARRAY).items(Schema.builder().type(Type.Known.STRING).build()).build()
@@ -589,8 +589,8 @@ public class GeminiMedicalService {
                        - Ne refuse JAMAIS de générer le nombre de cartes demandé sous prétexte que les documents fournis sont trop courts : élargis naturellement aux notions fondamentales, valeurs de référence et pièges classiques de ce cours de PASS.
                     
                     Règles pour chaque flashcard :
-                    1. 'front' : Une question claire, ciblée et percutante basée sur les notions, valeurs ou mécanismes de cours (ex: "Quelle est la formule de la clairance corporelle ?", "Quels sont les 3 muscles innervés par le nerf musculocutané ?").
-                    2. 'back' : Une réponse concise, rigoureuse et complète avec formatage Markdown / LaTeX ($...$) si formules.
+                    1. 'front' : Une question simple, ciblée et percutante portant sur UN SEUL fait, concept, formule ou mécanisme précis (ex: "Quelle est la formule de la clairance corporelle ?", "Quel transporteur permet l'entrée du glucose dans les érythrocytes ?"). Évite les questions trop larges.
+                    2. 'back' : Une réponse succincte, directe et rigoureuse (1 à 2 phrases maximum, formule ou valeur directe) avec formatage Markdown / LaTeX ($...$) si formules. Évite absolument les pavés de texte ou de surcharger la carte : le principe de granularité atomique est primordial pour le rappel actif (active recall). Si une notion comporte plusieurs éléments, répartis-les sur des flashcards séparées.
                     3. 'hint' : Un indice court (amorce, première lettre, structure de formule) qui aide la mémoire sans donner la réponse complète.
                     4. 'difficulty' : Niveau de difficulté de 1 à 5.
                     5. 'tags' : Liste de 2 à 4 mots-clés pertinents (incluant le code de l'UE).
@@ -694,23 +694,28 @@ public class GeminiMedicalService {
         QcmQuestion createdQcm,
         MedicalIllustration createdIllustration,
         Flashcard createdFlashcard,
+        List<Flashcard> createdFlashcards,
         List<GroundingSource> groundingSources,
         List<String> knowledgeSourcesUsed
     ) {
         public TutorResponse(String answer, QcmQuestion createdQcm) {
-            this(answer, createdQcm, null, null, List.of(), List.of());
+            this(answer, createdQcm, null, null, List.of(), List.of(), List.of());
         }
 
         public TutorResponse(String answer, QcmQuestion createdQcm, List<GroundingSource> groundingSources) {
-            this(answer, createdQcm, null, null, groundingSources, List.of());
+            this(answer, createdQcm, null, null, List.of(), groundingSources, List.of());
         }
 
         public TutorResponse(String answer, QcmQuestion createdQcm, MedicalIllustration createdIllustration, List<GroundingSource> groundingSources) {
-            this(answer, createdQcm, createdIllustration, null, groundingSources, List.of());
+            this(answer, createdQcm, createdIllustration, null, List.of(), groundingSources, List.of());
         }
 
         public TutorResponse(String answer, QcmQuestion createdQcm, MedicalIllustration createdIllustration, Flashcard createdFlashcard, List<GroundingSource> groundingSources) {
-            this(answer, createdQcm, createdIllustration, createdFlashcard, groundingSources, List.of());
+            this(answer, createdQcm, createdIllustration, createdFlashcard, createdFlashcard != null ? List.of(createdFlashcard) : List.of(), groundingSources, List.of());
+        }
+
+        public TutorResponse(String answer, QcmQuestion createdQcm, MedicalIllustration createdIllustration, Flashcard createdFlashcard, List<GroundingSource> groundingSources, List<String> knowledgeSourcesUsed) {
+            this(answer, createdQcm, createdIllustration, createdFlashcard, createdFlashcard != null ? List.of(createdFlashcard) : List.of(), groundingSources, knowledgeSourcesUsed);
         }
     }
 
@@ -833,7 +838,80 @@ public class GeminiMedicalService {
             }
         }
 
+        // Multi-turn attachment inheritance: if current turn has no attachments, carry over from the most recent user message
+        List<TutorAttachment> safeAttachments = attachments != null ? new ArrayList<>(attachments) : new ArrayList<>();
+        if (safeAttachments.isEmpty() && history != null && !history.isEmpty()) {
+            for (int i = history.size() - 1; i >= 0; i--) {
+                AiTutorMessage prev = history.get(i);
+                if (prev.attachments() != null && !prev.attachments().isEmpty()) {
+                    safeAttachments.addAll(prev.attachments());
+                    LOG.info("Carried over {} attachment(s) from previous user message in tutor thread", prev.attachments().size());
+                    break;
+                }
+            }
+        }
+
+        List<byte[]> attachedPdfs = new ArrayList<>();
+        List<Map.Entry<byte[], String>> attachedImages = new ArrayList<>();
+        List<Map.Entry<byte[], String>> attachedTexts = new ArrayList<>();
+
+        StringBuilder studentAttachmentsBlock = new StringBuilder();
+        if (!safeAttachments.isEmpty()) {
+            studentAttachmentsBlock.append("================================================================================\n")
+                .append("DOCUMENTS & PIÈCES JOINTES FOURNIS PAR L'ÉTUDIANT (RÉFÉRENCE PRIORITAIRE ABSOLUE) :\n")
+                .append("================================================================================\n");
+
+            for (TutorAttachment att : safeAttachments) {
+                try {
+                    byte[] fileBytes = storageService.readFileBytes(att.storageUrl());
+                    if (fileBytes == null || fileBytes.length == 0) continue;
+
+                    String mime = att.mimeType() != null ? att.mimeType().toLowerCase() : "";
+                    String fn = att.filename() != null ? att.filename() : "fichier";
+
+                    if (mime.contains("pdf") || fn.toLowerCase().endsWith(".pdf")) {
+                        attachedPdfs.add(fileBytes);
+                        String pdfText = courseKnowledgeBaseService.extractTextFromPdf(fileBytes, 25);
+                        studentAttachmentsBlock.append("\n[Document PDF joint : \"").append(fn).append("\" (")
+                            .append(fileBytes.length / 1024).append(" Ko)] :\n");
+                        if (pdfText != null && !pdfText.isBlank()) {
+                            studentAttachmentsBlock.append(pdfText).append("\n");
+                        } else {
+                            studentAttachmentsBlock.append("(Contenu PDF transmis pour analyse visuelle/multimodale)\n");
+                        }
+                    } else if (mime.startsWith("image/") || fn.toLowerCase().matches(".*\\.(png|jpg|jpeg|webp|gif|svg)")) {
+                        String imageMime = mime.isBlank() ? "image/jpeg" : mime;
+                        attachedImages.add(Map.entry(fileBytes, imageMime));
+                        studentAttachmentsBlock.append("\n[Image / Schéma / Tableau médical joint : \"").append(fn).append("\" (")
+                            .append(fileBytes.length / 1024).append(" Ko, type ").append(imageMime).append(")]\n")
+                            .append("(Image haute résolution transmise directement au modèle visuel)\n");
+                    } else {
+                        // Text / Markdown / CSV
+                        attachedTexts.add(Map.entry(fileBytes, mime.isBlank() ? "text/plain" : mime));
+                        String text = new String(fileBytes, java.nio.charset.StandardCharsets.UTF_8);
+                        if (text.length() > 50_000) {
+                            text = text.substring(0, 50_000) + "\n... [Texte tronqué à 50 000 caractères]";
+                        }
+                        studentAttachmentsBlock.append("\n[Document texte joint : \"").append(fn).append("\"] :\n")
+                            .append(text).append("\n");
+                    }
+                } catch (Exception ex) {
+                    LOG.warn("Could not read tutor attachment '{}': {}", att.filename(), ex.getMessage());
+                }
+            }
+
+            studentAttachmentsBlock.append("\nConsignes pour les pièces jointes ci-dessus :\n")
+                .append("1. Les pièces jointes et images ci-dessus sont la PRIORITÉ NUMÉRO 1 de la demande de l'étudiant.\n")
+                .append("2. Analyse scrupuleusement le contenu des tableaux, schémas, notes ou images fournis par l'étudiant.\n")
+                .append("3. Si l'étudiant demande des explications, des QCMs ou des flashcards sur ces documents ou ce tableau, base-toi DIRECTEMENT et FIDÈLEMENT sur les données visibles dans ce document joint.\n")
+                .append("4. Pour la création de flashcards : respecte une stricte granularité atomique (question simple au Recto, réponse succincte au Verso en 1 à 2 phrases max). Préfère créer PLUSIEURS flashcards simples (via 'createAndSaveFlashcards') plutôt qu'une seule carte surchargée d'informations.\n")
+                .append("================================================================================\n\n");
+        }
+
         StringBuilder courseContextBlock = new StringBuilder();
+        if (studentAttachmentsBlock.length() > 0) {
+            courseContextBlock.append(studentAttachmentsBlock);
+        }
         courseContextBlock.append("Contexte du cours actuel : ")
             .append(courseContext != null ? courseContext : (courseTitle != null ? courseTitle : "Cours général de PASS"));
         if (courseId != null && !courseId.isBlank()) {
@@ -847,70 +925,15 @@ public class GeminiMedicalService {
                 kbContent = kbContent.substring(0, 200_000) + "\n... [Base de connaissances du cours tronquée à 200 000 caractères pour sécurité]";
             }
             courseContextBlock.append("\n\n================================================================================")
-                .append("\nBASE DE CONNAISSANCES COMPLÈTE DU COURS (Notes étudiant, Polycopiés PDF, Fiches Scannées) :")
+                .append("\nBASE DE CONNAISSANCES DU COURS (Notes étudiant, Polycopiés PDF, Fiches Scannées) :")
                 .append("\n================================================================================\n")
                 .append(kbContent)
                 .append("\n================================================================================")
-                .append("\nCONSIGNES PÉDAGOGIQUES DU TUTEUR POUR CE COURS :")
-                .append("\n1. La base documentaire ci-dessus est ta RÉFÉRENCE PRIORITAIRE ABSOLUE pour ce cours.")
+                .append("\nCONSIGNES DU TUTEUR POUR CE COURS :")
+                .append("\n1. Sauf si une pièce jointe de l'étudiant porte sur un autre sujet prioritaire, la base documentaire ci-dessus est la référence académique pour ce cours.")
                 .append("\n2. Cite fidèlement la terminologie, les définitions, formules chiffrées, mécanismes et pièges mentionnés par le professeur.")
                 .append("\n3. Si un détail précis n'est pas mentionné dans ces documents, complète avec ton savoir médical universitaire approfondi et les recommandations officielles via la recherche Google Search en le signalant clairement à l'étudiant.")
                 .append("\n================================================================================\n");
-        }
-
-        List<TutorAttachment> safeAttachments = attachments != null ? attachments : List.of();
-        List<byte[]> attachedPdfs = new ArrayList<>();
-        List<Map.Entry<byte[], String>> attachedImages = new ArrayList<>();
-        List<Map.Entry<byte[], String>> attachedTexts = new ArrayList<>();
-
-        if (!safeAttachments.isEmpty()) {
-            courseContextBlock.append("\n\n================================================================================")
-                .append("\nDOCUMENTS & PIÈCES JOINTES FOURNIS PAR L'ÉTUDIANT POUR CETTE QUESTION :")
-                .append("\n================================================================================\n");
-
-            for (TutorAttachment att : safeAttachments) {
-                try {
-                    byte[] fileBytes = storageService.readFileBytes(att.storageUrl());
-                    if (fileBytes == null || fileBytes.length == 0) continue;
-
-                    String mime = att.mimeType() != null ? att.mimeType().toLowerCase() : "";
-                    String fn = att.filename() != null ? att.filename() : "fichier";
-
-                    if (mime.contains("pdf") || fn.toLowerCase().endsWith(".pdf")) {
-                        attachedPdfs.add(fileBytes);
-                        String pdfText = courseKnowledgeBaseService.extractTextFromPdf(fileBytes, 25);
-                        courseContextBlock.append("\n[Document PDF joint : \"").append(fn).append("\" (")
-                            .append(fileBytes.length / 1024).append(" Ko)] :\n");
-                        if (pdfText != null && !pdfText.isBlank()) {
-                            courseContextBlock.append(pdfText).append("\n");
-                        } else {
-                            courseContextBlock.append("(Contenu PDF transmis pour analyse visuelle/multimodale)\n");
-                        }
-                    } else if (mime.startsWith("image/") || fn.toLowerCase().matches(".*\\.(png|jpg|jpeg|webp|gif|svg)")) {
-                        String imageMime = mime.isBlank() ? "image/jpeg" : mime;
-                        attachedImages.add(Map.entry(fileBytes, imageMime));
-                        courseContextBlock.append("\n[Image / Schéma médical joint : \"").append(fn).append("\" (")
-                            .append(fileBytes.length / 1024).append(" Ko, type ").append(imageMime).append(")]\n")
-                            .append("(Image haute résolution transmise visuellement au modèle Gemini)\n");
-                    } else {
-                        // Text / Markdown / CSV
-                        attachedTexts.add(Map.entry(fileBytes, mime.isBlank() ? "text/plain" : mime));
-                        String text = new String(fileBytes, java.nio.charset.StandardCharsets.UTF_8);
-                        if (text.length() > 50_000) {
-                            text = text.substring(0, 50_000) + "\n... [Texte tronqué à 50 000 caractères]";
-                        }
-                        courseContextBlock.append("\n[Document texte joint : \"").append(fn).append("\"] :\n")
-                            .append(text).append("\n");
-                    }
-                } catch (Exception ex) {
-                    LOG.warn("Could not read tutor attachment '{}': {}", att.filename(), ex.getMessage());
-                }
-            }
-
-            courseContextBlock.append("\nConsignes pour les pièces jointes ci-dessus :\n")
-                .append("1. Analyse scrupuleusement le contenu des documents, schémas ou images fournis par l'étudiant.\n")
-                .append("2. Réponds avec précision en te basant sur ces documents/illustrations et apporte les explications médicales attendues en PASS.\n")
-                .append("================================================================================\n");
         }
 
         if (tutorAiService != null) {
@@ -930,15 +953,19 @@ public class GeminiMedicalService {
                 promptBuilder.append("Question / Demande de l'étudiant : ").append(question);
 
                 Result<String> result;
-                if (!attachedImages.isEmpty()) {
+                boolean hasMedia = (!attachedImages.isEmpty()) || (!attachedPdfs.isEmpty());
+                if (hasMedia) {
                     List<dev.langchain4j.data.message.Content> contents = new ArrayList<>();
                     contents.add(dev.langchain4j.data.message.TextContent.from(promptBuilder.toString()));
                     for (Map.Entry<byte[], String> img : attachedImages) {
                         String b64 = java.util.Base64.getEncoder().encodeToString(img.getKey());
                         contents.add(dev.langchain4j.data.message.ImageContent.from(b64, img.getValue()));
                     }
-                    dev.langchain4j.data.message.UserMessage userMsg = dev.langchain4j.data.message.UserMessage.from(contents);
-                    result = tutorAiService.chat(userMsg);
+                    for (byte[] pdfBytes : attachedPdfs) {
+                        String b64 = java.util.Base64.getEncoder().encodeToString(pdfBytes);
+                        contents.add(dev.langchain4j.data.message.PdfFileContent.from(b64));
+                    }
+                    result = tutorAiService.chat(contents);
                 } else {
                     result = tutorAiService.chat(promptBuilder.toString());
                 }
@@ -949,7 +976,7 @@ public class GeminiMedicalService {
                 MedicalIllustration createdIllus = generatedIllus.isEmpty() ? null : generatedIllus.get(0);
 
                 List<Flashcard> generatedCards = medicalFlashcardTools.getAndClearRecentlyCreatedFlashcards();
-                Flashcard createdCard = generatedCards.isEmpty() ? null : generatedCards.get(0);
+                List<Flashcard> linkedCards = new ArrayList<>();
 
                 // Ensure proper course linkage if active course was provided
                 if (courseId != null && !courseId.isBlank()) {
@@ -970,24 +997,28 @@ public class GeminiMedicalService {
                         );
                         firestoreService.saveIllustration(createdIllus);
                     }
-                    if (createdCard != null && !courseId.equalsIgnoreCase(createdCard.courseId())) {
-                        createdCard = new Flashcard(
-                            createdCard.id(),
-                            courseId,
-                            courseTitle != null ? courseTitle : createdCard.courseTitle(),
-                            resolvedUeCode != null ? resolvedUeCode : createdCard.ueCode(),
-                            resolvedUeId != null ? resolvedUeId : createdCard.ueId(),
-                            createdCard.front(),
-                            createdCard.back(),
-                            createdCard.hint(),
-                            createdCard.difficulty(),
-                            createdCard.isFavorite(),
-                            createdCard.tags(),
-                            createdCard.reviewCount(),
-                            createdCard.lastReviewedAt(),
-                            createdCard.createdAt()
-                        );
-                        firestoreService.saveFlashcard(createdCard);
+                    for (Flashcard card : generatedCards) {
+                        Flashcard c = card;
+                        if (!courseId.equalsIgnoreCase(card.courseId())) {
+                            c = new Flashcard(
+                                card.id(),
+                                courseId,
+                                courseTitle != null ? courseTitle : card.courseTitle(),
+                                resolvedUeCode != null ? resolvedUeCode : card.ueCode(),
+                                resolvedUeId != null ? resolvedUeId : card.ueId(),
+                                card.front(),
+                                card.back(),
+                                card.hint(),
+                                card.difficulty(),
+                                card.isFavorite(),
+                                card.tags(),
+                                card.reviewCount(),
+                                card.lastReviewedAt(),
+                                card.createdAt()
+                            );
+                            firestoreService.saveFlashcard(c);
+                        }
+                        linkedCards.add(c);
                     }
                     if (createdQcm != null && !courseId.equalsIgnoreCase(createdQcm.courseId())) {
                         createdQcm = new QcmQuestion(
@@ -1006,14 +1037,18 @@ public class GeminiMedicalService {
                         );
                         firestoreService.saveQcm(createdQcm);
                     }
+                } else {
+                    linkedCards.addAll(generatedCards);
                 }
+
+                Flashcard createdCard = linkedCards.isEmpty() ? null : linkedCards.get(0);
 
                 List<GroundingSource> sources = extractGroundingSourcesFromResult(result);
 
                 String answer = result != null ? result.content() : null;
                 if (answer != null && !answer.isBlank()) {
                     String finalAnswer = appendGroundingLinksToAnswer(answer, sources);
-                    return new TutorResponse(finalAnswer, createdQcm, createdIllus, createdCard, sources, knowledgeSourcesUsed);
+                    return new TutorResponse(finalAnswer, createdQcm, createdIllus, createdCard, linkedCards, sources, knowledgeSourcesUsed);
                 }
             } catch (Exception e) {
                 LOG.error("Error asking LangChain4j AI Tutor: {}", e.getMessage(), e);
@@ -1633,8 +1668,8 @@ public class GeminiMedicalService {
 
                     Utilise Google Search pour vérifier systématiquement :
                     1. L'exactitude factuelle et médicale stricte du Recto et du Verso (formules physiologiques ou biophysiques, valeurs numériques normales, cibles pharmacologiques, innervation/vascularisation en nomenclature anatomique française officielle).
-                    2. La clarté, la concision et l'absence d'ambiguïté de la question au Recto.
-                    3. La pertinence, la complétude et la rigueur de la réponse au Verso (avec utilisation si approprié de KaTeX / LaTeX pour les formules chimiques/mathématiques).
+                    2. La clarté, la concision et la granularité de la question au Recto (question simple et ciblée portant sur un concept unique).
+                    3. La concision et la pertinence de la réponse au Verso (réponse succincte en 1 à 2 phrases max, ou formule directe, en évitant les pavés de texte non propices au rappel actif rapide ; la carte ne doit pas être surchargée).
                     4. La pertinence pédagogique de l'indice (aide à la récupération en mémoire sans dévoiler la solution).
                     5. L'adéquation du niveau de difficulté (1: facile/fondamental, 3: standard concours, 5: pièges/expert) et des mots-clés (tags).
 
@@ -1643,7 +1678,7 @@ public class GeminiMedicalService {
                     Directives impératives :
                     - Évalue si la flashcard est 100%% exacte et optimale (`isAccurate` = true si aucune erreur médicale n'est présente).
                     - Attribue un score de 0 à 100 et un statut ("VALIDE" si score >= 85, "CORRECTIONS_RECOMMANDEES" si 60-84, "INEXACTITUDES_DETECTEES" si < 60).
-                    - Propose systématiquement une version améliorée (`correctedFlashcard`) avec les textes perfectionnés et corrigés, prête à être appliquée en 1 clic par l'étudiant.
+                    - Propose systématiquement une version améliorée (`correctedFlashcard`) avec les textes perfectionnés, granulaires et corrigés, prête à être appliquée en 1 clic par l'étudiant.
 
                     Réponds STRICTEMENT sous forme d'un objet JSON avec la structure exacte suivante :
                     {
@@ -1651,19 +1686,19 @@ public class GeminiMedicalService {
                       "status": "VALIDE",
                       "score": 95,
                       "summary": "Bilan synthétique en 2-3 phrases de l'audit de la flashcard.",
-                      "frontReview": "Commentaire sur la clarté et la formulation de la question.",
-                      "backReview": "Commentaire sur la rigueur scientifique et l'exhaustivité de la réponse.",
+                      "frontReview": "Commentaire sur la clarté, la formulation et la granularité de la question.",
+                      "backReview": "Commentaire sur la concision, la rigueur scientifique et la granularité de la réponse.",
                       "hintReview": "Commentaire sur l'indice de rappel.",
                       "keyMedicalPoints": [
                         "Point médical vérifié 1",
                         "Point médical vérifié 2"
                       ],
                       "detectedIssues": [
-                        "Imprécision, terme obsolète ou remarque d'amélioration (ou tableau vide si parfait)"
+                        "Imprécision, terme obsolète, réponse trop verbeuse ou remarque d'amélioration (ou tableau vide si parfait)"
                       ],
                       "correctedFlashcard": {
-                        "front": "Question éventuellement reformulée ou perfectionnée...",
-                        "back": "Réponse corrigée / perfectionnée avec mise en forme claire...",
+                        "front": "Question éventuellement reformulée ou perfectionnée (simple et ciblée)...",
+                        "back": "Réponse corrigée / perfectionnée succincte (1-2 phrases max, formule directe)...",
                         "hint": "Indice pertinent...",
                         "difficulty": 3,
                         "tags": ["UE1", "Tampons", "AcideBase"]
