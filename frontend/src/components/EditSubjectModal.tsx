@@ -30,6 +30,7 @@ import {
   Shield,
   Sparkles,
   Calendar,
+  CalendarCheck,
   CircleHelp,
   Infinity
 } from 'lucide-react';
@@ -312,7 +313,7 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
                 Paliers cognitifs de révision pour cette UE
               </span>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-[11px]">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 text-[11px]">
               <div className="p-2 rounded-xl bg-slate-950/70 border border-sky-800/40 text-center shadow-2xs flex flex-col items-center">
                 <div className="flex items-center gap-1 text-sky-400 font-extrabold text-xs">
                   <Brain className="w-3.5 h-3.5" />
@@ -327,7 +328,7 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
                   <span>QCM</span>
                 </div>
                 <span className="text-[10px] text-slate-300 font-semibold truncate">Révision & QCMs</span>
-                <span className="text-[9px] text-slate-400 font-medium">Lendemain</span>
+                <span className="text-[9px] text-slate-400 font-medium">Lendemain (ou Ven.)</span>
               </div>
               <div className="p-2 rounded-xl bg-slate-950/70 border border-amber-800/40 text-center shadow-2xs flex flex-col items-center">
                 <div className="flex items-center gap-1 text-amber-400 font-extrabold text-xs">
@@ -337,25 +338,33 @@ export const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
                 <span className="text-[10px] text-slate-300 font-semibold truncate">Consolidation</span>
                 <span className="text-[9px] text-slate-400 font-medium">J+2 (ou Ven.)</span>
               </div>
+              <div className="p-2 rounded-xl bg-slate-950/70 border border-cyan-800/40 text-center shadow-2xs flex flex-col items-center">
+                <div className="flex items-center gap-1 text-cyan-400 font-extrabold text-xs">
+                  <CalendarCheck className="w-3.5 h-3.5" />
+                  <span>VEN</span>
+                </div>
+                <span className="text-[10px] text-slate-300 font-semibold truncate">Vendredi</span>
+                <span className="text-[9px] text-slate-400 font-medium">Cours semaine</span>
+              </div>
               <div className="p-2 rounded-xl bg-slate-950/70 border border-indigo-800/40 text-center shadow-2xs flex flex-col items-center">
                 <div className="flex items-center gap-1 text-indigo-400 font-extrabold text-xs">
                   <Layers className="w-3.5 h-3.5" />
                   <span>SAM</span>
                 </div>
                 <span className="text-[10px] text-slate-300 font-semibold truncate">Samedi</span>
-                <span className="text-[9px] text-slate-400 font-medium">Cours semaine</span>
+                <span className="text-[9px] text-slate-400 font-medium">Semaine préc. (S-1)</span>
               </div>
-              <div className="p-2 rounded-xl bg-slate-950/70 border border-fuchsia-800/40 text-center shadow-2xs flex flex-col items-center col-span-2 sm:col-span-1">
+              <div className="p-2 rounded-xl bg-slate-950/70 border border-fuchsia-800/40 text-center shadow-2xs flex flex-col items-center">
                 <div className="flex items-center gap-1 text-fuchsia-400 font-extrabold text-xs">
                   <Infinity className="w-3.5 h-3.5" />
                   <span>DIM</span>
                 </div>
-                <span className="text-[10px] text-slate-300 font-semibold truncate">Dimanches</span>
-                <span className="text-[9px] text-slate-400 font-medium">Jusqu'à fin sem.</span>
+                <span className="text-[10px] text-slate-300 font-semibold truncate">Dimanche</span>
+                <span className="text-[9px] text-slate-400 font-medium">Il y a 2 sem. (S-2)</span>
               </div>
             </div>
             <p className="text-[10px] text-slate-400 leading-tight">
-              Tous les cours créés dans cette UE suivront automatiquement ce cycle : <strong>APP</strong> (jour même), <strong>QCM</strong> (J+1), <strong>ERR</strong> (J+2 ou regroupé vendredi), <strong>SAM</strong> (synthèse transversale) et <strong>DIM</strong> (révisions cumulatives chaque dimanche).
+              Tous les cours créés dans cette UE suivront automatiquement ce cycle en 6 étapes : <strong>APP</strong> (jour même), <strong>QCM</strong> (J+1), <strong>ERR</strong> (J+2 ou regroupé vendredi), <strong>VEN</strong> (synthèse de la semaine), <strong>SAM</strong> (semaine précédente) et <strong>DIM</strong> (cours d'il y a 2 semaines).
             </p>
           </div>
 

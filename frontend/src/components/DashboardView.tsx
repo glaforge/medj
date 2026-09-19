@@ -115,7 +115,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return '#0284c7';
   };
 
-  // Sort sessions: Pedagogical step priority first (APP -> QCM -> ERR -> SAM -> DIM), then course difficulty (5 -> 1), UE weight, title
+  // Sort sessions: Pedagogical step priority first (APP -> QCM -> ERR -> VEN -> SAM -> DIM), then course difficulty (5 -> 1), UE weight, title
   const dueSessions = useMemo(() => {
     const list = [...(todaySummary.dueToday || [])];
     return list.sort((a, b) => compareRevisionsByStepPriority(a, b, courses, subjects));

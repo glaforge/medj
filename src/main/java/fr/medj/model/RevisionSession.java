@@ -64,9 +64,11 @@ public record RevisionSession(
             case 0 -> "APP";
             case 1 -> "QCM";
             case 2 -> "ERR";
-            case 3 -> "SAM";
-            case 4 -> "DIM";
+            case 3 -> "VEN";
+            case 4 -> "SAM";
+            case 5 -> "DIM";
             default -> {
+                if (date != null && date.getDayOfWeek() == java.time.DayOfWeek.FRIDAY) yield "VEN";
                 if (date != null && date.getDayOfWeek() == java.time.DayOfWeek.SATURDAY) yield "SAM";
                 if (date != null && date.getDayOfWeek() == java.time.DayOfWeek.SUNDAY) yield "DIM";
                 yield "DIM";

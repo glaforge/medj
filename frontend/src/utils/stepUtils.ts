@@ -1,4 +1,4 @@
-import { Brain, CircleHelp, AlertTriangle, Layers, Infinity, LucideIcon } from 'lucide-react';
+import { Brain, CircleHelp, AlertTriangle, CalendarCheck, Layers, Infinity, LucideIcon } from 'lucide-react';
 import { RevisionSession, RevisionStepType, Course, SubjectUE } from '../types';
 
 export interface StepDefinition {
@@ -47,12 +47,23 @@ export const REVISION_STEPS: Record<RevisionStepType, StepDefinition> = {
     chipClass: 'text-amber-800 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/70 border-amber-200 dark:border-amber-800/60',
     accentColor: '#f59e0b'
   },
+  VEN: {
+    type: 'VEN',
+    code: 'VEN',
+    title: 'Révision du vendredi',
+    subtitle: 'Cours de la semaine',
+    description: 'Révision transversale de tous les cours dispensés durant la semaine',
+    icon: CalendarCheck,
+    badgeClass: 'bg-cyan-100 dark:bg-cyan-950/70 text-cyan-800 dark:text-cyan-300 border-cyan-300 dark:border-cyan-800/60',
+    chipClass: 'text-cyan-700 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/70 border-cyan-200 dark:border-cyan-800/60',
+    accentColor: '#06b6d4'
+  },
   SAM: {
     type: 'SAM',
     code: 'SAM',
     title: 'Révision du samedi',
-    subtitle: 'Synthèse hebdo',
-    description: 'Révision transversale de tous les cours dispensés durant la semaine',
+    subtitle: 'Semaine précédente (S-1)',
+    description: 'Révision transversale des cours dispensés la semaine précédente',
     icon: Layers,
     badgeClass: 'bg-indigo-100 dark:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300 border-indigo-300 dark:border-indigo-800/60',
     chipClass: 'text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/70 border-indigo-200 dark:border-indigo-800/60',
@@ -62,8 +73,8 @@ export const REVISION_STEPS: Record<RevisionStepType, StepDefinition> = {
     type: 'DIM',
     code: 'DIM',
     title: 'Révision du dimanche',
-    subtitle: 'Cumulatif long terme',
-    description: 'Révision cumulative de tous les cours depuis le début du semestre',
+    subtitle: 'Il y a 2 semaines (S-2)',
+    description: 'Révision transversale des cours dispensés il y a 2 semaines',
     icon: Infinity,
     badgeClass: 'bg-fuchsia-100 dark:bg-fuchsia-950/70 text-fuchsia-800 dark:text-fuchsia-300 border-fuchsia-300 dark:border-fuchsia-800/60',
     chipClass: 'text-fuchsia-700 dark:text-fuchsia-400 bg-fuchsia-50 dark:bg-fuchsia-950/70 border-fuchsia-200 dark:border-fuchsia-800/60',
@@ -71,14 +82,15 @@ export const REVISION_STEPS: Record<RevisionStepType, StepDefinition> = {
   }
 };
 
-export const ALL_REVISION_STEPS: RevisionStepType[] = ['APP', 'QCM', 'ERR', 'SAM', 'DIM'];
+export const ALL_REVISION_STEPS: RevisionStepType[] = ['APP', 'QCM', 'ERR', 'VEN', 'SAM', 'DIM'];
 
 export const REVISION_STEP_PRIORITY: Record<RevisionStepType, number> = {
   APP: 0,
   QCM: 1,
   ERR: 2,
-  SAM: 3,
-  DIM: 4
+  VEN: 3,
+  SAM: 4,
+  DIM: 5
 };
 
 export function getRevisionStepPriority(session: { stepType?: RevisionStepType | string; jStep?: number; scheduledDate?: string }): number {
@@ -88,7 +100,7 @@ export function getRevisionStepPriority(session: { stepType?: RevisionStepType |
 
 /**
  * Compare two revision sessions following pedagogical priority:
- * 1. Step priority: APP (0) -> QCM (1) -> ERR (2) -> SAM (3) -> DIM (4)
+ * 1. Step priority: APP (0) -> QCM (1) -> ERR (2) -> VEN (3) -> SAM (4) -> DIM (5)
  * 2. Course difficulty descending (5 -> 1)
  * 3. Subject UE coefficient descending
  * 4. Course title alphabetical
@@ -148,12 +160,15 @@ export function getStepInfo(session: { stepType?: RevisionStepType | string; jSt
     case 2:
       return REVISION_STEPS.ERR;
     case 3:
-      return REVISION_STEPS.SAM;
+      return REVISION_STEPS.VEN;
     case 4:
+      return REVISION_STEPS.SAM;
+    case 5:
       return REVISION_STEPS.DIM;
     default: {
       if (session.scheduledDate) {
         const d = new Date(session.scheduledDate + 'T00:00:00');
+        if (d.getDay() === 5) return REVISION_STEPS.VEN;
         if (d.getDay() === 6) return REVISION_STEPS.SAM;
         if (d.getDay() === 0) return REVISION_STEPS.DIM;
       }

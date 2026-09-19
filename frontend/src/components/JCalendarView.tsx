@@ -254,7 +254,7 @@ export const JCalendarView: React.FC<JCalendarViewProps> = ({
   const weeklyCompletionRate = totalWeeklySessions > 0 ? Math.round((totalWeeklyCompleted / totalWeeklySessions) * 100) : 0;
   const weeklyOverloadedDays = weekDays.filter(wd => (revisionsByDate[wd.dateStr]?.length || 0) > 5).length;
 
-  // Selected date's revisions sorted by priority (APP -> QCM -> ERR -> SAM -> DIM)
+  // Selected date's revisions sorted by priority (APP -> QCM -> ERR -> VEN -> SAM -> DIM)
   const rawSelectedDayRevisions = revisionsByDate[selectedDate] || [];
   const selectedDayRevisions = [...rawSelectedDayRevisions].sort((a, b) =>
     compareRevisionsByStepPriority(a, b, courses, subjects)

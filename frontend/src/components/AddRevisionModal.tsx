@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Brain,
   CircleHelp,
+  CalendarCheck,
   Infinity
 } from 'lucide-react';
 
@@ -80,7 +81,7 @@ export const AddRevisionModal: React.FC<AddRevisionModalProps> = ({
   const taughtDateStr = selectedCourse?.taughtDate || getLocalTodayString();
   const taughtDate = new Date(taughtDateStr + 'T00:00:00');
 
-  // Compute date according to cognitive steps (0..4) or general offset
+  // Compute date according to cognitive steps (0..5) or general offset
   const computeDateFromStep = (step: number): string => {
     const d = new Date(taughtDate);
     const dayOfWeek = d.getDay(); // 0 = Sunday, 1 = Monday, ..., 4 = Thursday, 5 = Friday, 6 = Saturday
@@ -95,13 +96,17 @@ export const AddRevisionModal: React.FC<AddRevisionModalProps> = ({
       const offset = (dayOfWeek === 4 || dayOfWeek === 5) ? 1 : 2;
       d.setDate(d.getDate() + offset);
     } else if (step === 3) {
-      // SAM: Samedi de la même semaine
-      const daysUntilSaturday = (6 - dayOfWeek + 7) % 7;
-      d.setDate(d.getDate() + daysUntilSaturday);
+      // VEN: Vendredi de la même semaine
+      const daysUntilFriday = (5 - dayOfWeek + 7) % 7;
+      d.setDate(d.getDate() + daysUntilFriday);
     } else if (step === 4) {
-      // DIM: Dimanche suivant
-      const daysUntilSaturday = (6 - dayOfWeek + 7) % 7;
-      d.setDate(d.getDate() + daysUntilSaturday + 1);
+      // SAM: Samedi de la semaine suivante (S-1) -> vendredi + 8 jours
+      const daysUntilFriday = (5 - dayOfWeek + 7) % 7;
+      d.setDate(d.getDate() + daysUntilFriday + 8);
+    } else if (step === 5) {
+      // DIM: Dimanche d'il y a 2 semaines (S-2) -> vendredi + 16 jours
+      const daysUntilFriday = (5 - dayOfWeek + 7) % 7;
+      d.setDate(d.getDate() + daysUntilFriday + 16);
     } else {
       d.setDate(d.getDate() + step);
     }
@@ -122,6 +127,9 @@ export const AddRevisionModal: React.FC<AddRevisionModalProps> = ({
 
   const finalDateStr = mode === 'step' ? computeDateFromStep(jStepInput) : customDate;
   const finalJStep = mode === 'step' ? jStepInput : computeStepFromDate(customDate);
+  const finalStepType = mode === 'step'
+    ? (jStepInput === 0 ? 'APP' : jStepInput === 1 ? 'QCM' : jStepInput === 2 ? 'ERR' : jStepInput === 3 ? 'VEN' : jStepInput === 4 ? 'SAM' : jStepInput === 5 ? 'DIM' : undefined)
+    : undefined;
 
   const formattedFinalDate = formatDate(finalDateStr, {
     weekday: 'long',
@@ -143,7 +151,8 @@ export const AddRevisionModal: React.FC<AddRevisionModalProps> = ({
       const created = await api.createRevisionSession(
         selectedCourse.id,
         finalJStep,
-        finalDateStr
+        finalDateStr,
+        finalStepType
       );
       onRevisionAdded(created);
       onClose();
@@ -166,8 +175,8 @@ export const AddRevisionModal: React.FC<AddRevisionModalProps> = ({
               <CalendarPlus className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base font-extrabold text-slate-900 dark:text-white truncate">Planifier un nouveau J</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">Ajouter une séance de révision supplémentaire</p>
+              <h2 className="text-base font-extrabold text-slate-900 dark:text-white truncate">Planifier une séance de révision</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">Ajouter un palier cognitif ou une séance personnalisée</p>
             </div>
           </div>
 
@@ -251,14 +260,15 @@ export const AddRevisionModal: React.FC<AddRevisionModalProps> = ({
                 Palier cognitif ou délai (J+) :
               </label>
 
-              {/* 5 Cognitive Steps Presets */}
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              {/* 6 Cognitive Steps Presets */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                 {[
                   { step: 0, code: 'APP', label: 'Compréhension', icon: Brain },
                   { step: 1, code: 'QCM', label: 'QCMs', icon: CircleHelp },
                   { step: 2, code: 'ERR', label: 'Erreurs', icon: AlertTriangle },
-                  { step: 3, code: 'SAM', label: 'Samedi', icon: Layers },
-                  { step: 4, code: 'DIM', label: 'Dimanche', icon: Infinity },
+                  { step: 3, code: 'VEN', label: 'Vendredi', icon: CalendarCheck },
+                  { step: 4, code: 'SAM', label: 'Samedi (S-1)', icon: Layers },
+                  { step: 5, code: 'DIM', label: 'Dimanche (S-2)', icon: Infinity },
                 ].map(item => {
                   const PresetIcon = item.icon;
                   const isSelected = jStepInput === item.step;

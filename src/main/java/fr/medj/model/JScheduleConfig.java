@@ -17,7 +17,7 @@ public record JScheduleConfig(
             List.of(),
             6,
             true,
-            "Paliers Cognitifs PASS (APP, QCM, ERR, SAM, DIM)",
+            "Paliers Cognitifs PASS (APP, QCM, ERR, VEN, SAM, DIM)",
             "",
             true
         );

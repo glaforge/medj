@@ -24,6 +24,7 @@ import {
   AlertTriangle,
   Brain,
   CircleHelp,
+  CalendarCheck,
   Layers,
   Infinity
 } from 'lucide-react';
@@ -247,7 +248,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Paliers cognitifs de révision (Planification automatique)
                 </span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-[11px]">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 text-[11px]">
                 <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-sky-200 dark:border-sky-800/40 text-center shadow-2xs flex flex-col items-center">
                   <div className="flex items-center gap-1 text-sky-600 dark:text-sky-400 font-extrabold text-xs">
                     <Brain className="w-3.5 h-3.5" />
@@ -262,7 +263,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <span>QCM</span>
                   </div>
                   <span className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold truncate">Révision & QCMs</span>
-                  <span className="text-[9px] text-slate-400 font-medium">Lendemain</span>
+                  <span className="text-[9px] text-slate-400 font-medium">Lendemain (ou Ven.)</span>
                 </div>
                 <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-amber-200 dark:border-amber-800/40 text-center shadow-2xs flex flex-col items-center">
                   <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-extrabold text-xs">
@@ -272,25 +273,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <span className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold truncate">Consolidation</span>
                   <span className="text-[9px] text-slate-400 font-medium">J+2 (ou Ven.)</span>
                 </div>
+                <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-cyan-200 dark:border-cyan-800/40 text-center shadow-2xs flex flex-col items-center">
+                  <div className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400 font-extrabold text-xs">
+                    <CalendarCheck className="w-3.5 h-3.5" />
+                    <span>VEN</span>
+                  </div>
+                  <span className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold truncate">Vendredi</span>
+                  <span className="text-[9px] text-slate-400 font-medium">Cours semaine</span>
+                </div>
                 <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-indigo-200 dark:border-indigo-800/40 text-center shadow-2xs flex flex-col items-center">
                   <div className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-extrabold text-xs">
                     <Layers className="w-3.5 h-3.5" />
                     <span>SAM</span>
                   </div>
                   <span className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold truncate">Samedi</span>
-                  <span className="text-[9px] text-slate-400 font-medium">Cours semaine</span>
+                  <span className="text-[9px] text-slate-400 font-medium">Semaine préc. (S-1)</span>
                 </div>
-                <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-fuchsia-200 dark:border-fuchsia-800/40 text-center shadow-2xs flex flex-col items-center col-span-2 sm:col-span-1">
+                <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-fuchsia-200 dark:border-fuchsia-800/40 text-center shadow-2xs flex flex-col items-center">
                   <div className="flex items-center gap-1 text-fuchsia-600 dark:text-fuchsia-400 font-extrabold text-xs">
                     <Infinity className="w-3.5 h-3.5" />
                     <span>DIM</span>
                   </div>
-                  <span className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold truncate">Dimanches</span>
-                  <span className="text-[9px] text-slate-400 font-medium">Jusqu'à fin sem.</span>
+                  <span className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold truncate">Dimanche</span>
+                  <span className="text-[9px] text-slate-400 font-medium">Il y a 2 sem. (S-2)</span>
                 </div>
               </div>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-                Chaque nouveau cours planifie automatiquement son apprentissage initial le jour même, ses QCMs, son carnet d'erreurs (regroupés le vendredi si cours le jeudi), la synthèse transversale le samedi et les révisions cumulatives chaque dimanche jusqu'au 31 décembre (S1) ou 31 mai (S2).
+                Chaque nouveau cours planifie automatiquement son apprentissage initial le jour même, ses QCMs, son carnet d'erreurs (regroupés le vendredi si cours le jeudi), la synthèse de la semaine le vendredi (VEN), la révision de la semaine précédente le samedi (SAM) et d'il y a 2 semaines le dimanche (DIM).
               </p>
             </div>
 
@@ -424,6 +433,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <span>Tout effacer</span>
                   </button>
                 )}
+              </div>
+
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+                <button
+                  type="button"
+                  disabled={isLoadingSampleAction}
+                  onClick={async () => {
+                    if (window.confirm('Voulez-vous nettoyer les dimanches récurrents superflus des cours existants ? Les révisions déjà validées sont préservées, et seul le dimanche cible (S-2) est conservé.')) {
+                      setIsLoadingSampleAction(true);
+                      try {
+                        const res = await api.cleanupLegacySundays();
+                        alert(`Nettoyage terminé avec succès : ${res.deletedSessionsCount} séance(s) redondante(s) supprimée(s) sur ${res.cleanedCoursesCount} cours.`);
+                        await loadDataStatus();
+                      } catch (e) {
+                        alert('Erreur lors du nettoyage des dimanches récurrents.');
+                      } finally {
+                        setIsLoadingSampleAction(false);
+                      }
+                    }
+                  }}
+                  className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-900 dark:text-sky-300 border border-sky-300 dark:border-sky-500/30 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-sky-500" />
+                  <span>Nettoyer les dimanches récurrents superflus</span>
+                </button>
               </div>
             </div>
           </div>

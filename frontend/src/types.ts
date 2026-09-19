@@ -38,7 +38,7 @@ export interface Course {
   updatedAt: string;
 }
 
-export type RevisionStepType = 'APP' | 'QCM' | 'ERR' | 'SAM' | 'DIM';
+export type RevisionStepType = 'APP' | 'QCM' | 'ERR' | 'VEN' | 'SAM' | 'DIM';
 
 export interface RevisionSession {
   id: string;

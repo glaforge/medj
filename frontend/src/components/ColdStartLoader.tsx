@@ -20,7 +20,7 @@ const MEDICAL_TIPS = [
   {
     icon: '💡',
     title: 'Paliers Cognitifs & Répétition Espacée',
-    text: 'Structurer vos révisions en 5 paliers (APP, QCM, ERR, SAM, DIM) permet d\'ancrer durablement plus de 80% des notions dans la mémoire à long terme.'
+    text: 'Structurer vos révisions en 6 paliers (APP, QCM, ERR, VEN, SAM, DIM) permet d\'ancrer durablement plus de 80% des notions dans la mémoire à long terme.'
   },
   {
     icon: '🧠',

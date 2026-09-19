@@ -260,6 +260,9 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                         <span className="px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/50 text-[10px] font-bold text-amber-700 dark:text-amber-300">
                           ERR
                         </span>
+                        <span className="px-1.5 py-0.5 rounded bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-800/50 text-[10px] font-bold text-cyan-700 dark:text-cyan-300">
+                          VEN
+                        </span>
                         <span className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/50 text-[10px] font-bold text-indigo-700 dark:text-indigo-300">
                           SAM
                         </span>

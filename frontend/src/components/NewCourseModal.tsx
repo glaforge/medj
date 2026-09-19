@@ -15,6 +15,7 @@ import {
   Brain,
   CircleHelp,
   AlertTriangle,
+  CalendarCheck,
   Layers,
   Infinity
 } from 'lucide-react';
@@ -272,15 +273,15 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
             />
           </div>
 
-          {/* Programme de révision automatique - 5 Paliers Cognitifs */}
+          {/* Programme de révision automatique - 6 Paliers Cognitifs */}
           <div className="p-3.5 rounded-2xl bg-sky-50/80 dark:bg-sky-950/30 border border-sky-200/80 dark:border-sky-800/50 space-y-2.5">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
               <span className="font-bold text-xs text-sky-900 dark:text-sky-200">
-                Paliers cognitifs de révision (Planification automatique)
+                Paliers cognitifs de révision (Planification automatique - 6 étapes)
               </span>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-[11px]">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 text-[11px]">
               <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-sky-200 dark:border-sky-800/40 text-center shadow-2xs flex flex-col items-center">
                 <div className="flex items-center gap-1 text-sky-600 dark:text-sky-400 font-extrabold text-xs">
                   <Brain className="w-3.5 h-3.5" />
@@ -295,7 +296,7 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
                   <span>QCM</span>
                 </div>
                 <span className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold truncate">Révision & QCMs</span>
-                <span className="text-[9px] text-slate-400 font-medium">Lendemain</span>
+                <span className="text-[9px] text-slate-400 font-medium">Lendemain (ou Ven.)</span>
               </div>
               <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-amber-200 dark:border-amber-800/40 text-center shadow-2xs flex flex-col items-center">
                 <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-extrabold text-xs">
@@ -305,25 +306,33 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
                 <span className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold truncate">Consolidation</span>
                 <span className="text-[9px] text-slate-400 font-medium">J+2 (ou Ven.)</span>
               </div>
+              <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-cyan-200 dark:border-cyan-800/40 text-center shadow-2xs flex flex-col items-center">
+                <div className="flex items-center gap-1 text-cyan-600 dark:text-cyan-400 font-extrabold text-xs">
+                  <CalendarCheck className="w-3.5 h-3.5" />
+                  <span>VEN</span>
+                </div>
+                <span className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold truncate">Vendredi</span>
+                <span className="text-[9px] text-slate-400 font-medium">Cours semaine</span>
+              </div>
               <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-indigo-200 dark:border-indigo-800/40 text-center shadow-2xs flex flex-col items-center">
                 <div className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-extrabold text-xs">
                   <Layers className="w-3.5 h-3.5" />
                   <span>SAM</span>
                 </div>
                 <span className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold truncate">Samedi</span>
-                <span className="text-[9px] text-slate-400 font-medium">Cours semaine</span>
+                <span className="text-[9px] text-slate-400 font-medium">Semaine préc. (S-1)</span>
               </div>
-              <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-fuchsia-200 dark:border-fuchsia-800/40 text-center shadow-2xs flex flex-col items-center col-span-2 sm:col-span-1">
+              <div className="p-2 rounded-xl bg-white dark:bg-slate-900/90 border border-fuchsia-200 dark:border-fuchsia-800/40 text-center shadow-2xs flex flex-col items-center">
                 <div className="flex items-center gap-1 text-fuchsia-600 dark:text-fuchsia-400 font-extrabold text-xs">
                   <Infinity className="w-3.5 h-3.5" />
                   <span>DIM</span>
                 </div>
-                <span className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold truncate">Dimanches</span>
-                <span className="text-[9px] text-slate-400 font-medium">Jusqu'à fin sem.</span>
+                <span className="text-[10px] text-slate-700 dark:text-slate-300 font-semibold truncate">Dimanche</span>
+                <span className="text-[9px] text-slate-400 font-medium">Il y a 2 sem. (S-2)</span>
               </div>
             </div>
             <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
-              Planification automatique : apprentissage le jour même, QCMs, carnet d'erreurs (regroupés le vendredi si cours le jeudi), synthèse le samedi et révisions cumulatives chaque dimanche.
+              Planification automatique en 6 étapes : apprentissage le jour même, QCMs, carnet d'erreurs (regroupés le vendredi si cours le jeudi), synthèse de la semaine le vendredi (VEN), révision de la semaine précédente le samedi (SAM) et d'il y a 2 semaines le dimanche (DIM).
             </p>
           </div>
 

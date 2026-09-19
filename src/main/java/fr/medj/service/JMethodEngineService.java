@@ -167,8 +167,30 @@ public class JMethodEngineService {
                 ""
             ));
 
-            // 3. SAM : Révision du samedi (tous les cours de la semaine en cours)
-            LocalDate saturdayDate = taughtDate.with(TemporalAdjusters.nextOrSame(DayOfWeek.SATURDAY));
+            // 3. VEN : Révision du vendredi (tous les cours de la semaine en cours)
+            LocalDate fridayDate = taughtDate.with(TemporalAdjusters.nextOrSame(DayOfWeek.FRIDAY));
+            String venStatus = fridayDate.isBefore(today) ? "EN_RETARD" : "A_FAIRE";
+            sessions.add(new RevisionSession(
+                "rev-" + course.id() + "-ven",
+                course.id(),
+                course.title(),
+                ue.id(),
+                ue.code(),
+                sessionColor,
+                3,
+                "VEN",
+                fridayDate,
+                null,
+                venStatus,
+                null,
+                null,
+                null,
+                null,
+                ""
+            ));
+
+            // 4. SAM : Révision du samedi (cours de la semaine précédente, soit S-1)
+            LocalDate saturdayDate = fridayDate.plusDays(8);
             String satStatus = saturdayDate.isBefore(today) ? "EN_RETARD" : "A_FAIRE";
             sessions.add(new RevisionSession(
                 "rev-" + course.id() + "-sam",
@@ -177,7 +199,7 @@ public class JMethodEngineService {
                 ue.id(),
                 ue.code(),
                 sessionColor,
-                3,
+                4,
                 "SAM",
                 saturdayDate,
                 null,
@@ -189,38 +211,28 @@ public class JMethodEngineService {
                 ""
             ));
 
-            // 4. DIM : Révision du dimanche (tous les cours depuis le début)
-            // Première session le dimanche suivant le samedi, puis chaque dimanche jusqu'à fin du semestre
-            LocalDate semesterEndDate;
-            if (taughtDate.getMonthValue() >= 1 && taughtDate.getMonthValue() <= 5) {
-                semesterEndDate = LocalDate.of(taughtDate.getYear(), 5, 31);
-            } else {
-                semesterEndDate = LocalDate.of(taughtDate.getYear(), 12, 31);
-            }
-
-            LocalDate currentSunday = saturdayDate.plusDays(1);
-            while (!currentSunday.isAfter(semesterEndDate)) {
-                String sunStatus = currentSunday.isBefore(today) ? "EN_RETARD" : "A_FAIRE";
-                sessions.add(new RevisionSession(
-                    "rev-" + course.id() + "-dim-" + currentSunday,
-                    course.id(),
-                    course.title(),
-                    ue.id(),
-                    ue.code(),
-                    sessionColor,
-                    4,
-                    "DIM",
-                    currentSunday,
-                    null,
-                    sunStatus,
-                    null,
-                    null,
-                    null,
-                    null,
-                    ""
-                ));
-                currentSunday = currentSunday.plusWeeks(1);
-            }
+            // 5. DIM : Révision du dimanche (cours d'il y a 2 semaines, soit S-2)
+            // Exactement 1 seule séance DIM planifiée, l'élève reprogrammant à sa guise ensuite
+            LocalDate sundayDate = fridayDate.plusDays(16);
+            String sunStatus = sundayDate.isBefore(today) ? "EN_RETARD" : "A_FAIRE";
+            sessions.add(new RevisionSession(
+                "rev-" + course.id() + "-dim",
+                course.id(),
+                course.title(),
+                ue.id(),
+                ue.code(),
+                sessionColor,
+                5,
+                "DIM",
+                sundayDate,
+                null,
+                sunStatus,
+                null,
+                null,
+                null,
+                null,
+                ""
+            ));
         }
 
         firestoreService.saveRevisions(sessions);
@@ -383,8 +395,9 @@ public class JMethodEngineService {
      * 0: APP (Compréhension initiale)
      * 1: QCM (Entraînement actif J+1)
      * 2: ERR (Consolidation & carnet d'erreurs)
-     * 3: SAM (Synthèse hebdomadaire)
-     * 4: DIM (Révision cumulative)
+     * 3: VEN (Synthèse hebdomadaire)
+     * 4: SAM (Cours semaine précédente S-1)
+     * 5: DIM (Cours d'il y a 2 semaines S-2)
      */
     public static int getStepPriority(RevisionSession session) {
         String type = session.stepType();
@@ -395,15 +408,16 @@ public class JMethodEngineService {
             case "APP" -> 0;
             case "QCM" -> 1;
             case "ERR" -> 2;
-            case "SAM" -> 3;
-            case "DIM" -> 4;
-            default -> 5;
+            case "VEN" -> 3;
+            case "SAM" -> 4;
+            case "DIM" -> 5;
+            default -> 6;
         };
     }
 
     /**
      * Retourne un comparateur pour ordonner les révisions du jour par ordre de priorité :
-     * 1. Palier pédagogique prioritaire (APP -> QCM -> ERR -> SAM -> DIM)
+     * 1. Palier pédagogique prioritaire (APP -> QCM -> ERR -> VEN -> SAM -> DIM)
      * 2. Cours les plus difficiles en premier (difficulté 5 -> 1)
      * 3. Matières à plus fort coefficient / ECTS
      * 4. Cycles J les plus précoces (J0, J1, J3 avant J30, J60)
@@ -421,11 +435,12 @@ public class JMethodEngineService {
      * 
      * Lorsque le nombre de révisions dépasse le seuil quotidien d'un jour surchargé :
      * 1. Les cours les plus difficiles (difficulté 4-5 / UE à fort coeff) sont prioritaires pour RESTER sur leur date cible.
-     * 2. Les cours les plus faciles (difficulté 1-2) ou les cycles avancés (J30, J60) sont RELÉGUÉS en premier vers les jours suivants.
-     * 3. Les étapes d'ancrage mnésique initiales (J0, J1, J3) sont protégées par rapport aux étapes tardives.
+     * 2. Les cours les plus faciles (difficulté 1-2) ou les paliers avancés (DIM, SAM, VEN) sont RELÉGUÉS en premier vers les jours suivants.
+     * 3. Les étapes d'ancrage mnésique initiales (APP, QCM, ERR) sont strictement protégées.
      */
     public List<RevisionSession> performWorkloadSmoothing(int targetDailyLimit) {
         LocalDate today = LocalDate.now();
+
         List<RevisionSession> allActive = firestoreService.getAllRevisions().stream()
             .filter(r -> !"VALIDE".equals(r.status()) && !r.scheduledDate().isBefore(today))
             .sorted(Comparator.comparing(RevisionSession::scheduledDate))
@@ -451,10 +466,11 @@ public class JMethodEngineService {
                 // Comparateur pour choisir la séance à DÉPLACER (à reléguer vers un jour ultérieur) :
                 // 1. Cours les plus faciles déplacés en premier (difficulté 1 < 2 < 3 < 4 < 5)
                 // 2. Matières à plus faible coefficient déplacées en premier
-                // 3. Cycles J les plus élevés déplacés en premier (J60/J30 plus flexibles que J1/J3)
+                // 3. Paliers de consolidation tardifs déplacés en premier (DIM / SAM / VEN plus flexibles que APP / QCM / ERR)
                 Comparator<RevisionSession> toMoveComparator = Comparator
                     .comparingInt((RevisionSession r) -> getCourseDifficulty(r, courseMap))
                     .thenComparingDouble(r -> getUeCoefficient(r, subjectMap))
+                    .thenComparing(Comparator.comparingInt(JMethodEngineService::getStepPriority).reversed())
                     .thenComparing(Comparator.comparingInt(RevisionSession::jStep).reversed());
 
                 RevisionSession toMove = daySessions.stream()

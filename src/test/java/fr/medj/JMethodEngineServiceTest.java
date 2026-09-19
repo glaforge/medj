@@ -46,7 +46,7 @@ public class JMethodEngineServiceTest {
         );
 
         List<RevisionSession> sessions = jMethodEngineService.generateSessionsForCourse(course, course.customIntervals());
-        Assertions.assertFalse(sessions.isEmpty());
+        Assertions.assertEquals(6, sessions.size());
 
         // APP: Jour même (Monday 2026-09-07)
         Assertions.assertEquals(mondaySept7, sessions.get(0).scheduledDate());
@@ -63,26 +63,23 @@ public class JMethodEngineServiceTest {
         Assertions.assertEquals(2, sessions.get(2).jStep());
         Assertions.assertEquals("ERR", sessions.get(2).stepType());
 
-        // SAM: Samedi suivant (Saturday 2026-09-12)
-        Assertions.assertEquals(LocalDate.of(2026, 9, 12), sessions.get(3).scheduledDate());
-        Assertions.assertEquals(DayOfWeek.SATURDAY, sessions.get(3).scheduledDate().getDayOfWeek());
+        // VEN: Vendredi suivant (Friday 2026-09-11)
+        Assertions.assertEquals(LocalDate.of(2026, 9, 11), sessions.get(3).scheduledDate());
+        Assertions.assertEquals(DayOfWeek.FRIDAY, sessions.get(3).scheduledDate().getDayOfWeek());
         Assertions.assertEquals(3, sessions.get(3).jStep());
-        Assertions.assertEquals("SAM", sessions.get(3).stepType());
+        Assertions.assertEquals("VEN", sessions.get(3).stepType());
 
-        // All subsequent sessions must be Sundays up to 2026-12-31 (DIM)
-        LocalDate lastSunday = null;
-        for (int i = 4; i < sessions.size(); i++) {
-            RevisionSession s = sessions.get(i);
-            Assertions.assertEquals(DayOfWeek.SUNDAY, s.scheduledDate().getDayOfWeek(), "Session " + i + " must be a Sunday");
-            Assertions.assertEquals(4, s.jStep());
-            Assertions.assertEquals("DIM", s.stepType());
-            Assertions.assertFalse(s.scheduledDate().isAfter(LocalDate.of(2026, 12, 31)), "Sunday cannot exceed Dec 31");
-            if (lastSunday != null) {
-                Assertions.assertEquals(lastSunday.plusWeeks(1), s.scheduledDate(), "Sundays must be spaced by exactly 1 week");
-            }
-            lastSunday = s.scheduledDate();
-        }
-        Assertions.assertEquals(LocalDate.of(2026, 12, 27), lastSunday, "Last Sunday of S1 should be Dec 27, 2026");
+        // SAM: Samedi de la semaine précédente S-1 (Saturday 2026-09-19)
+        Assertions.assertEquals(LocalDate.of(2026, 9, 19), sessions.get(4).scheduledDate());
+        Assertions.assertEquals(DayOfWeek.SATURDAY, sessions.get(4).scheduledDate().getDayOfWeek());
+        Assertions.assertEquals(4, sessions.get(4).jStep());
+        Assertions.assertEquals("SAM", sessions.get(4).stepType());
+
+        // DIM: Dimanche des cours d'il y a 2 semaines S-2 (Sunday 2026-09-27)
+        Assertions.assertEquals(LocalDate.of(2026, 9, 27), sessions.get(5).scheduledDate());
+        Assertions.assertEquals(DayOfWeek.SUNDAY, sessions.get(5).scheduledDate().getDayOfWeek());
+        Assertions.assertEquals(5, sessions.get(5).jStep());
+        Assertions.assertEquals("DIM", sessions.get(5).stepType());
     }
 
     @Test
@@ -107,7 +104,7 @@ public class JMethodEngineServiceTest {
         );
 
         List<RevisionSession> sessions = jMethodEngineService.generateSessionsForCourse(course, course.customIntervals());
-        Assertions.assertFalse(sessions.isEmpty());
+        Assertions.assertEquals(6, sessions.size());
 
         // APP: Jour même (Thursday 2026-09-10)
         Assertions.assertEquals(thursdaySept10, sessions.get(0).scheduledDate());
@@ -124,15 +121,20 @@ public class JMethodEngineServiceTest {
         Assertions.assertEquals(2, sessions.get(2).jStep());
         Assertions.assertEquals("ERR", sessions.get(2).stepType());
 
-        // SAM: Samedi de la même semaine (2026-09-12)
-        Assertions.assertEquals(LocalDate.of(2026, 9, 12), sessions.get(3).scheduledDate());
+        // VEN: Vendredi aussi (2026-09-11, révision de tous les cours de la semaine)
+        Assertions.assertEquals(LocalDate.of(2026, 9, 11), sessions.get(3).scheduledDate());
         Assertions.assertEquals(3, sessions.get(3).jStep());
-        Assertions.assertEquals("SAM", sessions.get(3).stepType());
+        Assertions.assertEquals("VEN", sessions.get(3).stepType());
 
-        // DIM: Dimanches suivants (2026-09-13...)
-        Assertions.assertEquals(LocalDate.of(2026, 9, 13), sessions.get(4).scheduledDate());
+        // SAM: Samedi de la semaine suivante S-1 (2026-09-19)
+        Assertions.assertEquals(LocalDate.of(2026, 9, 19), sessions.get(4).scheduledDate());
         Assertions.assertEquals(4, sessions.get(4).jStep());
-        Assertions.assertEquals("DIM", sessions.get(4).stepType());
+        Assertions.assertEquals("SAM", sessions.get(4).stepType());
+
+        // DIM: Dimanche S-2 (2026-09-27)
+        Assertions.assertEquals(LocalDate.of(2026, 9, 27), sessions.get(5).scheduledDate());
+        Assertions.assertEquals(5, sessions.get(5).jStep());
+        Assertions.assertEquals("DIM", sessions.get(5).stepType());
     }
 
     @Test
@@ -157,7 +159,7 @@ public class JMethodEngineServiceTest {
         );
 
         List<RevisionSession> sessions = jMethodEngineService.generateSessionsForCourse(course, course.customIntervals());
-        Assertions.assertFalse(sessions.isEmpty());
+        Assertions.assertEquals(6, sessions.size());
 
         // APP: Jour même (Friday 2027-01-15)
         Assertions.assertEquals(fridayJan15, sessions.get(0).scheduledDate());
@@ -169,27 +171,25 @@ public class JMethodEngineServiceTest {
         Assertions.assertEquals(1, sessions.get(1).jStep());
         Assertions.assertEquals("QCM", sessions.get(1).stepType());
 
-        // ERR: Samedi 2027-01-16 (condensé avec QCM et SAM)
+        // ERR: Samedi 2027-01-16 (condensé avec QCM)
         Assertions.assertEquals(LocalDate.of(2027, 1, 16), sessions.get(2).scheduledDate());
         Assertions.assertEquals(2, sessions.get(2).jStep());
         Assertions.assertEquals("ERR", sessions.get(2).stepType());
 
-        // SAM: Samedi 2027-01-16 (samedi de la même semaine)
-        Assertions.assertEquals(LocalDate.of(2027, 1, 16), sessions.get(3).scheduledDate());
+        // VEN: Vendredi 2027-01-15 (cours du vendredi révisé le vendredi même)
+        Assertions.assertEquals(LocalDate.of(2027, 1, 15), sessions.get(3).scheduledDate());
         Assertions.assertEquals(3, sessions.get(3).jStep());
-        Assertions.assertEquals("SAM", sessions.get(3).stepType());
+        Assertions.assertEquals("VEN", sessions.get(3).stepType());
 
-        // All subsequent sessions must be Sundays up to 2027-05-31
-        LocalDate lastSunday = null;
-        for (int i = 4; i < sessions.size(); i++) {
-            RevisionSession s = sessions.get(i);
-            Assertions.assertEquals(DayOfWeek.SUNDAY, s.scheduledDate().getDayOfWeek());
-            Assertions.assertEquals(4, s.jStep());
-            Assertions.assertEquals("DIM", s.stepType());
-            Assertions.assertFalse(s.scheduledDate().isAfter(LocalDate.of(2027, 5, 31)), "Sunday cannot exceed May 31 for S2");
-            lastSunday = s.scheduledDate();
-        }
-        Assertions.assertEquals(LocalDate.of(2027, 5, 30), lastSunday, "Last Sunday of S2 should be May 30, 2027");
+        // SAM: Samedi suivant S-1 (2027-01-23)
+        Assertions.assertEquals(LocalDate.of(2027, 1, 23), sessions.get(4).scheduledDate());
+        Assertions.assertEquals(4, sessions.get(4).jStep());
+        Assertions.assertEquals("SAM", sessions.get(4).stepType());
+
+        // DIM: Dimanche S-2 (2027-01-31)
+        Assertions.assertEquals(LocalDate.of(2027, 1, 31), sessions.get(5).scheduledDate());
+        Assertions.assertEquals(5, sessions.get(5).jStep());
+        Assertions.assertEquals("DIM", sessions.get(5).stepType());
     }
 
     @Test
@@ -216,29 +216,28 @@ public class JMethodEngineServiceTest {
 
         List<RevisionSession> sessions = jMethodEngineService.generateSessionsForCourse(course, null);
         int initialCount = sessions.size();
-        Assertions.assertTrue(initialCount > 10);
+        Assertions.assertEquals(6, initialCount);
 
-        // Pick a Sunday in October (e.g. session index 7: 2026-10-11)
-        RevisionSession targetSunday = sessions.get(7);
-        LocalDate targetDate = targetSunday.scheduledDate();
+        // Pick VEN (index 3: Friday 2026-09-11)
+        RevisionSession targetVen = sessions.get(3);
+        LocalDate targetDate = targetVen.scheduledDate();
 
-        // Delete target Sunday and all following sessions
-        boolean deleted = firestoreService.deleteRevisionAndFollowing(targetSunday.id());
+        // Delete target VEN and all following sessions (VEN, SAM, DIM)
+        boolean deleted = firestoreService.deleteRevisionAndFollowing(targetVen.id());
         Assertions.assertTrue(deleted);
 
         List<RevisionSession> remaining = firestoreService.getRevisionsForCourse(course.id());
-        Assertions.assertTrue(remaining.size() < initialCount);
-        Assertions.assertEquals(7, remaining.size()); // 0..6 remaining (J0, J1, Sat, and 4 Sundays before target)
+        Assertions.assertEquals(3, remaining.size()); // 0..2 remaining (APP, QCM, ERR)
 
         for (RevisionSession r : remaining) {
             Assertions.assertTrue(r.scheduledDate().isBefore(targetDate), "Remaining revisions must all be before the deletion target date");
         }
 
         // Deleting a single revision
-        RevisionSession toDeleteSingle = remaining.get(1); // J1
+        RevisionSession toDeleteSingle = remaining.get(1); // QCM
         firestoreService.deleteRevision(toDeleteSingle.id());
         List<RevisionSession> afterSingleDelete = firestoreService.getRevisionsForCourse(course.id());
-        Assertions.assertEquals(6, afterSingleDelete.size());
+        Assertions.assertEquals(2, afterSingleDelete.size());
     }
 
     @Test
@@ -292,7 +291,7 @@ public class JMethodEngineServiceTest {
         );
 
         List<RevisionSession> sessions = jMethodEngineService.generateSessionsForCourse(course, course.customIntervals());
-        Assertions.assertFalse(sessions.isEmpty());
+        Assertions.assertEquals(6, sessions.size());
 
         // 1. APP: Monday 2026-08-24
         Assertions.assertEquals(LocalDate.of(2026, 8, 24), sessions.get(0).scheduledDate());
@@ -309,27 +308,23 @@ public class JMethodEngineServiceTest {
         Assertions.assertEquals(2, sessions.get(2).jStep());
         Assertions.assertEquals("ERR", sessions.get(2).stepType());
 
-        // 4. SAM: Saturday 2026-08-29
-        Assertions.assertEquals(LocalDate.of(2026, 8, 29), sessions.get(3).scheduledDate());
+        // 4. VEN: Friday 2026-08-28
+        Assertions.assertEquals(LocalDate.of(2026, 8, 28), sessions.get(3).scheduledDate());
         Assertions.assertEquals(3, sessions.get(3).jStep());
-        Assertions.assertEquals("SAM", sessions.get(3).stepType());
-        Assertions.assertEquals(DayOfWeek.SATURDAY, sessions.get(3).scheduledDate().getDayOfWeek());
+        Assertions.assertEquals("VEN", sessions.get(3).stepType());
+        Assertions.assertEquals(DayOfWeek.FRIDAY, sessions.get(3).scheduledDate().getDayOfWeek());
 
-        // 5. DIM: Dimanches suivants jusqu'au 31 décembre 2026
-        Assertions.assertEquals(LocalDate.of(2026, 8, 30), sessions.get(4).scheduledDate());
+        // 5. SAM: Saturday 2026-09-05 (Semaine précédente S-1)
+        Assertions.assertEquals(LocalDate.of(2026, 9, 5), sessions.get(4).scheduledDate());
         Assertions.assertEquals(4, sessions.get(4).jStep());
-        Assertions.assertEquals("DIM", sessions.get(4).stepType());
-        Assertions.assertEquals(DayOfWeek.SUNDAY, sessions.get(4).scheduledDate().getDayOfWeek());
+        Assertions.assertEquals("SAM", sessions.get(4).stepType());
+        Assertions.assertEquals(DayOfWeek.SATURDAY, sessions.get(4).scheduledDate().getDayOfWeek());
 
-        Assertions.assertEquals(LocalDate.of(2026, 9, 6), sessions.get(5).scheduledDate());
-        Assertions.assertEquals(4, sessions.get(5).jStep());
+        // 6. DIM: Sunday 2026-09-13 (Semaine S-2)
+        Assertions.assertEquals(LocalDate.of(2026, 9, 13), sessions.get(5).scheduledDate());
+        Assertions.assertEquals(5, sessions.get(5).jStep());
         Assertions.assertEquals("DIM", sessions.get(5).stepType());
         Assertions.assertEquals(DayOfWeek.SUNDAY, sessions.get(5).scheduledDate().getDayOfWeek());
-
-        // Last session is Sunday Dec 27, 2026
-        RevisionSession last = sessions.get(sessions.size() - 1);
-        Assertions.assertEquals(LocalDate.of(2026, 12, 27), last.scheduledDate());
-        Assertions.assertEquals(DayOfWeek.SUNDAY, last.scheduledDate().getDayOfWeek());
     }
 
     @Test
@@ -493,11 +488,15 @@ public class JMethodEngineServiceTest {
         // Create sessions in deliberately scrambled order with mixed difficulties
         RevisionSession dimHard = new RevisionSession(
             "s-dim", cHard.id(), cHard.title(), cHard.ueId(), cHard.ueCode(), cHard.color(),
-            4, "DIM", testDate, null, "A_FAIRE", null, null, null, null, ""
+            5, "DIM", testDate, null, "A_FAIRE", null, null, null, null, ""
         );
         RevisionSession samEasy = new RevisionSession(
             "s-sam", cEasy.id(), cEasy.title(), cEasy.ueId(), cEasy.ueCode(), cEasy.color(),
-            3, "SAM", testDate, null, "A_FAIRE", null, null, null, null, ""
+            4, "SAM", testDate, null, "A_FAIRE", null, null, null, null, ""
+        );
+        RevisionSession venHard = new RevisionSession(
+            "s-ven", cHard.id(), cHard.title(), cHard.ueId(), cHard.ueCode(), cHard.color(),
+            3, "VEN", testDate, null, "A_FAIRE", null, null, null, null, ""
         );
         RevisionSession errHard = new RevisionSession(
             "s-err", cHard.id(), cHard.title(), cHard.ueId(), cHard.ueCode(), cHard.color(),
@@ -516,7 +515,7 @@ public class JMethodEngineServiceTest {
             0, "APP", testDate, null, "A_FAIRE", null, null, null, null, ""
         );
 
-        List<RevisionSession> unorganized = List.of(dimHard, samEasy, errHard, qcmEasy, qcmHard, appEasy);
+        List<RevisionSession> unorganized = List.of(dimHard, samEasy, venHard, errHard, qcmEasy, qcmHard, appEasy);
 
         List<RevisionSession> sorted = unorganized.stream()
             .sorted(jMethodEngineService.getDailyPriorityComparator(courseMap, subjectMap))
@@ -536,12 +535,86 @@ public class JMethodEngineServiceTest {
         Assertions.assertEquals("ERR", sorted.get(3).stepType());
         Assertions.assertEquals("s-err", sorted.get(3).id());
 
-        // 4. SAM comes fourth
-        Assertions.assertEquals("SAM", sorted.get(4).stepType());
-        Assertions.assertEquals("s-sam", sorted.get(4).id());
+        // 4. VEN comes fourth
+        Assertions.assertEquals("VEN", sorted.get(4).stepType());
+        Assertions.assertEquals("s-ven", sorted.get(4).id());
 
-        // 5. DIM comes fifth
-        Assertions.assertEquals("DIM", sorted.get(5).stepType());
-        Assertions.assertEquals("s-dim", sorted.get(5).id());
+        // 5. SAM comes fifth
+        Assertions.assertEquals("SAM", sorted.get(5).stepType());
+        Assertions.assertEquals("s-sam", sorted.get(5).id());
+
+        // 6. DIM comes sixth
+        Assertions.assertEquals("DIM", sorted.get(6).stepType());
+        Assertions.assertEquals("s-dim", sorted.get(6).id());
+    }
+
+    @Test
+    void testCleanupLegacyRecurringSundays() {
+        LocalDate mondaySept7 = LocalDate.of(2026, 9, 7);
+        Course courseWithoutValide = new Course(
+            "course-legacy-clean", "ue1", "UE1", "Biochimie Legacy", "#0284c7", "Pr. Legacy",
+            mondaySept7, 3, "EN_COURS", List.of(), "", List.of(), List.of(),
+            LocalDateTime.now(), LocalDateTime.now()
+        );
+        firestoreService.saveCourse(courseWithoutValide);
+
+        // Target S-2 Sunday is 2026-09-27
+        // Suppose we have 5 Sunday sessions from 2026-09-13 to 2026-10-11
+        for (int i = 0; i < 5; i++) {
+            LocalDate sunday = LocalDate.of(2026, 9, 13).plusWeeks(i);
+            firestoreService.saveRevision(new RevisionSession(
+                "rev-legacy-" + i,
+                courseWithoutValide.id(),
+                courseWithoutValide.title(),
+                courseWithoutValide.ueId(),
+                courseWithoutValide.ueCode(),
+                courseWithoutValide.color(),
+                4,
+                "DIM",
+                sunday,
+                null,
+                "A_FAIRE",
+                null, null, null, null, ""
+            ));
+        }
+
+        Assertions.assertEquals(5, firestoreService.getRevisionsForCourse(courseWithoutValide.id()).size());
+
+        // Run cleanup
+        java.util.Map<String, Object> result1 = firestoreService.cleanupLegacyRecurringSundays();
+        Assertions.assertEquals(4, result1.get("deletedSessionsCount")); // 4 out of 5 removed
+
+        List<RevisionSession> remaining = firestoreService.getRevisionsForCourse(courseWithoutValide.id());
+        Assertions.assertEquals(1, remaining.size());
+        Assertions.assertEquals(LocalDate.of(2026, 9, 27), remaining.get(0).scheduledDate(), "Must keep the target S-2 Sunday");
+
+        // Now test when there are VALIDE sessions
+        Course courseWithValide = new Course(
+            "course-legacy-valide", "ue1", "UE1", "Biochimie Valide", "#0284c7", "Pr. Legacy",
+            mondaySept7, 3, "EN_COURS", List.of(), "", List.of(), List.of(),
+            LocalDateTime.now(), LocalDateTime.now()
+        );
+        firestoreService.saveCourse(courseWithValide);
+
+        // 3 Sundays, 2 of them VALIDE, 1 A_FAIRE
+        firestoreService.saveRevision(new RevisionSession(
+            "rev-val-1", courseWithValide.id(), courseWithValide.title(), courseWithValide.ueId(), courseWithValide.ueCode(), courseWithValide.color(),
+            4, "DIM", LocalDate.of(2026, 9, 13), LocalDate.of(2026, 9, 13), "VALIDE", null, null, null, null, ""
+        ));
+        firestoreService.saveRevision(new RevisionSession(
+            "rev-val-2", courseWithValide.id(), courseWithValide.title(), courseWithValide.ueId(), courseWithValide.ueCode(), courseWithValide.color(),
+            4, "DIM", LocalDate.of(2026, 9, 20), LocalDate.of(2026, 9, 20), "VALIDE", null, null, null, null, ""
+        ));
+        firestoreService.saveRevision(new RevisionSession(
+            "rev-pending-3", courseWithValide.id(), courseWithValide.title(), courseWithValide.ueId(), courseWithValide.ueCode(), courseWithValide.color(),
+            4, "DIM", LocalDate.of(2026, 9, 27), null, "A_FAIRE", null, null, null, null, ""
+        ));
+
+        java.util.Map<String, Object> result2 = firestoreService.cleanupLegacyRecurringSundays();
+        Assertions.assertEquals(1, result2.get("deletedSessionsCount")); // Pending Sunday removed, 2 VALIDE preserved
+
+        List<RevisionSession> remainingValide = firestoreService.getRevisionsForCourse(courseWithValide.id());
+        Assertions.assertEquals(2, remainingValide.size());
+        Assertions.assertTrue(remainingValide.stream().allMatch(r -> "VALIDE".equals(r.status())));
     }
 }

@@ -198,7 +198,8 @@ public class RevisionController {
     public record CreateRevisionRequest(
         String courseId,
         Integer jStep,
-        LocalDate scheduledDate
+        LocalDate scheduledDate,
+        String stepType
     ) {}
 
     @Post
@@ -237,6 +238,10 @@ public class RevisionController {
         LocalDate today = LocalDate.now();
         String status = scheduledDate.isBefore(today) ? "EN_RETARD" : "A_FAIRE";
 
+        String effectiveStepType = (request.stepType() != null && !request.stepType().isBlank())
+            ? request.stepType()
+            : RevisionSession.inferStepType(jStep, scheduledDate);
+
         RevisionSession session = new RevisionSession(
             sessionId,
             course.id(),
@@ -245,6 +250,7 @@ public class RevisionController {
             ue.code(),
             sessionColor,
             jStep,
+            effectiveStepType,
             scheduledDate,
             null,
             status,
@@ -256,8 +262,14 @@ public class RevisionController {
         );
 
         firestoreService.saveRevision(session);
-        LOG.info("Created custom revision session J{} for course '{}' scheduled on {}", jStep, course.title(), scheduledDate);
+        LOG.info("Created custom revision session {} (step {}) for course '{}' scheduled on {}", effectiveStepType, jStep, course.title(), scheduledDate);
         return HttpResponse.created(session);
+    }
+
+    @Post("/cleanup-legacy-sundays")
+    public HttpResponse<Map<String, Object>> cleanupLegacySundays() {
+        Map<String, Object> result = firestoreService.cleanupLegacyRecurringSundays();
+        return HttpResponse.ok(result);
     }
 
     @Delete("/{id}")

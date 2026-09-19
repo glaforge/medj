@@ -164,7 +164,7 @@ export const DeleteRevisionModal: React.FC<DeleteRevisionModalProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                  Seule la séance du {formattedDate} sera retirée. Les révisions programmées les dimanches suivants resteront actives dans votre planning.
+                  Seule la séance du {formattedDate} sera retirée. Les autres révisions de ce cours resteront actives dans votre planning.
                 </p>
               </div>
             </label>
@@ -196,7 +196,7 @@ export const DeleteRevisionModal: React.FC<DeleteRevisionModalProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-                  Toutes les révisions du dimanche programmées à partir du {formattedDate} jusqu'à la fin du semestre seront supprimées pour ce cours (idéal lorsque le cours est désormais maîtrisé).
+                  Toutes les séances de révision programmées à partir du {formattedDate} seront supprimées pour ce cours (idéal lorsque le cours est désormais maîtrisé).
                 </p>
               </div>
             </label>

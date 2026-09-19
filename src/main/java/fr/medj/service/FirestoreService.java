@@ -11,6 +11,9 @@ import org.slf4j.LoggerFactory;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.DayOfWeek;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ForkJoinPool;
@@ -144,7 +147,7 @@ public class FirestoreService {
                     ivs != null ? ivs.stream().map(Long::intValue).collect(Collectors.toList()) : List.of(),
                     thresh != null ? thresh.intValue() : 6,
                     autoSm != null ? autoSm : true,
-                    fac != null ? fac : "Paliers Cognitifs PASS (APP, QCM, ERR, SAM, DIM)",
+                    fac != null ? fac : "Paliers Cognitifs PASS (APP, QCM, ERR, VEN, SAM, DIM)",
                     gCalId != null ? gCalId : "",
                     calSync != null ? calSync : true
                 );
@@ -152,6 +155,9 @@ public class FirestoreService {
 
             LOG.info("Successfully synced data from Cloud Firestore: {} subjects, {} courses, {} revisions, {} QCMs",
                 subjects.size(), courses.size(), revisions.size(), qcms.size());
+
+            // Migration & Nettoyage automatique des anciens dimanches récurrents
+            cleanupLegacyRecurringSundays();
         } catch (Exception e) {
             LOG.warn("Failed to load initial dataset from Cloud Firestore: {}", e.getMessage());
         }
@@ -389,6 +395,86 @@ public class FirestoreService {
             asyncDelete("revisions", revId);
         }
         return true;
+    }
+
+    /**
+     * Nettoie les anciens dimanches 'DIM' récurrents pour les cours déjà enregistrés :
+     * 1. Conserve STRICTEMENT toutes les séances validées (VALIDE) par l'étudiante.
+     * 2. Pour les séances non validées (A_FAIRE, EN_RETARD, REPORTE), ne conserve au maximum qu'une seule séance DIM :
+     *    - La séance dont la date est égale ou la plus proche du dimanche cible S-2 (taughtDate + 16 jours depuis le vendredi de la semaine).
+     *    - Toutes les séances dimanches récurrentes superflues sont supprimées de la mémoire et purgées de Firestore.
+     */
+    public Map<String, Object> cleanupLegacyRecurringSundays() {
+        int cleanedCoursesCount = 0;
+        int deletedSessionsCount = 0;
+
+        for (Course course : courses.values()) {
+            if (course.id() == null || course.taughtDate() == null) continue;
+
+            LocalDate taughtDate = course.taughtDate();
+            LocalDate fridayDate = taughtDate.with(TemporalAdjusters.nextOrSame(DayOfWeek.FRIDAY));
+            LocalDate targetSunday = fridayDate.plusDays(16);
+
+            // Trouver toutes les révisions de ce cours positionnées un dimanche ou de type DIM
+            List<RevisionSession> courseSundays = revisions.values().stream()
+                .filter(r -> course.id().equals(r.courseId()))
+                .filter(r -> "DIM".equals(r.stepType()) ||
+                             r.id().contains("-dim-") ||
+                             (r.scheduledDate() != null && r.scheduledDate().getDayOfWeek() == DayOfWeek.SUNDAY && r.jStep() >= 4))
+                .sorted(Comparator.comparing(RevisionSession::scheduledDate))
+                .toList();
+
+            if (courseSundays.size() <= 1) {
+                // S'il n'y a qu'un seul dimanche (ou aucun), rien de superflu à supprimer
+                continue;
+            }
+
+            // Vérifier si des séances sont déjà validées
+            List<RevisionSession> valides = courseSundays.stream()
+                .filter(r -> "VALIDE".equals(r.status()))
+                .toList();
+
+            List<RevisionSession> toDelete = new ArrayList<>();
+
+            if (!valides.isEmpty()) {
+                // Si l'élève a déjà validé une séance dimanche, on conserve toutes les séances validées
+                // et on supprime toutes les séances non validées restantes
+                for (RevisionSession s : courseSundays) {
+                    if (!"VALIDE".equals(s.status())) {
+                        toDelete.add(s);
+                    }
+                }
+            } else {
+                // Aucune séance validée : on cherche la séance la plus proche de targetSunday
+                RevisionSession toKeep = courseSundays.stream()
+                    .min(Comparator.comparingLong(r -> Math.abs(ChronoUnit.DAYS.between(r.scheduledDate(), targetSunday))))
+                    .orElse(courseSundays.get(0));
+
+                for (RevisionSession s : courseSundays) {
+                    if (!s.id().equals(toKeep.id())) {
+                        toDelete.add(s);
+                    }
+                }
+            }
+
+            if (!toDelete.isEmpty()) {
+                cleanedCoursesCount++;
+                for (RevisionSession del : toDelete) {
+                    revisions.remove(del.id());
+                    asyncDelete("revisions", del.id());
+                    deletedSessionsCount++;
+                }
+            }
+        }
+
+        LOG.info("Cleanup completed: removed {} redundant recurring Sunday sessions across {} courses",
+            deletedSessionsCount, cleanedCoursesCount);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("cleanedCoursesCount", cleanedCoursesCount);
+        result.put("deletedSessionsCount", deletedSessionsCount);
+        result.put("status", "SUCCESS");
+        return result;
     }
 
     // --- QCMs ---

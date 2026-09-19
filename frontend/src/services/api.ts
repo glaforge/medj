@@ -2,6 +2,7 @@ import {
   SubjectUE,
   Course,
   RevisionSession,
+  RevisionStepType,
   QcmQuestion,
   Flashcard,
   FlashcardReviewRating,
@@ -247,13 +248,21 @@ export const api = {
     return res.json();
   },
 
-  async createRevisionSession(courseId: string, jStep?: number, scheduledDate?: string): Promise<RevisionSession> {
+  async createRevisionSession(courseId: string, jStep?: number, scheduledDate?: string, stepType?: RevisionStepType | string): Promise<RevisionSession> {
     const res = await authFetch(`${API_BASE}/revisions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ courseId, jStep, scheduledDate }),
+      body: JSON.stringify({ courseId, jStep, scheduledDate, stepType }),
     });
     if (!res.ok) throw new Error('Failed to create revision session');
+    return res.json();
+  },
+
+  async cleanupLegacySundays(): Promise<{ status: string; cleanedCoursesCount: number; deletedSessionsCount: number }> {
+    const res = await authFetch(`${API_BASE}/revisions/cleanup-legacy-sundays`, {
+      method: 'POST'
+    });
+    if (!res.ok) throw new Error('Failed to cleanup legacy sundays');
     return res.json();
   },
 
