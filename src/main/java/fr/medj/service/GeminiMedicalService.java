@@ -963,7 +963,7 @@ public class GeminiMedicalService {
                     }
                     for (byte[] pdfBytes : attachedPdfs) {
                         String b64 = java.util.Base64.getEncoder().encodeToString(pdfBytes);
-                        contents.add(dev.langchain4j.data.message.PdfFileContent.from(b64));
+                        contents.add(dev.langchain4j.data.message.PdfFileContent.from(b64, "application/pdf"));
                     }
                     result = tutorAiService.chat(contents);
                 } else {

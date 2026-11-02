@@ -362,6 +362,12 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
       attachments: readyAttachments.length > 0 ? readyAttachments : undefined
     };
 
+    const targetThreadId = activeThreadId || ('thread-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8));
+    if (!activeThreadId) {
+      setActiveThreadId(targetThreadId);
+    }
+
+    const previousMsgCount = messages.filter(m => m.id !== 'welcome').length;
     setMessages(prev => [...prev, userMsg]);
     setInputQuestion('');
     clearStagedAttachments();
@@ -377,7 +383,7 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
         courseContext,
         currentCourse?.id,
         currentCourse?.title,
-        activeThreadId || undefined,
+        targetThreadId,
         readyAttachments.length > 0 ? readyAttachments : undefined
       );
 
@@ -413,16 +419,42 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
       setThreads(updatedThreads);
 
     } catch (e) {
-      console.error(e);
-      setMessages(prev => [
-        ...prev,
-        {
-          id: 'err-' + Date.now(),
-          role: 'model',
-          content: "Désolé, une erreur s'est produite lors de la communication avec Gemini. Veuillez réessayer.",
-          timestamp: new Date().toISOString()
+      console.error('Tutor request error, checking if response completed in background:', e);
+      let recovered = false;
+      for (let attempt = 0; attempt < 6; attempt++) {
+        try {
+          if (attempt > 0) {
+            await new Promise(r => setTimeout(r, 5000));
+          }
+          const remoteThread = await api.getTutorThread(targetThreadId);
+          if (
+            remoteThread &&
+            remoteThread.messages &&
+            remoteThread.messages.length > previousMsgCount + 1 &&
+            remoteThread.messages[remoteThread.messages.length - 1].role === 'model'
+          ) {
+            setMessages(remoteThread.messages);
+            const updatedThreads = await api.getTutorThreads();
+            setThreads(updatedThreads);
+            recovered = true;
+            break;
+          }
+        } catch {
+          // thread not ready yet
         }
-      ]);
+      }
+
+      if (!recovered) {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: 'err-' + Date.now(),
+            role: 'model',
+            content: "Désolé, une erreur s'est produite lors de la communication avec Gemini. Veuillez réessayer.",
+            timestamp: new Date().toISOString()
+          }
+        ]);
+      }
     } finally {
       setIsLoading(false);
     }

@@ -13,7 +13,23 @@ import {
 } from '../types';
 import { getAuthToken } from './firebase';
 
-const API_BASE = '/api';
+const CLOUD_RUN_BACKEND_ORIGIN = 'https://medj-backend-ze6rvvn4za-ew.a.run.app';
+
+const getApiBase = (): string => {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (
+      host === 'medj.web.app' ||
+      host === 'medj-505807.web.app' ||
+      host === 'medj-505807.firebaseapp.com'
+    ) {
+      return `${CLOUD_RUN_BACKEND_ORIGIN}/api`;
+    }
+  }
+  return '/api';
+};
+
+const API_BASE = getApiBase();
 
 async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const token = await getAuthToken();

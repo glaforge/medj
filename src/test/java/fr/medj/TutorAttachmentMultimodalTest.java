@@ -195,7 +195,11 @@ public class TutorAttachmentMultimodalTest {
         byte[] fakePng = new byte[]{(byte) 0x89, 'P', 'N', 'G'};
         String b64 = java.util.Base64.getEncoder().encodeToString(fakePng);
         dev.langchain4j.data.message.ImageContent imageContent = dev.langchain4j.data.message.ImageContent.from(b64, "image/png");
-        dev.langchain4j.data.message.PdfFileContent pdfContent = dev.langchain4j.data.message.PdfFileContent.from(b64);
+        dev.langchain4j.data.message.PdfFileContent pdfContent = dev.langchain4j.data.message.PdfFileContent.from(b64, "application/pdf");
+
+        assertNotNull(pdfContent.pdfFile().base64Data(), "PdfFileContent must store base64Data, not treat base64 as a relative URI");
+        assertEquals("application/pdf", pdfContent.pdfFile().mimeType());
+        assertNull(pdfContent.pdfFile().url());
 
         dev.langchain4j.model.chat.ChatModel mockModel = org.mockito.Mockito.mock(dev.langchain4j.model.chat.ChatModel.class);
         org.mockito.ArgumentCaptor<dev.langchain4j.model.chat.request.ChatRequest> captor =

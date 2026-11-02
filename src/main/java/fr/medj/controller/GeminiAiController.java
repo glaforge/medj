@@ -11,6 +11,8 @@ import io.micronaut.http.HttpStatus;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.*;
 import io.micronaut.http.multipart.CompletedFileUpload;
+import io.micronaut.scheduling.TaskExecutors;
+import io.micronaut.scheduling.annotation.ExecuteOn;
 import io.micronaut.security.annotation.Secured;
 import io.micronaut.security.rules.SecurityRule;
 import io.micronaut.serde.annotation.Serdeable;
@@ -28,6 +30,7 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+@ExecuteOn(TaskExecutors.BLOCKING)
 @Secured(SecurityRule.IS_ANONYMOUS)
 @Controller("/api/gemini")
 public class GeminiAiController {
@@ -660,8 +663,7 @@ public class GeminiAiController {
         // Determine or generate summarized thread title
         String summaryTitle;
         boolean needsSummary = (thread == null)
-            || isInvalidOrPlaceholderTitle(thread.title())
-            || (thread.messages() != null && thread.messages().size() <= 4);
+            || isInvalidOrPlaceholderTitle(thread.title());
 
         if (needsSummary) {
             String courseTitle = effectiveCourseTitle != null ? effectiveCourseTitle : (thread != null ? thread.courseTitle() : null);

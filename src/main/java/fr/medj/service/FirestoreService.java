@@ -703,6 +703,19 @@ public class FirestoreService {
                 mm.put("courseId", m.courseId());
                 mm.put("courseTitle", m.courseTitle());
                 mm.put("timestamp", m.timestamp() != null ? m.timestamp().toString() : LocalDateTime.now().toString());
+                if (m.attachments() != null && !m.attachments().isEmpty()) {
+                    List<Map<String, Object>> atts = new ArrayList<>();
+                    for (TutorAttachment att : m.attachments()) {
+                        Map<String, Object> am = new HashMap<>();
+                        am.put("id", att.id());
+                        am.put("filename", att.filename());
+                        am.put("mimeType", att.mimeType());
+                        am.put("storageUrl", att.storageUrl());
+                        am.put("fileSize", att.fileSize());
+                        atts.add(am);
+                    }
+                    mm.put("attachments", atts);
+                }
                 msgs.add(mm);
             }
             data.put("messages", msgs);
