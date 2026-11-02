@@ -50,8 +50,9 @@ echo "🌐 [3/3] Déploiement du Frontend sur Firebase Hosting..."
 TMP_KEY_FILE=""
 SA_EMAIL="firebase-adminsdk-fbsvc@${PROJECT_ID}.iam.gserviceaccount.com"
 if [[ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]]; then
-  TMP_KEY_FILE=$(mktemp /tmp/fb-deploy-XXXXXX.json)
+  TMP_KEY_FILE="/tmp/fb-deploy-$$.json"
   if gcloud iam service-accounts keys create "$TMP_KEY_FILE" --iam-account="$SA_EMAIL" --project="$PROJECT_ID" --quiet >/dev/null 2>&1; then
+    sleep 5
     export GOOGLE_APPLICATION_CREDENTIALS="$TMP_KEY_FILE"
   else
     rm -f "$TMP_KEY_FILE"
