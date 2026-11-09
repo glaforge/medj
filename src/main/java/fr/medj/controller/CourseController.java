@@ -464,22 +464,23 @@ public class CourseController {
         if (filename == null || filename.isBlank()) {
             return HttpResponse.notFound();
         }
-        File file = storageService.getFile(filename);
-        if (!file.exists()) {
-            LOG.warn("Requested storage file '{}' not found in local cache or GCS", filename);
-            return HttpResponse.notFound();
-        }
         try {
-            byte[] bytes = Files.readAllBytes(file.toPath());
-            String contentType = Files.probeContentType(file.toPath());
-            if (contentType == null) {
-                String lower = filename.toLowerCase();
-                if (lower.endsWith(".png")) contentType = "image/png";
-                else if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) contentType = "image/jpeg";
-                else if (lower.endsWith(".svg")) contentType = "image/svg+xml";
-                else if (lower.endsWith(".webp")) contentType = "image/webp";
-                else if (lower.endsWith(".pdf")) contentType = "application/pdf";
+            byte[] bytes = storageService.readFileBytes(filename);
+            if (bytes == null || bytes.length == 0) {
+                LOG.warn("Requested storage file '{}' not found in local cache or GCS", filename);
+                return HttpResponse.notFound();
             }
+            String contentType = null;
+            String lower = filename.toLowerCase();
+            if (lower.endsWith(".png")) contentType = "image/png";
+            else if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) contentType = "image/jpeg";
+            else if (lower.endsWith(".svg")) contentType = "image/svg+xml";
+            else if (lower.endsWith(".webp")) contentType = "image/webp";
+            else if (lower.endsWith(".gif")) contentType = "image/gif";
+            else if (lower.endsWith(".pdf")) contentType = "application/pdf";
+            else if (lower.endsWith(".txt") || lower.endsWith(".md")) contentType = "text/plain; charset=utf-8";
+            else if (lower.endsWith(".csv")) contentType = "text/csv; charset=utf-8";
+
             return HttpResponse.ok(bytes)
                 .contentType(contentType != null ? MediaType.of(contentType) : MediaType.APPLICATION_OCTET_STREAM_TYPE)
                 .header("Cache-Control", "public, max-age=86400");

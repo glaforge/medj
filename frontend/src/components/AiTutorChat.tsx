@@ -152,6 +152,29 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
     });
   };
 
+  const retryStagedAttachment = async (id: string): Promise<TutorAttachment | null> => {
+    const target = stagedAttachments.find(i => i.id === id);
+    if (!target) return null;
+
+    setStagedAttachments(prev => prev.map(item =>
+      item.id === id ? { ...item, isUploading: true, error: undefined } : item
+    ));
+
+    try {
+      const uploaded = await api.uploadTutorFile(target.file);
+      setStagedAttachments(prev => prev.map(item =>
+        item.id === id ? { ...item, isUploading: false, attachment: uploaded, error: undefined } : item
+      ));
+      return uploaded;
+    } catch (err) {
+      console.error('Retry upload failed for tutor file', err);
+      setStagedAttachments(prev => prev.map(item =>
+        item.id === id ? { ...item, isUploading: false, error: 'Échec du téléversement' } : item
+      ));
+      return null;
+    }
+  };
+
   const removeStagedAttachment = (id: string) => {
     setStagedAttachments(prev => {
       const item = prev.find(i => i.id === id);
@@ -346,9 +369,21 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
       return;
     }
 
-    const readyAttachments = stagedAttachments
-      .map(a => a.attachment)
-      .filter((a): a is TutorAttachment => !!a);
+    // If any staged attachment previously failed to upload, retry automatically before sending
+    const readyAttachments: TutorAttachment[] = [];
+    for (const item of stagedAttachments) {
+      if (item.attachment) {
+        readyAttachments.push(item.attachment);
+      } else {
+        const retried = await retryStagedAttachment(item.id);
+        if (retried) {
+          readyAttachments.push(retried);
+        } else {
+          alert(`Le téléversement du document "${item.file.name}" a échoué. Veuillez réessayer ou retirer le fichier avant d'envoyer votre message.`);
+          return;
+        }
+      }
+    }
 
     const effectiveText = q.trim() || "Peux-tu analyser ce document joint et m'en faire une explication détaillée pour le concours PASS ?";
 
@@ -1394,9 +1429,14 @@ export const AiTutorChat: React.FC<AiTutorChatProps> = ({
                         </span>
                       )}
                       {item.error && (
-                        <span className="text-rose-600 dark:text-rose-400 font-medium">
-                          {item.error}
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => retryStagedAttachment(item.id)}
+                          className="text-rose-600 dark:text-rose-400 hover:underline font-semibold flex items-center gap-1"
+                          title="Cliquer pour réessayer le téléversement"
+                        >
+                          <span>{item.error} (Réessayer)</span>
+                        </button>
                       )}
                     </div>
                   </div>

@@ -49,9 +49,21 @@ public class StorageService {
         this.localStorageDir = Paths.get(localStoragePath).toAbsolutePath();
         try {
             Files.createDirectories(this.localStorageDir);
+            if (!Files.isWritable(this.localStorageDir)) {
+                throw new IOException("Directory is not writable: " + this.localStorageDir);
+            }
             LOG.info("MedJ local storage directory initialized at {}", this.localStorageDir);
         } catch (IOException e) {
-            LOG.error("Failed to create local storage directory: {}", e.getMessage());
+            Path fallbackDir = Paths.get(System.getProperty("java.io.tmpdir", "/tmp"), "medj-uploads").toAbsolutePath();
+            LOG.warn("Primary local storage directory '{}' unavailable ({}), falling back to '{}'",
+                this.localStorageDir, e.getMessage(), fallbackDir);
+            this.localStorageDir = fallbackDir;
+            try {
+                Files.createDirectories(this.localStorageDir);
+                LOG.info("MedJ fallback local storage directory initialized at {}", this.localStorageDir);
+            } catch (IOException ex) {
+                LOG.error("Failed to create fallback local storage directory {}: {}", this.localStorageDir, ex.getMessage());
+            }
         }
 
         try {
@@ -69,11 +81,21 @@ public class StorageService {
     public String storeFile(String filename, String mimeType, InputStream inputStream) throws IOException {
         String safeName = UUID.randomUUID() + "_" + sanitizeFilename(filename);
         byte[] bytes = inputStream.readAllBytes();
+        boolean storedLocally = false;
+        boolean storedInGcs = false;
+        IOException localError = null;
 
-        // 1. Always write locally for fast retrieval
-        Path targetPath = localStorageDir.resolve(safeName);
-        try (FileOutputStream out = new FileOutputStream(targetPath.toFile())) {
-            out.write(bytes);
+        // 1. Write locally for fast retrieval
+        try {
+            Files.createDirectories(localStorageDir);
+            Path targetPath = localStorageDir.resolve(safeName);
+            try (FileOutputStream out = new FileOutputStream(targetPath.toFile())) {
+                out.write(bytes);
+            }
+            storedLocally = true;
+        } catch (IOException e) {
+            localError = e;
+            LOG.warn("Could not write file '{}' to local cache '{}': {}", safeName, localStorageDir, e.getMessage());
         }
 
         // 2. Upload to Google Cloud Storage if available
@@ -84,22 +106,37 @@ public class StorageService {
                     .setContentType(mimeType != null ? mimeType : "application/octet-stream")
                     .build();
                 gcsStorage.create(blobInfo, bytes);
+                storedInGcs = true;
                 LOG.info("Successfully uploaded file '{}' to GCS bucket '{}' ({} bytes)", safeName, bucketName, bytes.length);
             } catch (Exception e) {
                 LOG.warn("Failed to upload to GCS, kept in local storage: {}", e.getMessage());
             }
         }
 
-        LOG.info("Stored file {} ({} bytes)", safeName, bytes.length);
+        if (!storedLocally && !storedInGcs) {
+            throw localError != null ? localError : new IOException("Failed to store file locally or in GCS: " + safeName);
+        }
+
+        LOG.info("Stored file {} ({} bytes, local={}, gcs={})", safeName, bytes.length, storedLocally, storedInGcs);
         return "/api/storage/" + safeName;
     }
 
     public String storeImageBytes(String filenamePrefix, byte[] imageBytes) throws IOException {
         String safeName = (filenamePrefix != null ? sanitizeFilename(filenamePrefix) : "illus") + "_" + UUID.randomUUID() + ".png";
+        boolean storedLocally = false;
+        boolean storedInGcs = false;
+        IOException localError = null;
 
         // 1. Write locally
-        Path targetPath = localStorageDir.resolve(safeName);
-        Files.write(targetPath, imageBytes);
+        try {
+            Files.createDirectories(localStorageDir);
+            Path targetPath = localStorageDir.resolve(safeName);
+            Files.write(targetPath, imageBytes);
+            storedLocally = true;
+        } catch (IOException e) {
+            localError = e;
+            LOG.warn("Could not write image '{}' to local cache '{}': {}", safeName, localStorageDir, e.getMessage());
+        }
 
         // 2. Upload to GCS
         if (gcsStorage != null && bucketName != null && !bucketName.isBlank()) {
@@ -109,13 +146,18 @@ public class StorageService {
                     .setContentType("image/png")
                     .build();
                 gcsStorage.create(blobInfo, imageBytes);
+                storedInGcs = true;
                 LOG.info("Successfully uploaded image '{}' to GCS bucket '{}' ({} bytes)", safeName, bucketName, imageBytes.length);
             } catch (Exception e) {
                 LOG.warn("Failed to upload image to GCS, kept in local storage: {}", e.getMessage());
             }
         }
 
-        LOG.info("Stored image {} ({} bytes)", safeName, imageBytes.length);
+        if (!storedLocally && !storedInGcs) {
+            throw localError != null ? localError : new IOException("Failed to store image locally or in GCS: " + safeName);
+        }
+
+        LOG.info("Stored image {} ({} bytes, local={}, gcs={})", safeName, imageBytes.length, storedLocally, storedInGcs);
         return "/api/storage/" + safeName;
     }
 
@@ -128,6 +170,7 @@ public class StorageService {
             try {
                 Blob blob = gcsStorage.get(BlobId.of(bucketName, safe));
                 if (blob != null && blob.exists()) {
+                    Files.createDirectories(localStorageDir);
                     Files.write(localPath, blob.getContent());
                     LOG.info("Downloaded missing file '{}' from GCS bucket '{}'", safe, bucketName);
                 }
@@ -151,7 +194,12 @@ public class StorageService {
                 Blob blob = gcsStorage.get(BlobId.of(bucketName, safe));
                 if (blob != null && blob.exists()) {
                     byte[] content = blob.getContent();
-                    Files.write(path, content);
+                    try {
+                        Files.createDirectories(localStorageDir);
+                        Files.write(path, content);
+                    } catch (IOException cacheErr) {
+                        LOG.debug("Could not cache GCS file '{}' locally: {}", safe, cacheErr.getMessage());
+                    }
                     return content;
                 }
             } catch (Exception e) {

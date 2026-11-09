@@ -356,4 +356,21 @@ public class TutorAttachmentMultimodalTest {
         assertEquals(2, deserialized.createdFlashcards().size());
         assertEquals(2, deserialized.allFlashcards().size());
     }
+
+    @Test
+    void testStorageServiceFallbackToTmpWhenPrimaryDirNotWritable() throws IOException {
+        // Simulate Cloud Run read-only /workspace/./uploads path by pointing to a path under /dev/null
+        StorageService readOnlyFallbackStorage = new StorageService("/dev/null/impossible-uploads-dir");
+        byte[] sampleImg = new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0};
+        String url = readOnlyFallbackStorage.storeFile(
+            "photo_exercice_q8.jpg",
+            "image/jpeg",
+            new java.io.ByteArrayInputStream(sampleImg)
+        );
+        assertNotNull(url);
+        assertTrue(url.startsWith("/api/storage/"));
+
+        byte[] readBack = readOnlyFallbackStorage.readFileBytes(url);
+        assertArrayEquals(sampleImg, readBack);
+    }
 }
