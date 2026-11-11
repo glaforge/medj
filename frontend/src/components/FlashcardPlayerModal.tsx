@@ -25,6 +25,8 @@ interface FlashcardPlayerModalProps {
   flashcards: Flashcard[];
   initialIndex?: number;
   courseTitle?: string;
+  totalPoolCount?: number;
+  onDrawNewRandomSubset?: () => void;
   onToggleFavorite: (id: string) => Promise<void>;
   onRecordReview: (id: string, rating: FlashcardReviewRating) => Promise<void>;
 }
@@ -35,6 +37,8 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
   flashcards,
   initialIndex = 0,
   courseTitle,
+  totalPoolCount,
+  onDrawNewRandomSubset,
   onToggleFavorite,
   onRecordReview
 }) => {
@@ -301,7 +305,9 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
                 )}
               </div>
               <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400">
-                {totalCards > 0 ? `Carte ${currentIndex + 1} sur ${totalCards}` : 'Aucune carte'}
+                {totalCards > 0
+                  ? `Carte ${currentIndex + 1} sur ${totalCards}${totalPoolCount && totalPoolCount > totalCards ? ` • Tirage au hasard sur ${totalPoolCount}` : ''}`
+                  : 'Aucune carte'}
               </p>
             </div>
           </div>
@@ -382,7 +388,10 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
                   Session de révision terminée !
                 </h3>
                 <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                  Vous avez révisé <strong className="text-slate-900 dark:text-white">{totalCards}</strong> flashcards.
+                  Vous avez révisé <strong className="text-slate-900 dark:text-white">{totalCards}</strong> flashcard{totalCards > 1 ? 's' : ''}
+                  {totalPoolCount && totalPoolCount > totalCards ? (
+                    <span> (tirées au hasard parmi <strong className="text-slate-900 dark:text-white">{totalPoolCount}</strong>)</span>
+                  ) : null}.
                 </p>
               </div>
 
@@ -403,20 +412,32 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
               </div>
 
               {/* Action buttons */}
-              <div className="flex flex-col sm:flex-row gap-2 sm:gap-2.5 justify-center pt-1 sm:pt-2">
+              <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-2.5 justify-center pt-1 sm:pt-2">
+                {onDrawNewRandomSubset && totalPoolCount && totalPoolCount > totalCards && (
+                  <button
+                    type="button"
+                    onClick={onDrawNewRandomSubset}
+                    className="flex items-center justify-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-950/20 transition-all cursor-pointer"
+                  >
+                    <Shuffle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" aria-hidden="true" />
+                    <span className="text-white">Nouveau tirage ({totalCards} cartes)</span>
+                  </button>
+                )}
                 <button
+                  type="button"
                   onClick={handleRestartAll}
                   className="flex items-center justify-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-950/20 transition-all cursor-pointer"
                 >
-                  <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span>Recommencer tout le paquet</span>
+                  <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" aria-hidden="true" />
+                  <span>{totalPoolCount && totalPoolCount > totalCards ? `Recommencer ces ${totalCards} cartes` : 'Recommencer tout le paquet'}</span>
                 </button>
                 {Object.values(ratings).some(r => r === 'AGAIN' || r === 'HARD') && (
                   <button
+                    type="button"
                     onClick={handleRestartFailed}
                     className="flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 transition-all cursor-pointer shadow-2xs"
                   >
-                    <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-600 dark:text-rose-400" />
+                    <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-600 dark:text-rose-400" aria-hidden="true" />
                     <span>Revoir les cartes à revoir</span>
                   </button>
                 )}

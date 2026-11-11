@@ -298,6 +298,19 @@ export const FlashcardBankView: React.FC<FlashcardBankViewProps> = ({
   const getSubject = (ueCode?: string) => ueCode ? subjects.find(s => s.code?.toLowerCase() === ueCode.toLowerCase()) : undefined;
   const favoriteCount = flashcards.filter(f => f.isFavorite).length;
 
+  const getFilteredDeckTitle = () => {
+    const base =
+      selectedCourseId !== 'ALL'
+        ? courses.find(c => c.id === selectedCourseId)?.title || 'Cours sélectionné'
+        : selectedUe !== 'ALL'
+        ? `Flashcards ${selectedUe}`
+        : 'Toutes les flashcards';
+    const parts = [base];
+    if (favoriteOnly) parts.push('Favoris ⭐');
+    if (difficultyFilter !== 'ALL') parts.push(`Difficulté ${difficultyFilter}/5`);
+    return parts.join(' • ');
+  };
+
   return (
     <div className="space-y-6 animate-fadeIn">
       
@@ -353,12 +366,13 @@ export const FlashcardBankView: React.FC<FlashcardBankViewProps> = ({
 
           {/* Start Study Player on filtered selection */}
           <button
-            onClick={() => onStartStudy(filteredCards, 0, selectedCourseId !== 'ALL' ? courses.find(c => c.id === selectedCourseId)?.title : (selectedUe !== 'ALL' ? `Flashcards ${selectedUe}` : 'Toutes les flashcards'))}
+            type="button"
+            onClick={() => onStartStudy(filteredCards, 0, getFilteredDeckTitle())}
             disabled={filteredCards.length === 0}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-950/20 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0"
           >
-            <Play className="w-3.5 h-3.5 fill-white" />
-            <span>S'entraîner ({filteredCards.length})</span>
+            <Play className="w-3.5 h-3.5 fill-white text-white" aria-hidden="true" />
+            <span className="text-white">S'entraîner ({filteredCards.length})</span>
           </button>
         </div>
       </div>

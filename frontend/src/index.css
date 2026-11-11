@@ -379,6 +379,17 @@ html.light .fixed.inset-0.bg-slate-950\/80 {
   background-color: rgba(15, 23, 42, 0.45) !important;
 }
 
+/* Native <dialog> Top-Layer Modal Styling */
+dialog.study-setup-dialog::backdrop {
+  background-color: rgba(2, 6, 23, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+html.light dialog.study-setup-dialog::backdrop {
+  background-color: rgba(15, 23, 42, 0.45);
+}
+
 /* Brand Gradient in Light Mode */
 html.light .bg-gradient-to-r.from-white {
   background-image: linear-gradient(to right, #0f172a, #0369a1, #0284c7) !important;

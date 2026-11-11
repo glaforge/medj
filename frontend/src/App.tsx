@@ -20,6 +20,8 @@ import { FlashcardBankView } from './components/FlashcardBankView';
 import { EditQcmModal } from './components/EditQcmModal';
 import { EditFlashcardModal } from './components/EditFlashcardModal';
 import { FlashcardPlayerModal } from './components/FlashcardPlayerModal';
+import { FlashcardStudySetupModal } from './components/FlashcardStudySetupModal';
+import { pickRandomFlashcards } from './utils/flashcardStudyUtils';
 import { EditSubjectModal } from './components/EditSubjectModal';
 import { AiTutorChat } from './components/AiTutorChat';
 import { QcmTrainerModal } from './components/QcmTrainerModal';
@@ -118,6 +120,10 @@ export const App: React.FC = () => {
   const [editFlashcardCourseId, setEditFlashcardCourseId] = useState<string | undefined>(undefined);
   const [editFlashcardOnSaved, setEditFlashcardOnSaved] = useState<((card: Flashcard) => void) | null>(null);
   const [lastSavedFlashcard, setLastSavedFlashcard] = useState<Flashcard | null>(null);
+  const [isFlashcardStudySetupOpen, setIsFlashcardStudySetupOpen] = useState(false);
+  const [studyPoolFlashcards, setStudyPoolFlashcards] = useState<Flashcard[]>([]);
+  const [activeSubsetCount, setActiveSubsetCount] = useState<number | null>(null);
+  const [seenSubsetIds, setSeenSubsetIds] = useState<Set<string>>(new Set());
   const [isFlashcardPlayerOpen, setIsFlashcardPlayerOpen] = useState(false);
   const [playerFlashcards, setPlayerFlashcards] = useState<Flashcard[]>([]);
   const [playerInitialIndex, setPlayerInitialIndex] = useState(0);
@@ -482,15 +488,55 @@ export const App: React.FC = () => {
       showToast('Aucune flashcard à étudier.');
       return;
     }
-    setPlayerFlashcards(cards);
+    setStudyPoolFlashcards(cards);
     setPlayerInitialIndex(initialIndex);
     setPlayerDeckTitle(title);
+
+    if (cards.length === 1) {
+      setActiveSubsetCount(null);
+      setSeenSubsetIds(new Set());
+      setPlayerFlashcards(cards);
+      setIsFlashcardPlayerOpen(true);
+      return;
+    }
+
+    setIsFlashcardStudySetupOpen(true);
+  };
+
+  const handleConfirmFlashcardStudySession = (subsetCount: number | null) => {
+    setIsFlashcardStudySetupOpen(false);
+    if (subsetCount === null || subsetCount >= studyPoolFlashcards.length) {
+      setActiveSubsetCount(null);
+      setSeenSubsetIds(new Set());
+      setPlayerFlashcards(studyPoolFlashcards);
+      setIsFlashcardPlayerOpen(true);
+      return;
+    }
+
+    const sampled = pickRandomFlashcards(studyPoolFlashcards, subsetCount);
+    setActiveSubsetCount(subsetCount);
+    setSeenSubsetIds(new Set(sampled.map(c => c.id)));
+    setPlayerFlashcards(sampled);
+    setPlayerInitialIndex(0);
     setIsFlashcardPlayerOpen(true);
   };
 
+  const handleDrawNewRandomSubset = () => {
+    if (!activeSubsetCount || studyPoolFlashcards.length === 0) return;
+    const baseSeen = seenSubsetIds.size >= studyPoolFlashcards.length ? new Set<string>() : seenSubsetIds;
+    const sampled = pickRandomFlashcards(studyPoolFlashcards, activeSubsetCount, baseSeen);
+    const nextSeen = new Set(baseSeen);
+    sampled.forEach(c => nextSeen.add(c.id));
+    setSeenSubsetIds(nextSeen);
+    setPlayerFlashcards(sampled);
+    setPlayerInitialIndex(0);
+  };
+
   const handleToggleFlashcardFavorite = async (id: string) => {
+    setStudyPoolFlashcards(prev => prev.map(c => c.id === id ? { ...c, isFavorite: !c.isFavorite } : c));
     try {
       await api.toggleFlashcardFavorite(id);
+      setRevisionUpdateTrigger(prev => prev + 1);
     } catch (e) {
       console.error('Failed to toggle favorite', e);
     }
@@ -930,12 +976,22 @@ export const App: React.FC = () => {
         defaultCourseId={editFlashcardCourseId}
       />
 
+      <FlashcardStudySetupModal
+        isOpen={isFlashcardStudySetupOpen}
+        onClose={() => setIsFlashcardStudySetupOpen(false)}
+        totalCount={studyPoolFlashcards.length}
+        deckTitle={playerDeckTitle}
+        onStartSession={handleConfirmFlashcardStudySession}
+      />
+
       <FlashcardPlayerModal
         isOpen={isFlashcardPlayerOpen}
         onClose={() => setIsFlashcardPlayerOpen(false)}
         flashcards={playerFlashcards}
         initialIndex={playerInitialIndex}
         courseTitle={playerDeckTitle}
+        totalPoolCount={activeSubsetCount ? studyPoolFlashcards.length : undefined}
+        onDrawNewRandomSubset={activeSubsetCount ? handleDrawNewRandomSubset : undefined}
         onToggleFavorite={handleToggleFlashcardFavorite}
         onRecordReview={handleRecordFlashcardReview}
       />
