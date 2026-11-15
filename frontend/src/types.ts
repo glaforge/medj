@@ -173,6 +173,8 @@ export interface Flashcard {
   reviewCount?: number;
   lastReviewedAt?: string;
   createdAt: string;
+  frontImages?: string[];
+  backImages?: string[];
 }
 
 export type FlashcardReviewRating = 'AGAIN' | 'HARD' | 'GOOD' | 'EASY';

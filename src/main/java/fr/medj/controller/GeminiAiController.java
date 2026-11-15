@@ -1062,21 +1062,28 @@ public class GeminiAiController {
             ? flashcard.ueId()
             : courseOpt.map(Course::ueId).orElse("ue1");
 
+        List<String> frontImages = flashcard.frontImages() != null ? flashcard.frontImages() : List.of();
+        List<String> backImages = flashcard.backImages() != null ? flashcard.backImages() : List.of();
+        String frontText = flashcard.front() != null ? flashcard.front() : (frontImages.isEmpty() ? "Question" : "");
+        String backText = flashcard.back() != null ? flashcard.back() : (backImages.isEmpty() ? "Réponse" : "");
+
         Flashcard toSave = new Flashcard(
             id,
             courseId,
             courseTitle,
             ueCode,
             ueId,
-            flashcard.front() != null ? flashcard.front() : "Question",
-            flashcard.back() != null ? flashcard.back() : "Réponse",
+            frontText,
+            backText,
             flashcard.hint(),
             flashcard.difficulty() > 0 ? flashcard.difficulty() : 3,
             flashcard.isFavorite(),
             flashcard.tags() != null ? flashcard.tags() : List.of(),
             flashcard.reviewCount(),
             flashcard.lastReviewedAt(),
-            flashcard.createdAt() != null ? flashcard.createdAt() : LocalDateTime.now()
+            flashcard.createdAt() != null ? flashcard.createdAt() : LocalDateTime.now(),
+            frontImages,
+            backImages
         );
         Flashcard saved = firestoreService.saveFlashcard(toSave);
         return HttpResponse.created(saved);
@@ -1085,18 +1092,28 @@ public class GeminiAiController {
     @Put("/flashcards/{id}")
     public HttpResponse<Flashcard> updateFlashcard(@PathVariable String id, @Body Flashcard flashcard) {
         if (flashcard == null) return HttpResponse.badRequest();
-        String courseId = (flashcard.courseId() != null && !flashcard.courseId().isBlank()) ? flashcard.courseId() : "course-general";
+        Optional<Flashcard> existingOpt = firestoreService.getFlashcard(id);
+        String courseId = (flashcard.courseId() != null && !flashcard.courseId().isBlank())
+            ? flashcard.courseId()
+            : existingOpt.map(Flashcard::courseId).orElse("course-general");
         Optional<Course> courseOpt = firestoreService.getCourse(courseId);
 
         String courseTitle = (flashcard.courseTitle() != null && !flashcard.courseTitle().isBlank())
             ? flashcard.courseTitle()
-            : courseOpt.map(Course::title).orElse("Cours PASS");
+            : courseOpt.map(Course::title).or(() -> existingOpt.map(Flashcard::courseTitle)).orElse("Cours PASS");
         String ueCode = (flashcard.ueCode() != null && !flashcard.ueCode().isBlank())
             ? flashcard.ueCode()
-            : courseOpt.map(Course::ueCode).orElse("UE");
+            : courseOpt.map(Course::ueCode).or(() -> existingOpt.map(Flashcard::ueCode)).orElse("UE");
         String ueId = (flashcard.ueId() != null && !flashcard.ueId().isBlank())
             ? flashcard.ueId()
-            : courseOpt.map(Course::ueId).orElse("ue1");
+            : courseOpt.map(Course::ueId).or(() -> existingOpt.map(Flashcard::ueId)).orElse("ue1");
+
+        List<String> frontImages = flashcard.frontImages() != null
+            ? flashcard.frontImages()
+            : existingOpt.map(Flashcard::frontImages).orElse(List.of());
+        List<String> backImages = flashcard.backImages() != null
+            ? flashcard.backImages()
+            : existingOpt.map(Flashcard::backImages).orElse(List.of());
 
         Flashcard toSave = new Flashcard(
             id,
@@ -1104,15 +1121,17 @@ public class GeminiAiController {
             courseTitle,
             ueCode,
             ueId,
-            flashcard.front(),
-            flashcard.back(),
+            flashcard.front() != null ? flashcard.front() : existingOpt.map(Flashcard::front).orElse(""),
+            flashcard.back() != null ? flashcard.back() : existingOpt.map(Flashcard::back).orElse(""),
             flashcard.hint(),
-            flashcard.difficulty(),
+            flashcard.difficulty() > 0 ? flashcard.difficulty() : existingOpt.map(Flashcard::difficulty).orElse(3),
             flashcard.isFavorite(),
-            flashcard.tags(),
-            flashcard.reviewCount(),
-            flashcard.lastReviewedAt(),
-            flashcard.createdAt() != null ? flashcard.createdAt() : LocalDateTime.now()
+            flashcard.tags() != null ? flashcard.tags() : existingOpt.map(Flashcard::tags).orElse(List.of()),
+            flashcard.reviewCount() > 0 ? flashcard.reviewCount() : existingOpt.map(Flashcard::reviewCount).orElse(0),
+            flashcard.lastReviewedAt() != null ? flashcard.lastReviewedAt() : existingOpt.map(Flashcard::lastReviewedAt).orElse(null),
+            flashcard.createdAt() != null ? flashcard.createdAt() : existingOpt.map(Flashcard::createdAt).orElseGet(LocalDateTime::now),
+            frontImages,
+            backImages
         );
         Flashcard updated = firestoreService.saveFlashcard(toSave);
         return HttpResponse.ok(updated);
@@ -1136,12 +1155,22 @@ public class GeminiAiController {
     @Serdeable
     public record ReviewFlashcardRequest(String rating) {}
 
+    @Serdeable
+    public record ResetFlashcardReviewsRequest(@Nullable List<String> cardIds) {}
+
     @Post("/flashcards/{id}/review")
-    public HttpResponse<Flashcard> recordFlashcardReview(@PathVariable String id, @Body ReviewFlashcardRequest request) {
-        String rating = request != null ? request.rating() : "GOOD";
+    public HttpResponse<Flashcard> recordFlashcardReview(@PathVariable String id, @Nullable @Body ReviewFlashcardRequest request) {
+        String rating = request != null && request.rating() != null ? request.rating() : "GOOD";
         return firestoreService.recordFlashcardReview(id, rating)
             .map(HttpResponse::ok)
             .orElseGet(HttpResponse::notFound);
+    }
+
+    @Post("/flashcards/reset-reviews")
+    public HttpResponse<Map<String, Object>> resetFlashcardReviews(@Nullable @Body ResetFlashcardReviewsRequest request) {
+        List<String> cardIds = request != null ? request.cardIds() : null;
+        int resetCount = firestoreService.resetFlashcardReviews(cardIds);
+        return HttpResponse.ok(Map.of("resetCount", resetCount));
     }
 
     @Post("/flashcards/{id}/verify")

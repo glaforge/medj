@@ -26,6 +26,7 @@ import { PrintFlashcardsModal } from './PrintFlashcardsModal';
 import { DeleteRevisionModal } from './DeleteRevisionModal';
 import { DeleteCourseModal } from './DeleteCourseModal';
 import { KnowledgeGenerationModal } from './KnowledgeGenerationModal';
+import { FlashcardImageLightbox } from './FlashcardImageLightbox';
 import { getLocalTodayString, parseDate } from '../utils/dateUtils';
 import { getContrastTextColor } from '../utils/colorUtils';
 import { getStepInfo } from '../utils/stepUtils';
@@ -135,6 +136,11 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
   const [globalShowAnswers, setGlobalShowAnswers] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [isPrintFlashcardsModalOpen, setIsPrintFlashcardsModalOpen] = useState(false);
+  const [flashcardLightboxState, setFlashcardLightboxState] = useState<{
+    images: string[];
+    index: number;
+    sideLabel: string;
+  } | null>(null);
   const [diagramScan, setDiagramScan] = useState<HandwrittenScanResult | null>(null);
 
   const fileUploadRef = useRef<HTMLInputElement>(null);
@@ -1278,9 +1284,17 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-800/30">
-                      Flashcard
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-800/30">
+                        Flashcard
+                      </span>
+                      {((fc.frontImages?.length || 0) + (fc.backImages?.length || 0)) > 0 && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                          <ImageIcon className="w-3 h-3 text-amber-500" aria-hidden="true" />
+                          <span>{(fc.frontImages?.length || 0) + (fc.backImages?.length || 0)}</span>
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
@@ -1309,9 +1323,37 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
                       </button>
                     </div>
                   </div>
-                  <div className="text-xs font-semibold text-slate-800 dark:text-slate-100 line-clamp-2 leading-snug">
-                    <MarkdownRenderer content={fc.front} />
-                  </div>
+                  {fc.front && fc.front.trim().length > 0 && (
+                    <div className="text-xs font-semibold text-slate-800 dark:text-slate-100 line-clamp-2 leading-snug">
+                      <MarkdownRenderer content={fc.front} />
+                    </div>
+                  )}
+                  {fc.frontImages && fc.frontImages.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                      {fc.frontImages.map((imgUrl, imgIdx) => (
+                        <button
+                          key={`${imgUrl}-${imgIdx}`}
+                          type="button"
+                          onClick={() =>
+                            setFlashcardLightboxState({
+                              images: fc.frontImages!,
+                              index: imgIdx,
+                              sideLabel: 'Recto (Question)'
+                            })
+                          }
+                          aria-label={`Agrandir la photo ${imgIdx + 1} du recto`}
+                          className="rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 hover:border-amber-500 transition-colors cursor-zoom-in"
+                        >
+                          <img
+                            src={imgUrl}
+                            alt={`Recto — photo ${imgIdx + 1}`}
+                            loading="lazy"
+                            className="h-14 w-16 object-cover"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   {fc.hint && (
                     <div className="text-[11px] text-amber-700 dark:text-amber-300/90 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/30 px-2 py-0.5 rounded truncate">
                       💡 {fc.hint}
@@ -2260,6 +2302,14 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
         mode={knowledgeModalMode}
         preselectedSourceId={preselectedSourceId}
         onGenerate={handleGenerateWithKnowledge}
+      />
+
+      <FlashcardImageLightbox
+        images={flashcardLightboxState?.images || []}
+        initialIndex={flashcardLightboxState?.index || 0}
+        sideLabel={flashcardLightboxState?.sideLabel}
+        isOpen={flashcardLightboxState !== null}
+        onClose={() => setFlashcardLightboxState(null)}
       />
 
     </div>

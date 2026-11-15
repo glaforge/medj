@@ -126,7 +126,7 @@ export const FlashcardVerificationModal: React.FC<FlashcardVerificationModalProp
               <span>Flashcard auditée :</span>
             </div>
             <div className="text-xs font-bold text-slate-900 dark:text-slate-200 leading-snug">
-              <strong>Recto :</strong> {flashcard.front}
+              <strong>Recto :</strong> {flashcard.front || ((flashcard.frontImages?.length || 0) > 0 ? `[${flashcard.frontImages!.length} photo(s) jointe(s)]` : '—')}
             </div>
             {flashcard.hint && (
               <div className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center gap-1">

@@ -379,7 +379,16 @@ html.light .fixed.inset-0.bg-slate-950\/80 {
   background-color: rgba(15, 23, 42, 0.45) !important;
 }
 
-/* Native <dialog> Top-Layer Modal Styling */
+/* Native <dialog> Top-Layer Modal Styling & Scroll Containment */
+dialog:modal {
+  overscroll-behavior: contain;
+}
+
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
 dialog.study-setup-dialog::backdrop {
   background-color: rgba(2, 6, 23, 0.8);
   backdrop-filter: blur(12px);
@@ -388,6 +397,12 @@ dialog.study-setup-dialog::backdrop {
 
 html.light dialog.study-setup-dialog::backdrop {
   background-color: rgba(15, 23, 42, 0.45);
+}
+
+dialog.flashcard-lightbox-dialog::backdrop {
+  background-color: rgba(2, 6, 23, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 /* Brand Gradient in Light Mode */

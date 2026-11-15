@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Flashcard, FlashcardReviewRating } from '../types';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { FlashcardImageLightbox } from './FlashcardImageLightbox';
 import {
   X,
   Shuffle,
@@ -16,7 +17,8 @@ import {
   Sparkles,
   AlertCircle,
   RefreshCw,
-  Link2
+  Link2,
+  ZoomIn
 } from 'lucide-react';
 
 interface FlashcardPlayerModalProps {
@@ -26,9 +28,10 @@ interface FlashcardPlayerModalProps {
   initialIndex?: number;
   courseTitle?: string;
   totalPoolCount?: number;
+  unseenRemainingCount?: number;
   onDrawNewRandomSubset?: () => void;
   onToggleFavorite: (id: string) => Promise<void>;
-  onRecordReview: (id: string, rating: FlashcardReviewRating) => Promise<void>;
+  onRecordReview: (id: string, rating: FlashcardReviewRating, sessionTimestamp?: number) => Promise<void>;
 }
 
 export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
@@ -38,6 +41,7 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
   initialIndex = 0,
   courseTitle,
   totalPoolCount,
+  unseenRemainingCount,
   onDrawNewRandomSubset,
   onToggleFavorite,
   onRecordReview
@@ -52,6 +56,14 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
   const [isFinished, setIsFinished] = useState<boolean>(false);
   const [isNavigating, setIsNavigating] = useState<boolean>(false);
   const navigationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionTimestampRef = useRef<number>(Date.now());
+  const recordedIdsRef = useRef<Set<string>>(new Set());
+  const flippedIdsRef = useRef<Set<string>>(new Set());
+  const [lightboxState, setLightboxState] = useState<{
+    images: string[];
+    index: number;
+    sideLabel: string;
+  } | null>(null);
 
   // Initialize or re-shuffle deck
   const setupDeck = useCallback((cards: Flashcard[], shuffle: boolean, startIdx: number = 0) => {
@@ -59,6 +71,9 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
       clearTimeout(navigationTimeoutRef.current);
     }
     setIsNavigating(false);
+    sessionTimestampRef.current = Date.now();
+    recordedIdsRef.current = new Set();
+    flippedIdsRef.current = new Set();
     if (!cards || cards.length === 0) {
       setDeck([]);
       return;
@@ -102,13 +117,38 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
 
   const currentCard = deck[currentIndex];
 
+  const ensureCardRecorded = useCallback((card: Flashcard | undefined, rating: FlashcardReviewRating = 'GOOD') => {
+    if (!card || recordedIdsRef.current.has(card.id)) return;
+    recordedIdsRef.current.add(card.id);
+    onRecordReview(card.id, rating, sessionTimestampRef.current).catch(err => {
+      console.error('Failed to record review', err);
+    });
+  }, [onRecordReview]);
+
+  const handleRequestClose = useCallback(() => {
+    if (!isFinished && currentCard && flippedIdsRef.current.has(currentCard.id)) {
+      ensureCardRecorded(currentCard, 'GOOD');
+    }
+    onClose();
+  }, [isFinished, currentCard, ensureCardRecorded, onClose]);
+
   const handleFlip = useCallback(() => {
     if (isNavigating) return;
-    setIsFlipped(prev => !prev);
-  }, [isNavigating]);
+    setIsFlipped(prev => {
+      const nextFlipped = !prev;
+      if (nextFlipped && currentCard) {
+        flippedIdsRef.current.add(currentCard.id);
+      }
+      return nextFlipped;
+    });
+  }, [isNavigating, currentCard]);
 
   const handleNext = useCallback(() => {
     if (isNavigating) return;
+
+    // Even when advancing with "Suivante" / ArrowRight without clicking a rating button,
+    // record that this card was seen in the current session so future days won't repeat it first.
+    ensureCardRecorded(currentCard, 'GOOD');
 
     if (currentIndex < deck.length - 1) {
       if (isFlipped) {
@@ -132,7 +172,7 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
     } else {
       setIsFinished(true);
     }
-  }, [currentIndex, deck.length, isFlipped, isNavigating]);
+  }, [currentIndex, deck.length, isFlipped, isNavigating, currentCard, ensureCardRecorded]);
 
   const handlePrev = useCallback(() => {
     if (isNavigating || currentIndex <= 0) return;
@@ -161,8 +201,9 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
   const handleRating = async (rating: FlashcardReviewRating) => {
     if (!currentCard || isNavigating) return;
     setRatings(prev => ({ ...prev, [currentCard.id]: rating }));
+    recordedIdsRef.current.add(currentCard.id);
     try {
-      await onRecordReview(currentCard.id, rating);
+      await onRecordReview(currentCard.id, rating, sessionTimestampRef.current);
     } catch (e) {
       console.error('Failed to record review', e);
     }
@@ -184,7 +225,7 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
 
   // Keyboard navigation
   useEffect(() => {
-    if (!isOpen || isFinished) return;
+    if (!isOpen || isFinished || lightboxState !== null) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Avoid intercepting if user is in an input/textarea
@@ -245,14 +286,14 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
           break;
         case 'Escape':
           e.preventDefault();
-          onClose();
+          handleRequestClose();
           break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isFinished, isFlipped, isNavigating, handleFlip, handleNext, handlePrev, handleRating, handleToggleFav]);
+  }, [isOpen, isFinished, lightboxState, isFlipped, isNavigating, handleFlip, handleNext, handlePrev, handleRating, handleToggleFav, handleRequestClose]);
 
   if (!isOpen) return null;
 
@@ -358,10 +399,12 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
 
             {/* Close */}
             <button
-              onClick={onClose}
+              type="button"
+              onClick={handleRequestClose}
+              aria-label="Fermer la session de flashcards"
               className="p-1.5 sm:p-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
             >
-              <X className="w-4 h-4 sm:w-5 sm:h-5" />
+              <X className="w-4 h-4 sm:w-5 sm:h-5" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -393,6 +436,13 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
                     <span> (tirées au hasard parmi <strong className="text-slate-900 dark:text-white">{totalPoolCount}</strong>)</span>
                   ) : null}.
                 </p>
+                {typeof unseenRemainingCount === 'number' && totalPoolCount && totalPoolCount > totalCards && (
+                  <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 mt-1">
+                    {unseenRemainingCount > 0
+                      ? `Il reste ${unseenRemainingCount} carte${unseenRemainingCount > 1 ? 's' : ''} inédite${unseenRemainingCount > 1 ? 's' : ''} à découvrir dans cette sélection.`
+                      : 'Toutes les cartes de cette sélection ont été vues au moins une fois (les plus anciennes sortiront en priorité).'}
+                  </p>
+                )}
               </div>
 
               {/* Stats Breakdown */}
@@ -454,7 +504,11 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
                 onClick={handleFlip}
               >
                 <div
-                  className="w-full min-h-[260px] sm:min-h-[360px] md:min-h-[420px] rounded-2xl sm:rounded-3xl relative transition-transform duration-300 shadow-xl sm:shadow-2xl"
+                  className={`w-full ${
+                    (currentCard.frontImages?.length || 0) > 0 || (currentCard.backImages?.length || 0) > 0
+                      ? 'min-h-[340px] sm:min-h-[430px] md:min-h-[480px]'
+                      : 'min-h-[260px] sm:min-h-[360px] md:min-h-[420px]'
+                  } rounded-2xl sm:rounded-3xl relative transition-transform duration-300 shadow-xl sm:shadow-2xl`}
                   style={{
                     transformStyle: 'preserve-3d',
                     transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)'
@@ -495,11 +549,57 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
                       </button>
                     </div>
 
-                    {/* Question Content (Enlarged prominent typography) */}
-                    <div className="my-auto py-3 sm:py-6 text-center overflow-y-auto max-h-[190px] sm:max-h-[280px]">
-                      <div className="text-lg sm:text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white leading-snug sm:leading-relaxed md:leading-normal font-sans">
-                        <MarkdownRenderer content={currentCard.front} />
-                      </div>
+                    {/* Question Content (Text + Optional Photos) */}
+                    <div className="my-auto py-2 sm:py-4 text-center overflow-y-auto max-h-[240px] sm:max-h-[320px] flex flex-col items-center justify-center gap-3">
+                      {currentCard.front && currentCard.front.trim().length > 0 && (
+                        <div className={`${
+                          (currentCard.frontImages?.length || 0) > 0
+                            ? 'text-base sm:text-xl md:text-2xl'
+                            : 'text-lg sm:text-2xl md:text-3xl'
+                        } font-extrabold text-slate-900 dark:text-white leading-snug sm:leading-relaxed md:leading-normal font-sans`}>
+                          <MarkdownRenderer content={currentCard.front} />
+                        </div>
+                      )}
+
+                      {currentCard.frontImages && currentCard.frontImages.length > 0 && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex flex-wrap items-center justify-center gap-2.5 w-full"
+                        >
+                          {currentCard.frontImages.map((imgUrl, idx) => (
+                            <button
+                              key={`${imgUrl}-${idx}`}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLightboxState({
+                                  images: currentCard.frontImages!,
+                                  index: idx,
+                                  sideLabel: 'Recto (Question)'
+                                });
+                              }}
+                              aria-label={`Agrandir la photo ${idx + 1} du recto`}
+                              className="relative group rounded-xl overflow-hidden border border-slate-300 dark:border-slate-700 bg-slate-950/60 shadow-sm hover:border-amber-500 transition-all cursor-zoom-in"
+                            >
+                              <img
+                                src={imgUrl}
+                                alt={`Question — photo ${idx + 1}`}
+                                className={`${
+                                  currentCard.frontImages!.length === 1
+                                    ? currentCard.front?.trim()
+                                      ? 'max-h-[155px] sm:max-h-[195px]'
+                                      : 'max-h-[205px] sm:max-h-[265px]'
+                                    : 'h-28 sm:h-36'
+                                } w-auto max-w-full object-contain`}
+                              />
+                              <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-slate-950/80 text-white text-[10px] font-semibold flex items-center gap-1 opacity-85 group-hover:opacity-100 transition-opacity">
+                                <ZoomIn className="w-3 h-3" aria-hidden="true" />
+                                <span>Zoom</span>
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Front Footer: Hint & Instruction */}
@@ -565,11 +665,58 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
                       </button>
                     </div>
 
-                    {/* Answer Content (Enlarged prominent typography) */}
-                    <div className="my-auto py-3 sm:py-6 overflow-y-auto max-h-[190px] sm:max-h-[280px] text-left">
-                      <div className="text-base sm:text-xl md:text-2xl font-semibold text-slate-900 dark:text-slate-100 leading-snug sm:leading-relaxed md:leading-normal font-sans">
-                        <MarkdownRenderer content={currentCard.back} />
-                      </div>
+                    {/* Answer Content (Text + Optional Photos) */}
+                    <div className="my-auto py-2 sm:py-4 overflow-y-auto max-h-[220px] sm:max-h-[295px] flex flex-col gap-3">
+                      {currentCard.back && currentCard.back.trim().length > 0 && (
+                        <div className={`${
+                          (currentCard.backImages?.length || 0) > 0
+                            ? 'text-sm sm:text-lg md:text-xl'
+                            : 'text-base sm:text-xl md:text-2xl'
+                        } font-semibold text-slate-900 dark:text-slate-100 leading-snug sm:leading-relaxed md:leading-normal font-sans text-left`}>
+                          <MarkdownRenderer content={currentCard.back} />
+                        </div>
+                      )}
+
+                      {currentCard.backImages && currentCard.backImages.length > 0 && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex flex-wrap items-center justify-center gap-2.5 w-full"
+                        >
+                          {currentCard.backImages.map((imgUrl, idx) => (
+                            <button
+                              key={`${imgUrl}-${idx}`}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLightboxState({
+                                  images: currentCard.backImages!,
+                                  index: idx,
+                                  sideLabel: 'Verso (Réponse)'
+                                });
+                              }}
+                              aria-label={`Agrandir la photo ${idx + 1} du verso`}
+                              className="relative group rounded-xl overflow-hidden border border-emerald-300 dark:border-emerald-500/40 bg-slate-950/60 shadow-sm hover:border-emerald-400 transition-all cursor-zoom-in"
+                            >
+                              <img
+                                src={imgUrl}
+                                alt={`Réponse — photo ${idx + 1}`}
+                                {...(!isFlipped ? ({ fetchpriority: 'low' } as any) : {})}
+                                className={`${
+                                  currentCard.backImages!.length === 1
+                                    ? currentCard.back?.trim()
+                                      ? 'max-h-[145px] sm:max-h-[180px]'
+                                      : 'max-h-[195px] sm:max-h-[250px]'
+                                    : 'h-24 sm:h-32'
+                                } w-auto max-w-full object-contain`}
+                              />
+                              <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-slate-950/80 text-white text-[10px] font-semibold flex items-center gap-1 opacity-85 group-hover:opacity-100 transition-opacity">
+                                <ZoomIn className="w-3 h-3" aria-hidden="true" />
+                                <span>Zoom</span>
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Back Footer: Self Evaluation / Next */}
@@ -666,6 +813,14 @@ export const FlashcardPlayerModal: React.FC<FlashcardPlayerModalProps> = ({
           )}
 
         </div>
+
+        <FlashcardImageLightbox
+          images={lightboxState?.images || []}
+          initialIndex={lightboxState?.index || 0}
+          sideLabel={lightboxState?.sideLabel}
+          isOpen={lightboxState !== null}
+          onClose={() => setLightboxState(null)}
+        />
       </div>
     </div>
   );

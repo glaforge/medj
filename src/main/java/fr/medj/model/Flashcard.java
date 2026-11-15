@@ -20,8 +20,29 @@ public record Flashcard(
     List<String> tags,
     int reviewCount,
     @Nullable LocalDateTime lastReviewedAt,
-    LocalDateTime createdAt
+    LocalDateTime createdAt,
+    @Nullable List<String> frontImages, // Photos rattachées au Recto
+    @Nullable List<String> backImages   // Photos rattachées au Verso
 ) {
+    public Flashcard(
+        String id,
+        String courseId,
+        String courseTitle,
+        String ueCode,
+        String ueId,
+        String front,
+        String back,
+        @Nullable String hint,
+        int difficulty,
+        boolean isFavorite,
+        List<String> tags,
+        int reviewCount,
+        @Nullable LocalDateTime lastReviewedAt,
+        LocalDateTime createdAt
+    ) {
+        this(id, courseId, courseTitle, ueCode, ueId, front, back, hint, difficulty, isFavorite, tags, reviewCount, lastReviewedAt, createdAt, List.of(), List.of());
+    }
+
     public Flashcard(
         String id,
         String courseId,
@@ -36,6 +57,6 @@ public record Flashcard(
         List<String> tags,
         LocalDateTime createdAt
     ) {
-        this(id, courseId, courseTitle, ueCode, ueId, front, back, hint, difficulty, isFavorite, tags, 0, null, createdAt);
+        this(id, courseId, courseTitle, ueCode, ueId, front, back, hint, difficulty, isFavorite, tags, 0, null, createdAt, List.of(), List.of());
     }
 }

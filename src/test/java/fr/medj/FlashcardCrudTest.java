@@ -123,4 +123,105 @@ public class FlashcardCrudTest {
         assertNotNull(direct);
         assertEquals(list.get(0).id(), direct.body().id());
     }
+
+    @Test
+    void testResetFlashcardReviewsTargetedAndGlobal() {
+        List<Flashcard> list = firestoreService.getAllFlashcards();
+        assertTrue(list.size() >= 2);
+        String id1 = list.get(0).id();
+        String id2 = list.get(1).id();
+
+        geminiAiController.recordFlashcardReview(id1, new GeminiAiController.ReviewFlashcardRequest("GOOD"));
+        geminiAiController.recordFlashcardReview(id2, new GeminiAiController.ReviewFlashcardRequest("EASY"));
+
+        assertNotNull(firestoreService.getFlashcard(id1).orElseThrow().lastReviewedAt());
+        assertNotNull(firestoreService.getFlashcard(id2).orElseThrow().lastReviewedAt());
+
+        var targetedResp = geminiAiController.resetFlashcardReviews(
+            new GeminiAiController.ResetFlashcardReviewsRequest(List.of(id1))
+        );
+        assertEquals(1, targetedResp.body().get("resetCount"));
+        assertNull(firestoreService.getFlashcard(id1).orElseThrow().lastReviewedAt());
+        assertEquals(1, firestoreService.getFlashcard(id1).orElseThrow().reviewCount());
+        assertNotNull(firestoreService.getFlashcard(id2).orElseThrow().lastReviewedAt());
+
+        var globalResp = geminiAiController.resetFlashcardReviews(null);
+        assertTrue(((Number) globalResp.body().get("resetCount")).intValue() >= 1);
+        assertNull(firestoreService.getFlashcard(id2).orElseThrow().lastReviewedAt());
+    }
+
+    @Test
+    void testFlashcardFrontAndBackPhotosWithOptionalText() {
+        Flashcard imageOnlyFrontInput = new Flashcard(
+            null,
+            "course-ue5-bras",
+            "Anatomie du bras",
+            "UE5",
+            "ue5",
+            "",
+            "1. Nerf médian — 2. Artère brachiale",
+            "Coupe transversale du bras",
+            4,
+            false,
+            List.of("UE5", "Schéma"),
+            0,
+            null,
+            null,
+            List.of("/api/storage/schema-muet-1.png", "/api/storage/schema-muet-2.png"),
+            List.of("/api/storage/schema-legende.png")
+        );
+
+        HttpResponse<Flashcard> createResp = geminiAiController.createFlashcard(imageOnlyFrontInput);
+        Flashcard saved = createResp.body();
+        assertNotNull(saved);
+        assertEquals("", saved.front(), "Empty front text must be allowed when frontImages are attached");
+        assertEquals(List.of("/api/storage/schema-muet-1.png", "/api/storage/schema-muet-2.png"), saved.frontImages());
+        assertEquals(List.of("/api/storage/schema-legende.png"), saved.backImages());
+
+        // Ensure toggleFavorite, recordReview, and resetFlashcardReviews preserve photos
+        Flashcard afterFav = geminiAiController.toggleFlashcardFavorite(saved.id()).body();
+        assertNotNull(afterFav);
+        assertTrue(afterFav.isFavorite());
+        assertEquals(2, afterFav.frontImages().size());
+        assertEquals(1, afterFav.backImages().size());
+
+        Flashcard afterReview = geminiAiController.recordFlashcardReview(
+            saved.id(),
+            new GeminiAiController.ReviewFlashcardRequest("GOOD")
+        ).body();
+        assertNotNull(afterReview);
+        assertEquals(2, afterReview.frontImages().size());
+        assertEquals(1, afterReview.backImages().size());
+
+        geminiAiController.resetFlashcardReviews(
+            new GeminiAiController.ResetFlashcardReviewsRequest(List.of(saved.id()))
+        );
+        Flashcard afterReset = firestoreService.getFlashcard(saved.id()).orElseThrow();
+        assertEquals(2, afterReset.frontImages().size());
+        assertEquals(1, afterReset.backImages().size());
+
+        // Update images (remove one front image, add a second back image)
+        Flashcard updatePayload = new Flashcard(
+            saved.id(),
+            saved.courseId(),
+            saved.courseTitle(),
+            saved.ueCode(),
+            saved.ueId(),
+            "Identifiez les éléments fléchés :",
+            saved.back(),
+            saved.hint(),
+            saved.difficulty(),
+            true,
+            saved.tags(),
+            saved.reviewCount(),
+            saved.lastReviewedAt(),
+            saved.createdAt(),
+            List.of("/api/storage/schema-muet-1.png"),
+            List.of("/api/storage/schema-legende.png", "/api/storage/zoom-histologie.jpg")
+        );
+        Flashcard updated = geminiAiController.updateFlashcard(saved.id(), updatePayload).body();
+        assertNotNull(updated);
+        assertEquals(1, updated.frontImages().size());
+        assertEquals(2, updated.backImages().size());
+    }
 }

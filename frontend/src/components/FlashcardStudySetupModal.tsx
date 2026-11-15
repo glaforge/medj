@@ -4,14 +4,19 @@ import {
   Play,
   Shuffle,
   Layers,
-  AlertCircle
+  AlertCircle,
+  RotateCcw,
+  CheckCircle2
 } from 'lucide-react';
+import { FlashcardPoolSeenStats } from '../utils/flashcardStudyUtils';
 
 interface FlashcardStudySetupModalProps {
   isOpen: boolean;
   onClose: () => void;
   totalCount: number;
   deckTitle?: string;
+  poolStats?: FlashcardPoolSeenStats;
+  onResetSeenHistory?: () => Promise<void>;
   onStartSession: (subsetCount: number | null) => void;
 }
 
@@ -24,6 +29,8 @@ export const FlashcardStudySetupModal: React.FC<FlashcardStudySetupModalProps> =
   onClose,
   totalCount,
   deckTitle,
+  poolStats,
+  onResetSeenHistory,
   onStartSession
 }) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -35,10 +42,12 @@ export const FlashcardStudySetupModal: React.FC<FlashcardStudySetupModalProps> =
   const countInputId = useId();
   const countHelpId = useId();
   const countErrorId = useId();
+  const seenProgressId = useId();
 
   const [studyMode, setStudyMode] = useState<'ALL' | 'SUBSET'>('ALL');
   const [customCountInput, setCustomCountInput] = useState<string>('10');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isResettingHistory, setIsResettingHistory] = useState<boolean>(false);
 
   // Initialize defaults whenever modal opens for a new card pool
   useEffect(() => {
@@ -158,6 +167,16 @@ export const FlashcardStudySetupModal: React.FC<FlashcardStudySetupModalProps> =
     setValidationError(null);
   };
 
+  const handleResetHistory = async () => {
+    if (!onResetSeenHistory || isResettingHistory) return;
+    setIsResettingHistory(true);
+    try {
+      await onResetSeenHistory();
+    } finally {
+      setIsResettingHistory(false);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -275,8 +294,7 @@ export const FlashcardStudySetupModal: React.FC<FlashcardStudySetupModalProps> =
 
             {/* Option 2: Random subset */}
             <div
-              onClick={() => setStudyMode('SUBSET')}
-              className={`p-4 rounded-2xl border-2 transition-all space-y-3.5 cursor-pointer ${
+              className={`p-4 rounded-2xl border-2 transition-all space-y-3.5 ${
                 studyMode === 'SUBSET'
                   ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/20 ring-2 ring-amber-500/20'
                   : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/70 hover:border-slate-300 dark:hover:border-slate-700'
@@ -299,20 +317,62 @@ export const FlashcardStudySetupModal: React.FC<FlashcardStudySetupModalProps> =
                       <span>Sous-ensemble aléatoire</span>
                     </span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-500/15 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30">
-                      Tirage au sort
+                      Mémoire inter-sessions
                     </span>
                   </div>
                   <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                    Choisissez un nombre précis de cartes tirées au hasard parmi les {totalCount} disponibles.
+                    Tirage intelligent qui privilégie d'un jour sur l'autre les cartes non vues, puis les plus anciennes.
                   </p>
                 </div>
               </label>
 
-              {/* Presets + Number Input */}
-              <div
-                className="pl-7 space-y-3"
-                onClick={(e) => e.stopPropagation()}
-              >
+              {/* Presets + Number Input + Long-Term Seen Memory */}
+              <div className="pl-7 space-y-3">
+                {poolStats && poolStats.totalCount > 0 && (
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <label
+                        htmlFor={seenProgressId}
+                        className="text-[11px] font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" aria-hidden="true" />
+                        <span>
+                          {poolStats.unseenCount > 0
+                            ? `${poolStats.unseenCount} carte${poolStats.unseenCount > 1 ? 's' : ''} inédite${poolStats.unseenCount > 1 ? 's' : ''} sur ${poolStats.totalCount}`
+                            : `Cycle complet (${poolStats.totalCount} / ${poolStats.totalCount} vues)`}
+                        </span>
+                      </label>
+
+                      {poolStats.seenTotalCount > 0 && onResetSeenHistory && (
+                        <button
+                          type="button"
+                          onClick={handleResetHistory}
+                          disabled={isResettingHistory}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-slate-600 hover:text-amber-700 dark:text-slate-400 dark:hover:text-amber-300 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 hover:border-amber-400 transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          <RotateCcw className="w-3 h-3 shrink-0" aria-hidden="true" />
+                          <span>{isResettingHistory ? 'Réinitialisation...' : 'Réinitialiser'}</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <progress
+                      id={seenProgressId}
+                      value={poolStats.seenTotalCount}
+                      max={poolStats.totalCount}
+                      className="w-full h-1.5 rounded-full overflow-hidden accent-emerald-600"
+                    />
+
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug">
+                      {poolStats.seenTotalCount === 0
+                        ? 'Aucune carte vue récemment dans cette sélection : toutes ont la même priorité.'
+                        : poolStats.unseenCount > 0
+                        ? `${poolStats.seenTotalCount} carte${poolStats.seenTotalCount > 1 ? 's' : ''} déjà vue${poolStats.seenTotalCount > 1 ? 's' : ''} mise${poolStats.seenTotalCount > 1 ? 's' : ''} de côté tant qu'il reste des inédites.`
+                        : 'Toutes ont été vues au moins une fois : les plus anciennes sortent avant celles vues récemment.'}
+                    </p>
+                  </div>
+                )}
+
                 {availablePresets.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Sélections rapides du nombre de cartes">
                     {availablePresets.map(preset => {
@@ -390,7 +450,7 @@ export const FlashcardStudySetupModal: React.FC<FlashcardStudySetupModalProps> =
           </fieldset>
 
           {/* Footer Actions */}
-          <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5">
+          <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5">
             <button
               type="button"
               onClick={onClose}

@@ -716,6 +716,16 @@ export const api = {
     return res.json();
   },
 
+  async resetFlashcardReviews(cardIds?: string[]): Promise<{ resetCount: number }> {
+    const res = await authFetch(`${API_BASE}/gemini/flashcards/reset-reviews`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cardIds: cardIds && cardIds.length > 0 ? cardIds : null }),
+    });
+    if (!res.ok) throw new Error('Failed to reset flashcard reviews');
+    return res.json();
+  },
+
   async generateFlashcards(
     courseId?: string,
     courseTitle?: string,

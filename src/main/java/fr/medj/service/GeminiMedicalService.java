@@ -1779,7 +1779,9 @@ public class GeminiMedicalService {
                         tags,
                         originalCard.reviewCount(),
                         originalCard.lastReviewedAt(),
-                        originalCard.createdAt()
+                        originalCard.createdAt(),
+                        originalCard.frontImages(),
+                        originalCard.backImages()
                     );
                 } else {
                     correctedCard = originalCard;

@@ -3,6 +3,7 @@ package fr.medj.service;
 import com.google.cloud.firestore.*;
 import fr.medj.model.*;
 import io.micronaut.context.annotation.Value;
+import io.micronaut.core.annotation.Nullable;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
@@ -848,6 +849,8 @@ public class FirestoreService {
         data.put("reviewCount", card.reviewCount());
         data.put("lastReviewedAt", card.lastReviewedAt() != null ? card.lastReviewedAt().toString() : null);
         data.put("createdAt", card.createdAt() != null ? card.createdAt().toString() : LocalDateTime.now().toString());
+        data.put("frontImages", card.frontImages() != null ? card.frontImages() : List.of());
+        data.put("backImages", card.backImages() != null ? card.backImages() : List.of());
         asyncSave("flashcards", card.id(), data);
         return card;
     }
@@ -864,7 +867,8 @@ public class FirestoreService {
         Flashcard updated = new Flashcard(
             existing.id(), existing.courseId(), existing.courseTitle(), existing.ueCode(), existing.ueId(),
             existing.front(), existing.back(), existing.hint(), existing.difficulty(), !existing.isFavorite(),
-            existing.tags(), existing.reviewCount(), existing.lastReviewedAt(), existing.createdAt()
+            existing.tags(), existing.reviewCount(), existing.lastReviewedAt(), existing.createdAt(),
+            existing.frontImages(), existing.backImages()
         );
         saveFlashcard(updated);
         return Optional.of(updated);
@@ -876,10 +880,45 @@ public class FirestoreService {
         Flashcard updated = new Flashcard(
             existing.id(), existing.courseId(), existing.courseTitle(), existing.ueCode(), existing.ueId(),
             existing.front(), existing.back(), existing.hint(), existing.difficulty(), existing.isFavorite(),
-            existing.tags(), existing.reviewCount() + 1, LocalDateTime.now(), existing.createdAt()
+            existing.tags(), existing.reviewCount() + 1, LocalDateTime.now(), existing.createdAt(),
+            existing.frontImages(), existing.backImages()
         );
         saveFlashcard(updated);
         return Optional.of(updated);
+    }
+
+    public int resetFlashcardReviews(@Nullable List<String> cardIds) {
+        int count = 0;
+        if (cardIds != null && !cardIds.isEmpty()) {
+            for (String id : cardIds) {
+                if (id == null) continue;
+                Flashcard existing = flashcards.get(id);
+                if (existing != null && existing.lastReviewedAt() != null) {
+                    Flashcard updated = new Flashcard(
+                        existing.id(), existing.courseId(), existing.courseTitle(), existing.ueCode(), existing.ueId(),
+                        existing.front(), existing.back(), existing.hint(), existing.difficulty(), existing.isFavorite(),
+                        existing.tags(), existing.reviewCount(), null, existing.createdAt(),
+                        existing.frontImages(), existing.backImages()
+                    );
+                    saveFlashcard(updated);
+                    count++;
+                }
+            }
+        } else {
+            for (Flashcard existing : List.copyOf(flashcards.values())) {
+                if (existing.lastReviewedAt() != null) {
+                    Flashcard updated = new Flashcard(
+                        existing.id(), existing.courseId(), existing.courseTitle(), existing.ueCode(), existing.ueId(),
+                        existing.front(), existing.back(), existing.hint(), existing.difficulty(), existing.isFavorite(),
+                        existing.tags(), existing.reviewCount(), null, existing.createdAt(),
+                        existing.frontImages(), existing.backImages()
+                    );
+                    saveFlashcard(updated);
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     // --- Configuration ---
@@ -1106,6 +1145,8 @@ public class FirestoreService {
             String created = doc.getString("createdAt");
             Boolean fav = doc.getBoolean("isFavorite");
             Number revCount = (Number) doc.get("reviewCount");
+            List<String> frontImgs = (List<String>) doc.get("frontImages");
+            List<String> backImgs = (List<String>) doc.get("backImages");
 
             return new Flashcard(
                 doc.getString("id") != null ? doc.getString("id") : doc.getId(),
@@ -1113,15 +1154,17 @@ public class FirestoreService {
                 doc.getString("courseTitle"),
                 doc.getString("ueCode"),
                 doc.getString("ueId"),
-                doc.getString("front"),
-                doc.getString("back"),
+                doc.getString("front") != null ? doc.getString("front") : "",
+                doc.getString("back") != null ? doc.getString("back") : "",
                 doc.getString("hint"),
                 doc.getLong("difficulty") != null ? doc.getLong("difficulty").intValue() : 3,
                 fav != null && fav,
                 (List<String>) doc.get("tags") != null ? (List<String>) doc.get("tags") : List.of(),
                 revCount != null ? revCount.intValue() : 0,
                 lastRev != null ? LocalDateTime.parse(lastRev) : null,
-                created != null ? LocalDateTime.parse(created) : LocalDateTime.now()
+                created != null ? LocalDateTime.parse(created) : LocalDateTime.now(),
+                frontImgs != null ? frontImgs : List.of(),
+                backImgs != null ? backImgs : List.of()
             );
         } catch (Exception e) {
             LOG.warn("Error parsing Flashcard doc {}: {}", doc.getId(), e.getMessage());

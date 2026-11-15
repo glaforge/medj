@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   SubjectUE,
   Course,
@@ -21,7 +21,12 @@ import { EditQcmModal } from './components/EditQcmModal';
 import { EditFlashcardModal } from './components/EditFlashcardModal';
 import { FlashcardPlayerModal } from './components/FlashcardPlayerModal';
 import { FlashcardStudySetupModal } from './components/FlashcardStudySetupModal';
-import { pickRandomFlashcards } from './utils/flashcardStudyUtils';
+import {
+  pickRandomFlashcards,
+  recordFlashcardSeen,
+  resetFlashcardSeenHistory,
+  getFlashcardPoolSeenStats
+} from './utils/flashcardStudyUtils';
 import { EditSubjectModal } from './components/EditSubjectModal';
 import { AiTutorChat } from './components/AiTutorChat';
 import { QcmTrainerModal } from './components/QcmTrainerModal';
@@ -124,6 +129,8 @@ export const App: React.FC = () => {
   const [studyPoolFlashcards, setStudyPoolFlashcards] = useState<Flashcard[]>([]);
   const [activeSubsetCount, setActiveSubsetCount] = useState<number | null>(null);
   const [seenSubsetIds, setSeenSubsetIds] = useState<Set<string>>(new Set());
+  const [seenHistoryVersion, setSeenHistoryVersion] = useState(0);
+  const hasSessionReviewUpdatesRef = useRef(false);
   const [isFlashcardPlayerOpen, setIsFlashcardPlayerOpen] = useState(false);
   const [playerFlashcards, setPlayerFlashcards] = useState<Flashcard[]>([]);
   const [playerInitialIndex, setPlayerInitialIndex] = useState(0);
@@ -483,6 +490,11 @@ export const App: React.FC = () => {
     return saved;
   };
 
+  const flashcardPoolStats = useMemo(
+    () => getFlashcardPoolSeenStats(studyPoolFlashcards),
+    [studyPoolFlashcards, seenHistoryVersion]
+  );
+
   const handleStartStudyFlashcards = (cards: Flashcard[], initialIndex: number = 0, title?: string) => {
     if (!cards || cards.length === 0) {
       showToast('Aucune flashcard à étudier.');
@@ -491,6 +503,7 @@ export const App: React.FC = () => {
     setStudyPoolFlashcards(cards);
     setPlayerInitialIndex(initialIndex);
     setPlayerDeckTitle(title);
+    hasSessionReviewUpdatesRef.current = false;
 
     if (cards.length === 1) {
       setActiveSubsetCount(null);
@@ -505,6 +518,7 @@ export const App: React.FC = () => {
 
   const handleConfirmFlashcardStudySession = (subsetCount: number | null) => {
     setIsFlashcardStudySetupOpen(false);
+    hasSessionReviewUpdatesRef.current = false;
     if (subsetCount === null || subsetCount >= studyPoolFlashcards.length) {
       setActiveSubsetCount(null);
       setSeenSubsetIds(new Set());
@@ -532,6 +546,21 @@ export const App: React.FC = () => {
     setPlayerInitialIndex(0);
   };
 
+  const handleResetFlashcardSeenHistory = async () => {
+    const targetIds = studyPoolFlashcards.map(c => c.id);
+    resetFlashcardSeenHistory(targetIds);
+    setStudyPoolFlashcards(prev => prev.map(c => ({ ...c, lastReviewedAt: undefined })));
+    setSeenSubsetIds(new Set());
+    setSeenHistoryVersion(prev => prev + 1);
+    try {
+      await api.resetFlashcardReviews(targetIds);
+      setRevisionUpdateTrigger(prev => prev + 1);
+    } catch {
+      // Offline / non-blocking fallback: local history is already reset via resetAt
+    }
+    showToast('✓ Historique des cartes vues réinitialisé pour cette sélection.');
+  };
+
   const handleToggleFlashcardFavorite = async (id: string) => {
     setStudyPoolFlashcards(prev => prev.map(c => c.id === id ? { ...c, isFavorite: !c.isFavorite } : c));
     try {
@@ -542,11 +571,45 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleRecordFlashcardReview = async (id: string, rating: FlashcardReviewRating) => {
+  const handleRecordFlashcardReview = async (
+    id: string,
+    rating: FlashcardReviewRating,
+    sessionTimestamp?: number
+  ) => {
+    const ts = sessionTimestamp ?? Date.now();
+    recordFlashcardSeen(id, rating, ts);
+    hasSessionReviewUpdatesRef.current = true;
+    const optimisticIso = new Date(ts).toISOString();
+    setStudyPoolFlashcards(prev =>
+      prev.map(c =>
+        c.id === id
+          ? { ...c, lastReviewedAt: optimisticIso, reviewCount: (c.reviewCount || 0) + 1 }
+          : c
+      )
+    );
+    setSeenHistoryVersion(prev => prev + 1);
+
     try {
-      await api.recordFlashcardReview(id, rating);
+      const updated = await api.recordFlashcardReview(id, rating);
+      if (updated?.lastReviewedAt) {
+        setStudyPoolFlashcards(prev =>
+          prev.map(c =>
+            c.id === id
+              ? { ...c, lastReviewedAt: updated.lastReviewedAt, reviewCount: updated.reviewCount ?? c.reviewCount }
+              : c
+          )
+        );
+      }
     } catch (e) {
       console.error('Failed to record review', e);
+    }
+  };
+
+  const handleCloseFlashcardPlayer = () => {
+    setIsFlashcardPlayerOpen(false);
+    if (hasSessionReviewUpdatesRef.current) {
+      hasSessionReviewUpdatesRef.current = false;
+      setRevisionUpdateTrigger(prev => prev + 1);
     }
   };
 
@@ -981,16 +1044,19 @@ export const App: React.FC = () => {
         onClose={() => setIsFlashcardStudySetupOpen(false)}
         totalCount={studyPoolFlashcards.length}
         deckTitle={playerDeckTitle}
+        poolStats={flashcardPoolStats}
+        onResetSeenHistory={handleResetFlashcardSeenHistory}
         onStartSession={handleConfirmFlashcardStudySession}
       />
 
       <FlashcardPlayerModal
         isOpen={isFlashcardPlayerOpen}
-        onClose={() => setIsFlashcardPlayerOpen(false)}
+        onClose={handleCloseFlashcardPlayer}
         flashcards={playerFlashcards}
         initialIndex={playerInitialIndex}
         courseTitle={playerDeckTitle}
         totalPoolCount={activeSubsetCount ? studyPoolFlashcards.length : undefined}
+        unseenRemainingCount={activeSubsetCount ? flashcardPoolStats.unseenCount : undefined}
         onDrawNewRandomSubset={activeSubsetCount ? handleDrawNewRandomSubset : undefined}
         onToggleFavorite={handleToggleFlashcardFavorite}
         onRecordReview={handleRecordFlashcardReview}

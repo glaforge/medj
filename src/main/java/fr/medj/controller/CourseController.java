@@ -417,16 +417,30 @@ public class CourseController {
 
     @Post(value = "/storage/upload", consumes = MediaType.MULTIPART_FORM_DATA)
     public HttpResponse<Map<String, Object>> uploadFile(CompletedFileUpload file) {
+        if (file == null) {
+            return HttpResponse.badRequest();
+        }
         try {
+            String mimeType = file.getContentType().map(MediaType::getName).orElse("application/octet-stream");
+            String rawName = (file.getFilename() != null && !file.getFilename().isBlank()) ? file.getFilename().trim() : "upload";
+            if (!rawName.contains(".")) {
+                if ("image/png".equalsIgnoreCase(mimeType)) rawName += ".png";
+                else if ("image/jpeg".equalsIgnoreCase(mimeType)) rawName += ".jpg";
+                else if ("image/webp".equalsIgnoreCase(mimeType)) rawName += ".webp";
+                else if ("image/gif".equalsIgnoreCase(mimeType)) rawName += ".gif";
+                else if ("image/avif".equalsIgnoreCase(mimeType)) rawName += ".avif";
+                else if ("image/svg+xml".equalsIgnoreCase(mimeType)) rawName += ".svg";
+            }
+
             String url = storageService.storeFile(
-                file.getFilename(),
-                file.getContentType().map(MediaType::getName).orElse("application/octet-stream"),
+                rawName,
+                mimeType,
                 file.getInputStream()
             );
 
             Map<String, Object> response = new HashMap<>();
             response.put("url", url);
-            response.put("name", file.getFilename());
+            response.put("name", rawName);
             response.put("sizeBytes", file.getSize());
             response.put("uploadedAt", LocalDateTime.now());
 
@@ -477,6 +491,8 @@ public class CourseController {
             else if (lower.endsWith(".svg")) contentType = "image/svg+xml";
             else if (lower.endsWith(".webp")) contentType = "image/webp";
             else if (lower.endsWith(".gif")) contentType = "image/gif";
+            else if (lower.endsWith(".avif")) contentType = "image/avif";
+            else if (lower.endsWith(".heic") || lower.endsWith(".heif")) contentType = "image/heic";
             else if (lower.endsWith(".pdf")) contentType = "application/pdf";
             else if (lower.endsWith(".txt") || lower.endsWith(".md")) contentType = "text/plain; charset=utf-8";
             else if (lower.endsWith(".csv")) contentType = "text/csv; charset=utf-8";

@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { PrintFlashcardsModal } from './PrintFlashcardsModal';
 import { FlashcardVerificationModal } from './FlashcardVerificationModal';
+import { FlashcardImageLightbox } from './FlashcardImageLightbox';
 import { getContrastTextColor } from '../utils/colorUtils';
 import {
   Layers,
@@ -25,7 +26,9 @@ import {
   Link2,
   Share2,
   Printer,
-  ShieldCheck
+  ShieldCheck,
+  Image as ImageIcon,
+  ZoomIn
 } from 'lucide-react';
 
 interface FlashcardBankViewProps {
@@ -66,6 +69,11 @@ export const FlashcardBankView: React.FC<FlashcardBankViewProps> = ({
   const [verifyingCard, setVerifyingCard] = useState<Flashcard | null>(null);
   const [verificationResult, setVerificationResult] = useState<FlashcardVerification | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [lightboxState, setLightboxState] = useState<{
+    images: string[];
+    index: number;
+    sideLabel: string;
+  } | null>(null);
 
   // Immediate reactivity handler when a card is saved/edited
   const handleCardSaved = (saved: Flashcard) => {
@@ -543,12 +551,53 @@ export const FlashcardBankView: React.FC<FlashcardBankViewProps> = ({
 
                 {/* Question (Recto) */}
                 <div className="space-y-2">
-                  <div className="text-xs font-bold text-amber-800 dark:text-amber-400 flex items-center gap-1">
+                  <div className="text-xs font-bold text-amber-800 dark:text-amber-400 flex items-center justify-between gap-2">
                     <span>Recto (Question)</span>
+                    {(card.frontImages?.length || 0) > 0 && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300">
+                        <ImageIcon className="w-3 h-3" aria-hidden="true" />
+                        <span>{card.frontImages!.length}</span>
+                      </span>
+                    )}
                   </div>
-                  <div className="text-xs font-semibold text-slate-900 dark:text-slate-100 line-clamp-3 leading-relaxed font-sans">
-                    <MarkdownRenderer content={card.front} />
-                  </div>
+                  {card.front && card.front.trim().length > 0 && (
+                    <div className="text-xs font-semibold text-slate-900 dark:text-slate-100 line-clamp-3 leading-relaxed font-sans">
+                      <MarkdownRenderer content={card.front} />
+                    </div>
+                  )}
+                  {card.frontImages && card.frontImages.length > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                      {card.frontImages.map((imgUrl, imgIdx) => (
+                        <button
+                          key={`${imgUrl}-${imgIdx}`}
+                          type="button"
+                          onClick={() =>
+                            setLightboxState({
+                              images: card.frontImages!,
+                              index: imgIdx,
+                              sideLabel: 'Recto (Question)'
+                            })
+                          }
+                          aria-label={`Agrandir la photo ${imgIdx + 1} du recto`}
+                          className="relative group/img rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-950/50 hover:border-amber-500 transition-colors cursor-zoom-in"
+                        >
+                          <img
+                            src={imgUrl}
+                            alt={`Recto — photo ${imgIdx + 1}`}
+                            loading="lazy"
+                            className={`${
+                              card.frontImages!.length === 1 && !card.front?.trim()
+                                ? 'h-32 w-full max-w-[240px] object-contain'
+                                : 'h-16 w-20 object-cover'
+                            }`}
+                          />
+                          <span className="absolute inset-0 bg-black/0 group-hover/img:bg-black/35 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity">
+                            <ZoomIn className="w-3.5 h-3.5 text-white drop-shadow" aria-hidden="true" />
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Hint if present */}
@@ -564,17 +613,58 @@ export const FlashcardBankView: React.FC<FlashcardBankViewProps> = ({
                   <button
                     type="button"
                     onClick={() => toggleRevealAnswer(card.id)}
-                    className="flex items-center justify-between w-full text-[11px] font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors"
+                    className="flex items-center justify-between w-full text-[11px] font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors cursor-pointer"
                   >
                     <span className="flex items-center gap-1">
                       {isRevealed ? <EyeOff className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> : <Eye className="w-3 h-3 text-slate-400" />}
                       <span>{isRevealed ? 'Masquer la réponse' : 'Afficher la réponse (Verso)'}</span>
                     </span>
+                    {(card.backImages?.length || 0) > 0 && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300">
+                        <ImageIcon className="w-3 h-3" aria-hidden="true" />
+                        <span>{card.backImages!.length}</span>
+                      </span>
+                    )}
                   </button>
 
                   {isRevealed && (
-                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-emerald-300 dark:border-emerald-500/30 text-xs text-slate-900 dark:text-slate-200 animate-fadeIn">
-                      <MarkdownRenderer content={card.back} />
+                    <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-emerald-300 dark:border-emerald-500/30 text-xs text-slate-900 dark:text-slate-200 animate-fadeIn space-y-2">
+                      {card.back && card.back.trim().length > 0 && (
+                        <MarkdownRenderer content={card.back} />
+                      )}
+                      {card.backImages && card.backImages.length > 0 && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {card.backImages.map((imgUrl, imgIdx) => (
+                            <button
+                              key={`${imgUrl}-${imgIdx}`}
+                              type="button"
+                              onClick={() =>
+                                setLightboxState({
+                                  images: card.backImages!,
+                                  index: imgIdx,
+                                  sideLabel: 'Verso (Réponse)'
+                                })
+                              }
+                              aria-label={`Agrandir la photo ${imgIdx + 1} du verso`}
+                              className="relative group/img rounded-xl overflow-hidden border border-emerald-300 dark:border-emerald-500/40 bg-slate-950/50 hover:border-emerald-400 transition-colors cursor-zoom-in"
+                            >
+                              <img
+                                src={imgUrl}
+                                alt={`Verso — photo ${imgIdx + 1}`}
+                                loading="lazy"
+                                className={`${
+                                  card.backImages!.length === 1 && !card.back?.trim()
+                                    ? 'h-32 w-full max-w-[240px] object-contain'
+                                    : 'h-16 w-20 object-cover'
+                                }`}
+                              />
+                              <span className="absolute inset-0 bg-black/0 group-hover/img:bg-black/35 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity">
+                                <ZoomIn className="w-3.5 h-3.5 text-white drop-shadow" aria-hidden="true" />
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -649,6 +739,14 @@ export const FlashcardBankView: React.FC<FlashcardBankViewProps> = ({
         verificationResult={verificationResult}
         isLoading={isVerifying}
         onApplyCorrection={handleApplyCorrection}
+      />
+
+      <FlashcardImageLightbox
+        images={lightboxState?.images || []}
+        initialIndex={lightboxState?.index || 0}
+        sideLabel={lightboxState?.sideLabel}
+        isOpen={lightboxState !== null}
+        onClose={() => setLightboxState(null)}
       />
 
     </div>
